@@ -1,0 +1,317 @@
+.adminContainer {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 250px;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-right: 1px solid var(--glass-border);
+}
+
+.sidebarLogo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-bottom: 40px;
+    padding: 0 10px;
+}
+
+.sidebarLogo span {
+    color: var(--text-light);
+}
+
+.navItem {
+    padding: 12px 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: var(--text-muted);
+}
+
+.navItem:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-light);
+}
+
+.activeNavItem {
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.mainContent {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    background: #0f172a;
+    /* Deep professional background */
+}
+
+/* Dashboard Redesign */
+.dashboardWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.topBanner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1e293b;
+    padding: 15px 25px;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.topBanner h1 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 2px;
+    color: var(--text-light);
+    text-transform: uppercase;
+}
+
+.dashboardGrid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto auto;
+    gap: 25px;
+}
+
+.kpiColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.kpiCard {
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 200px;
+    background: #1e293b;
+}
+
+.kpiInfo span {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.kpiInfo h2 {
+    font-size: 2.2rem;
+    margin: 10px 0;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.miniChart {
+    height: 60px;
+    width: 100%;
+    margin: 10px 0;
+}
+
+.kpiFooter {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.mainChartCard {
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    background: #1e293b;
+}
+
+.cardHeader h3 {
+    margin: 0 0 25px 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.chartLegend {
+    flex: 1;
+    min-height: 350px;
+}
+
+.smallCard {
+    padding: 25px;
+    background: #1e293b;
+}
+
+.pieCard {
+    padding: 25px;
+    background: #1e293b;
+}
+
+.pieCard h3 {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin: 0 0 20px 0;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* Management Shared Styles */
+.managementHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th {
+    text-align: left;
+    padding: 15px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table td {
+    padding: 15px;
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.badge {
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--primary-color);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+/* Products Layout */
+.productsGrid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 30px;
+}
+
+.column h2 {
+    font-size: 1.1rem;
+    margin: 0 0 20px 0;
+    color: var(--text-light);
+}
+
+/* Modal Styles */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal {
+    width: 100%;
+    max-width: 480px;
+    padding: 35px;
+    background: #1e293b !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal h3 {
+    margin: 0 0 25px 0;
+    color: var(--primary-color);
+    font-size: 1.25rem;
+}
+
+.modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.productCell {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.tableImg {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #1e293b;
+}
+
+@media (max-width: 1200px) {
+    .dashboardGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1024px) {
+    .productsGrid {
+        grid-template-columns: 1fr;
+    }
+}
