@@ -18,7 +18,7 @@ class PedidoEstado(str, enum.Enum):
 
 class Sede(Base):
     __tablename__ = "sedes"
-    id = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, index=True)
     ciudad = Column(String)
 
@@ -31,7 +31,14 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(Enum(UserRole))
-    sede_id = Column(String, ForeignKey("sedes.id"))
+    sede_id = Column(Integer, ForeignKey("sedes.id"))
+    
+    # Nuevos campos para Carnicero / Empleados
+    nombre = Column(String, nullable=True)
+    apellido = Column(String, nullable=True)
+    numero_carnicero = Column(String, nullable=True)
+    is_available = Column(Boolean, default=True)
+    
     session_approved = Column(Integer, default=1) # 1 for auto-approved, 0 for pending?
     # Actually, the user wants Jefe to approve.
     # Let's use Boolean or Integer. 
@@ -74,7 +81,7 @@ class Pedido(Base):
     carnicero_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cliente_nombre = Column(String)
     estado = Column(Enum(PedidoEstado), default=PedidoEstado.PENDIENTE)
-    sede_id = Column(String, ForeignKey("sedes.id"))
+    sede_id = Column(Integer, ForeignKey("sedes.id"))
     observaciones = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -104,7 +111,7 @@ class ButcherAvailability(Base):
     __tablename__ = "butcher_availability"
     id = Column(Integer, primary_key=True, index=True)
     butcher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    sede_id = Column(String, ForeignKey("sedes.id"), nullable=False)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=False)
     date = Column(Date, nullable=False)
     is_available = Column(Boolean, default=True)
     set_by_manager_id = Column(Integer, ForeignKey("users.id"), nullable=False)

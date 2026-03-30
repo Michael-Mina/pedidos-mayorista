@@ -8,13 +8,52 @@ Este proyecto es una aplicación full-stack para la gestión de pedidos de carni
 - Node.js 18+
 - PostgreSQL
 
-## Configuración de la Base de Datos (PostgreSQL en Windows)
+## Configuración y Recreación de la Base de Datos (PostgreSQL)
 
 > [!NOTE]
-> **CONFIGURACIÓN AUTOMATIZADA COMPLETADA**: La base de datos `supertiendas_db` ya ha sido creada e inicializada con todas las tablas y datos necesarios. Ya se ha configurado el archivo `.env` con las credenciales correspondientes.
+> La base de datos `supertiendas_db` ya ha sido creada e inicializada con todas las tablas y datos necesarios. Las credenciales están en el archivo `.env` en la raíz del proyecto.
 
-Si necesitas recrear la base de datos manualmente:
-1. ... (continuación de pasos anteriores como referencia)
+Si necesitas recrear la base de datos desde cero (borrar todo y empezar de nuevo):
+
+### Opción 1: Recreación Automatizada (Recomendada)
+
+Este método utiliza SQLAlchemy para borrar y recrear el esquema basado en los modelos actuales de Python.
+
+1. **Asegúrate de tener el entorno virtual activo:**
+   - Windows: `backend\venv\Scripts\activate`
+   - Linux/Mac: `source backend/venv/bin/activate`
+
+2. **Ejecutar script de limpieza:**
+   ```bash
+   python backend/reset_db.py
+   ```
+   *Este comando borrará todas las tablas y las volverá a crear vacías.*
+
+3. **Cargar datos iniciales (o de prueba):**
+   ```bash
+   python backend/setup_initial_data.py
+   ```
+   *Esto creará una sede central, categorías básicas y un usuario de prueba: `mayorista_test / test123`.*
+
+### Opción 2: Recreación Manual (SQL)
+
+Si prefieres usar SQL puro (via psql o pgAdmin):
+
+1. **Eliminar y Crear base de datos:**
+   ```sql
+   DROP DATABASE IF EXISTS supertiendas_db;
+   CREATE DATABASE supertiendas_db;
+   ```
+
+2. **Ejecutar el script de inicialización:**
+   Importa o ejecuta el contenido de `init_db.sql` en la nueva base de datos.
+   ```bash
+   psql -U tu_usuario -d supertiendas_db -f init_db.sql
+   ```
+
+### Otros Scripts Útiles:
+- `python backend/create_admin.py`: Crea un usuario administrador interactivo.
+- `python backend/migrate_db.py`: Ejecuta migraciones menores (si se requiere).
 
 ## Configuración del Backend (Python)
 

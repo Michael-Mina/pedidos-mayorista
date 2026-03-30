@@ -5,20 +5,40 @@ from .models import UserRole, PedidoEstado
 
 class SedeBase(BaseModel):
     nombre: str
-    ciudad: str
+    ciudad: Optional[str] = "Centro de Operación"
 
 class SedeCreate(SedeBase):
-    id: Optional[str] = None
+    id: Optional[int] = None
+    password: str
+
+class SedeUpdate(BaseModel):
+    nombre: Optional[str] = None
+    ciudad: Optional[str] = None
+    password: Optional[str] = None
 
 class Sede(SedeBase):
-    id: str
+    id: int
     model_config = ConfigDict(from_attributes=True)
 
 class UserBase(BaseModel):
     username: str
     role: UserRole
-    sede_id: str
+    sede_id: int
     session_active: Optional[int] = 0
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    numero_carnicero: Optional[str] = None
+    is_available: Optional[bool] = True
+
+class CarniceroCreate(UserBase):
+    password: str
+
+class CarniceroUpdate(BaseModel):
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    numero_carnicero: Optional[str] = None
+    is_available: Optional[bool] = None
+    password: Optional[str] = None
 
 class User(UserBase):
     id: int
@@ -76,7 +96,7 @@ class DetallePedido(DetallePedidoBase):
 
 class PedidoBase(BaseModel):
     cliente_nombre: str
-    sede_id: str
+    sede_id: int
     observaciones: Optional[str] = None
 
 class PedidoCreate(PedidoBase):
@@ -100,7 +120,7 @@ class Pedido(PedidoBase):
 
 class ButcherAvailabilityBase(BaseModel):
     butcher_id: int
-    sede_id: str
+    sede_id: int
     date: date
     is_available: bool = True
 

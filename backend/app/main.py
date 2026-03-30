@@ -129,7 +129,7 @@ def create_sede(sede: schemas.SedeCreate, db: Session = Depends(get_db)):
     return crud.create_sede(db, sede)
 
 @app.put("/sedes/{sede_id}", response_model=schemas.Sede)
-def update_sede(sede_id: int, sede: schemas.SedeBase, db: Session = Depends(get_db)):
+def update_sede(sede_id: int, sede: schemas.SedeUpdate, db: Session = Depends(get_db)):
     return crud.update_sede(db, sede_id, sede)
 
 @app.delete("/sedes/{sede_id}")
@@ -176,9 +176,37 @@ def read_tipos_corte(db: Session = Depends(get_db)):
 def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
     return crud.get_carniceros_by_sede(db, sede_id)
 
+@app.post("/users/carniceros", response_model=schemas.User)
+def create_carnicero_endpoint(carnicero: schemas.CarniceroCreate, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_username(db, username=carnicero.username)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    password_hash = auth.get_password_hash(carnicero.password)
+    return crud.create_carnicero(db, carnicero, password_hash)
 
+@app.put("/users/carniceros/{user_id}/availability", response_model=schemas.User)
+def update_carnicero_availability_endpoint(user_id: int, is_available: bool, db: Session = Depends(get_db)):
+    db_user = crud.update_carnicero_availability(db, user_id, is_available)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Carnicero no encontrado")
+    return db_user
 
+@app.put("/users/carniceros/{user_id}", response_model=schemas.User)
+def update_carnicero_endpoint(user_id: int, carnicero: schemas.CarniceroUpdate, db: Session = Depends(get_db)):
+    password_hash = None
+    if carnicero.password:
+        password_hash = auth.get_password_hash(carnicero.password)
+    db_user = crud.update_carnicero(db, user_id, carnicero, password_hash)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Carnicero no encontrado")
+    return db_user
 
+@app.delete("/users/carniceros/{user_id}")
+def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
+    db_user = crud.delete_user(db, user_id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Carnicero no encontrado")
+    return {"message": "Carnicero eliminado correctamente"}
 
 @app.get("/users", response_model=List[schemas.User])
 def read_users(db: Session = Depends(get_db)):

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login/Login';
 import Mayorista from './pages/Mayorista/Mayorista';
-import Carnicero from './pages/Carnicero/Carnicero';
+import Sede from './pages/Sede/Sede';
 import Admin from './pages/Admin/Admin';
 
 import JefeCarnes from './pages/JefeCarnes/JefeCarnes';
@@ -28,8 +28,8 @@ const HomeRedirect = () => {
     case 'admin': return <Navigate to="/admin" />;
     case 'mayorista': return <Navigate to="/mayorista" />;
     case 'jefe_carnes': return <Navigate to="/jefe" />;
-    case 'sede_butcher': return <Navigate to="/carnicero" />;
-    case 'carnicero': return <Navigate to="/carnicero" />;
+    case 'sede_butcher': return <Navigate to="/sede" />;
+    case 'carnicero': return <Navigate to="/sede" />;
     default: return <Navigate to="/login" />;
   }
 };
@@ -51,9 +51,9 @@ const App = () => {
                 <Mayorista />
               </ProtectedRoute>
             } />
-            <Route path="/carnicero" element={
+            <Route path="/sede" element={
               <ProtectedRoute allowedRoles={['sede_butcher', 'carnicero']}>
-                <Carnicero />
+                <Sede />
               </ProtectedRoute>
             } />
             <Route path="/jefe" element={

@@ -114,7 +114,7 @@ const Admin = () => {
                 dataToSend = {
                     id: formData.id,
                     nombre: formData.nombre,
-                    ciudad: formData.ciudad || "Centro de Operación"
+                    password: formData.password || null
                 };
             } else if (modalType === 'category') {
                 endpoint = '/categorias';
@@ -526,8 +526,6 @@ const Admin = () => {
                                         <option value="admin">Administrador</option>
                                         <option value="mayorista">Mayorista</option>
                                         <option value="jefe_carnes">Jefe de Carnes</option>
-                                        <option value="sede_butcher">Encargado de Sede (Tablet)</option>
-                                        <option value="carnicero">Carnicero (Solo Selección)</option>
                                     </select>
                                     <select className="input-field" value={formData.sede_id || ''} onChange={e => setFormData({ ...formData, sede_id: e.target.value })} required>
                                         <option value="">Seleccionar Sede</option>
@@ -537,9 +535,9 @@ const Admin = () => {
                             )}
                             {modalType === 'sede' && (
                                 <>
-                                    <input type="text" placeholder="Centro de Operación (C.O)" className="input-field" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value })} required />
-                                    <input placeholder="Nombre Sede" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
-                                    {/* City removed from UI */}
+                                    <input type="text" placeholder="Centro de Operación (C.O)" className="input-field" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value })} disabled={!!editItem} required />
+                                    <input placeholder="Nombre de la sede" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
+                                    <input placeholder={editItem ? "Nueva Contraseña (dejar vacío si no cambia)" : "Contraseña de acceso"} type="password" className="input-field" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editItem} />
                                 </>
                             )}
                             {modalType === 'category' && (

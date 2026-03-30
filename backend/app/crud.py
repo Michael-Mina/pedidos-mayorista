@@ -8,25 +8,58 @@ def get_sedes(db: Session):
     return db.query(models.Sede).all()
 
 def create_sede(db: Session, sede: schemas.SedeCreate):
-    sede_data = sede.model_dump(exclude_none=True)
+    from . import auth
+    # Create Sede
+    sede_data = sede.model_dump(exclude_none=True, exclude={"password"})
     db_sede = models.Sede(**sede_data)
     db.add(db_sede)
     db.commit()
     db.refresh(db_sede)
+    
+    # Create associated Tablet User (Sede Name as username)
+    pw_hash = auth.get_password_hash(sede.password)
+    db_user = models.User(
+        username=db_sede.nombre,
+        role=models.UserRole.SEDE_BUTCHER,
+        sede_id=db_sede.id,
+        password_hash=pw_hash,
+        session_active=0
+    )
+    db.add(db_user)
+    db.commit()
+    
     return db_sede
 
-def update_sede(db: Session, sede_id: int, sede: schemas.SedeBase):
+def update_sede(db: Session, sede_id: int, sede: schemas.SedeUpdate):
+    from . import auth
     db_sede = db.query(models.Sede).filter(models.Sede.id == sede_id).first()
     if db_sede:
-        db_sede.nombre = sede.nombre
-        db_sede.ciudad = sede.ciudad
+        if sede.nombre: db_sede.nombre = sede.nombre
+        if sede.ciudad: db_sede.ciudad = sede.ciudad
         db.commit()
         db.refresh(db_sede)
+        
+        # Update associated User if password or name provided
+        if sede.password or sede.nombre:
+            db_user = db.query(models.User).filter(
+                models.User.sede_id == sede_id,
+                models.User.role == models.UserRole.SEDE_BUTCHER
+            ).first()
+            if db_user:
+                if sede.nombre: db_user.username = sede.nombre
+                if sede.password: db_user.password_hash = auth.get_password_hash(sede.password)
+                db.commit()
     return db_sede
 
 def delete_sede(db: Session, sede_id: int):
     db_sede = db.query(models.Sede).filter(models.Sede.id == sede_id).first()
     if db_sede:
+        # Delete associated tablet user (by sede_id for safety)
+        db.query(models.User).filter(
+            models.User.sede_id == sede_id,
+            models.User.role == models.UserRole.SEDE_BUTCHER
+        ).delete()
+        
         db.delete(db_sede)
         db.commit()
     return db_sede
@@ -107,7 +140,10 @@ def get_stats_top_cuts(db: Session):
 
 # User Management
 def get_users(db: Session):
-    return db.query(models.User).all()
+    return db.query(models.User).filter(
+        models.User.role != models.UserRole.CARNICERO,
+        models.User.role != models.UserRole.SEDE_BUTCHER
+    ).all()
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
@@ -142,6 +178,49 @@ def delete_user(db: Session, user_id: int):
     if db_user:
         db.delete(db_user)
         db.commit()
+    return db_user
+
+def create_carnicero(db: Session, carnicero_data, pw_hash: str):
+    db_user = models.User(
+        username=carnicero_data.username,
+        role=models.UserRole.CARNICERO,
+        sede_id=carnicero_data.sede_id,
+        nombre=carnicero_data.nombre,
+        apellido=carnicero_data.apellido,
+        numero_carnicero=carnicero_data.numero_carnicero,
+        is_available=carnicero_data.is_available,
+        password_hash=pw_hash
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def update_carnicero_availability(db: Session, user_id: int, is_available: bool):
+    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO).first()
+    if db_user:
+        db_user.is_available = is_available
+        db.commit()
+        db.refresh(db_user)
+    return db_user
+
+def update_carnicero(db: Session, user_id: int, carnicero_data: schemas.CarniceroUpdate, password_hash: str = None):
+    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO).first()
+    if db_user:
+        if carnicero_data.nombre is not None:
+            db_user.nombre = carnicero_data.nombre
+        if carnicero_data.apellido is not None:
+            db_user.apellido = carnicero_data.apellido
+        if carnicero_data.numero_carnicero is not None:
+            db_user.numero_carnicero = carnicero_data.numero_carnicero
+            db_user.username = carnicero_data.numero_carnicero # Sincronizar usuario
+        if carnicero_data.is_available is not None:
+            db_user.is_available = carnicero_data.is_available
+        if password_hash:
+            db_user.password_hash = password_hash
+            
+        db.commit()
+        db.refresh(db_user)
     return db_user
 
 # Pedido CRUD
