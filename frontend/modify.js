@@ -132,7 +132,7 @@ content = content.replace(
     personalView + '\n                {/* MODAL ORDER DETAILS */}'
 );
 
-content = content.replace('{/* MODAL ORDER DETAILS */}', \`
+content = content.replace('{/* MODAL ORDER DETAILS */}', `
                 {/* MODAL ADD CARNICERO */}
                 {showAddCarnicero && (
                     <div className={styles.modalOverlay} onClick={() => setShowAddCarnicero(false)}>
@@ -166,7 +166,7 @@ content = content.replace('{/* MODAL ORDER DETAILS */}', \`
                     </div>
                 )}
                 {/* MODAL ORDER DETAILS */}
-\`);
+`);
 
 fs.writeFileSync(path, content, 'utf8');
 console.log('Modified JefeCarnes.jsx successfully');
