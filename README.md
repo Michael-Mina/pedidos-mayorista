@@ -14,27 +14,47 @@ Para obtener instrucciones detalladas sobre la instalación, configuración del 
 
 👉 **[Ver GUÍA DE CONFIGURACIÓN (README_SETUP.md)](./README_SETUP.md)**
 
-## Recreación de la Base de Datos
+## Recreación e Instalación de la Base de Datos
 
-Si necesitas limpiar y recrear la base de datos de manera rápida, sigue estos pasos:
+Si necesitas instalar el proyecto en un equipo nuevo o limpiar la base de datos actual, sigue estos pasos:
 
-1. **Activar el entorno virtual:**
-   ```bash
-   # Windows
-   backend\venv\Scripts\activate
-   ```
+### 1. Requisitos Previos
+- Tener instalado **PostgreSQL**.
+- Asegurarse de que el servicio de PostgreSQL esté corriendo.
 
-2. **Borrar y Recrear tablas:**
-   ```bash
-   python backend/reset_db.py
-   ```
+### 2. Crear la Base de Datos (Manual)
+Desde una terminal o herramienta como pgAdmin, ejecuta:
+```sql
+CREATE DATABASE supertiendas_db;
+```
 
-3. **Cargar datos iniciales:**
-   ```bash
-   python backend/setup_initial_data.py
-   ```
+### 3. Configurar Variables de Entorno
+Copia el archivo `.env.example` a un nuevo archivo llamado `.env` en la raíz (y asegúrate de que también esté configurado en `backend/.env` si es necesario):
+```bash
+cp .env.example .env
+```
+Edita el archivo `.env` con tus credenciales locales de PostgreSQL (`DB_USER`, `DB_PASS`, `DB_HOST`, etc.).
 
-Para más detalles, consulta la sección "Configuración y Recreación" en el [README_SETUP.md](./README_SETUP.md).
+### 4. Inicialización con Scripts
+Una vez configurado el acceso, usa los scripts integrados para construir el esquema y cargar datos iniciales:
+
+1.  **Activar el entorno virtual:**
+    ```bash
+    # Windows
+    backend\venv\Scripts\activate
+    ```
+2.  **Construir/Reiniciar Esquema (Tablas):**
+    ```bash
+    python backend/reset_db.py
+    ```
+3.  **Cargar Datos de Prueba:**
+    ```bash
+    python backend/setup_initial_data.py
+    ```
+
+### 5. Documentación Adicional
+Para más detalles sobre la configuración del backend, frontend y solución de problemas, consulta la:
+👉 **[GUÍA COMPLETA DE CONFIGURACIÓN (README_SETUP.md)](./README_SETUP.md)**
 
 ## Licencia
 Propiedad de Supertiendas Cañaveral.
