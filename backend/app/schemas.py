@@ -62,20 +62,22 @@ class Categoria(CategoriaBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
-class CorteBase(BaseModel):
-    categoria_id: int
-    nombre: str
-    imagen_url: Optional[str] = None
-
-class Corte(CorteBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-
 class TipoCorteBase(BaseModel):
     nombre: str
 
 class TipoCorte(TipoCorteBase):
     id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class CorteBase(BaseModel):
+    categoria_id: int
+    nombre: str
+    imagen_url: Optional[str] = None
+    tipos_corte_ids: Optional[List[int]] = []
+
+class Corte(CorteBase):
+    id: int
+    tipos_corte: List[TipoCorte] = []
     model_config = ConfigDict(from_attributes=True)
 
 class DetallePedidoBase(BaseModel):

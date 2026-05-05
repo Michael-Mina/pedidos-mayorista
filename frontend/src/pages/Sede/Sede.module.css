@@ -1,5 +1,6 @@
 .container {
     height: 100vh;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     background: var(--bg-main);
@@ -72,7 +73,7 @@
 .mainLayout {
     flex: 1;
     display: grid;
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 350px 1fr 350px;
     gap: 20px;
     min-height: 0;
 }
@@ -357,8 +358,8 @@
 }
 
 .finishBtn:hover {
-    transform: scale(1.02);
-    box-shadow: 0 10px 30px rgba(39, 174, 96, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(39, 174, 96, 0.4);
 }
 
 .welcomeState {

@@ -1,9 +1,14 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, Text, Date, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, Text, Date, Boolean, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
 import enum
 
+corte_tipocorte_association = Table(
+    'corte_tipocorte', Base.metadata,
+    Column('corte_id', Integer, ForeignKey('cortes.id', ondelete="CASCADE")),
+    Column('tipo_corte_id', Integer, ForeignKey('tipos_corte.id', ondelete="CASCADE"))
+)
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
     MAYORISTA = "mayorista"
@@ -66,6 +71,7 @@ class Corte(Base):
 
     categoria = relationship("Categoria", back_populates="cortes")
     detalles = relationship("DetallePedido", back_populates="corte")
+    tipos_corte = relationship("TipoCorte", secondary=corte_tipocorte_association, backref="cortes")
 
 class TipoCorte(Base):
     __tablename__ = "tipos_corte"

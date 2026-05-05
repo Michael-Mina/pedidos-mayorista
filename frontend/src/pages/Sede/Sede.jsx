@@ -155,28 +155,6 @@ const Sede = () => {
                         )}
                     </div>
 
-                    <div className={styles.columnHeader} style={{ marginTop: '20px' }}>
-                        <Play size={18} style={{ color: 'var(--warning)' }} />
-                        <h3>EN PREPARACIÓN ({pedidosEnProceso.length})</h3>
-                    </div>
-                    <div className={styles.orderList}>
-                        {pedidosEnProceso.map(pedido => (
-                            <div
-                                key={pedido.id}
-                                className={`${styles.orderCard} ${selectedPedidoId === pedido.id ? styles.active : ''}`}
-                                onClick={() => handleSelectPedido(pedido.id)}
-                                style={{ borderLeft: '4px solid var(--warning)' }}
-                            >
-                                <div className={styles.orderCardTop}>
-                                    <span className={styles.orderId}>#{pedido.id}</span>
-                                    <span className={styles.prepBy}>
-                                        <UserCheck size={12} /> {getButcherName(pedido.carnicero_id)}
-                                    </span>
-                                </div>
-                                <div className={styles.clientName}>{pedido.cliente_nombre}</div>
-                            </div>
-                        ))}
-                    </div>
                 </aside>
 
                 {/* Panel Central: Detalle y Acción */}
@@ -242,13 +220,6 @@ const Sede = () => {
                                         </tbody>
                                     </table>
 
-                                    {selectedPedido.observaciones && (
-                                        <div className={styles.globalObs}>
-                                            <ClipboardList size={16} />
-                                            <span>{selectedPedido.observaciones}</span>
-                                        </div>
-                                    )}
-
                                     {selectedPedido.estado === 'en_proceso' && (
                                         <button
                                             className={styles.finishBtn}
@@ -269,6 +240,35 @@ const Sede = () => {
                         </div>
                     )}
                 </section>
+
+                {/* Panel Derecho: En Preparación */}
+                <aside className={`${styles.sidebar} glass-card`}>
+                    <div className={styles.columnHeader}>
+                        <Play size={18} style={{ color: 'var(--warning)' }} />
+                        <h3>EN PREPARACIÓN ({pedidosEnProceso.length})</h3>
+                    </div>
+                    <div className={styles.orderList}>
+                        {pedidosEnProceso.map(pedido => (
+                            <div
+                                key={pedido.id}
+                                className={`${styles.orderCard} ${selectedPedidoId === pedido.id ? styles.active : ''}`}
+                                onClick={() => handleSelectPedido(pedido.id)}
+                                style={{ borderLeft: '4px solid var(--warning)' }}
+                            >
+                                <div className={styles.orderCardTop}>
+                                    <span className={styles.orderId}>#{pedido.id}</span>
+                                    <span className={styles.prepBy}>
+                                        <UserCheck size={12} /> {getButcherName(pedido.carnicero_id)}
+                                    </span>
+                                </div>
+                                <div className={styles.clientName}>{pedido.cliente_nombre}</div>
+                            </div>
+                        ))}
+                        {pedidosEnProceso.length === 0 && (
+                            <div className={styles.emptyState}>No hay pedidos en preparación.</div>
+                        )}
+                    </div>
+                </aside>
             </main>
         </div>
     );

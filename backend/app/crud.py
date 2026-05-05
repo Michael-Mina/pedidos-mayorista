@@ -93,13 +93,19 @@ def delete_category(db: Session, cat_id: int):
 
 # Cuts CRUD
 def get_cortes(db: Session, categoria_id: int = None):
-    query = db.query(models.Corte)
+    query = db.query(models.Corte).options(joinedload(models.Corte.tipos_corte))
     if categoria_id:
         query = query.filter(models.Corte.categoria_id == categoria_id)
     return query.all()
 
 def create_corte(db: Session, corte: schemas.CorteBase):
-    db_corte = models.Corte(**corte.model_dump())
+    corte_data = corte.model_dump(exclude={"tipos_corte_ids"})
+    db_corte = models.Corte(**corte_data)
+    
+    if corte.tipos_corte_ids:
+        tipos = db.query(models.TipoCorte).filter(models.TipoCorte.id.in_(corte.tipos_corte_ids)).all()
+        db_corte.tipos_corte = tipos
+        
     db.add(db_corte)
     db.commit()
     db.refresh(db_corte)
@@ -111,6 +117,11 @@ def update_corte(db: Session, corte_id: int, corte: schemas.CorteBase):
         db_corte.nombre = corte.nombre
         db_corte.categoria_id = corte.categoria_id
         db_corte.imagen_url = corte.imagen_url
+        
+        if corte.tipos_corte_ids is not None:
+            tipos = db.query(models.TipoCorte).filter(models.TipoCorte.id.in_(corte.tipos_corte_ids)).all()
+            db_corte.tipos_corte = tipos
+            
         db.commit()
         db.refresh(db_corte)
     return db_corte
@@ -124,6 +135,28 @@ def delete_corte(db: Session, corte_id: int):
 
 def get_tipos_corte(db: Session):
     return db.query(models.TipoCorte).all()
+
+def create_tipo_corte(db: Session, tipo: schemas.TipoCorteBase):
+    db_tipo = models.TipoCorte(**tipo.model_dump())
+    db.add(db_tipo)
+    db.commit()
+    db.refresh(db_tipo)
+    return db_tipo
+
+def update_tipo_corte(db: Session, tipo_id: int, tipo: schemas.TipoCorteBase):
+    db_tipo = db.query(models.TipoCorte).filter(models.TipoCorte.id == tipo_id).first()
+    if db_tipo:
+        db_tipo.nombre = tipo.nombre
+        db.commit()
+        db.refresh(db_tipo)
+    return db_tipo
+
+def delete_tipo_corte(db: Session, tipo_id: int):
+    db_tipo = db.query(models.TipoCorte).filter(models.TipoCorte.id == tipo_id).first()
+    if db_tipo:
+        db.delete(db_tipo)
+        db.commit()
+    return db_tipo
 
 # Analytics
 def get_stats_orders_by_sede(db: Session):

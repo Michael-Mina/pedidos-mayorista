@@ -172,6 +172,18 @@ def delete_corte(corte_id: int, db: Session = Depends(get_db)):
 def read_tipos_corte(db: Session = Depends(get_db)):
     return crud.get_tipos_corte(db)
 
+@app.post("/tipos-corte", response_model=schemas.TipoCorte)
+def create_tipo_corte(tipo: schemas.TipoCorteBase, db: Session = Depends(get_db)):
+    return crud.create_tipo_corte(db, tipo)
+
+@app.put("/tipos-corte/{tipo_id}", response_model=schemas.TipoCorte)
+def update_tipo_corte(tipo_id: int, tipo: schemas.TipoCorteBase, db: Session = Depends(get_db)):
+    return crud.update_tipo_corte(db, tipo_id, tipo)
+
+@app.delete("/tipos-corte/{tipo_id}")
+def delete_tipo_corte(tipo_id: int, db: Session = Depends(get_db)):
+    return crud.delete_tipo_corte(db, tipo_id)
+
 @app.get("/users/carniceros/{sede_id}", response_model=List[schemas.User])
 def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
     return crud.get_carniceros_by_sede(db, sede_id)
