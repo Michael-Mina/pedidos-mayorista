@@ -10,6 +10,11 @@ Sistema web para **pedidos de carnicería en tiempo real**: el mayorista arma pe
 
 Regenerar el Word: `python docs/scripts/generar_documentacion_word.py` (requiere `pip install python-docx`).
 
+## Despliegue en Render (producción)
+
+Guía paso a paso: **[docs/RENDER.md](docs/RENDER.md)**  
+Blueprint en la raíz: **`render.yaml`** (API + frontend estático + PostgreSQL).
+
 ---
 
 ## Contenido

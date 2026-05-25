@@ -6,14 +6,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database credentials from environment variables
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASS = os.getenv("DB_PASS", "password")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "supertiendas_db")
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+def _database_url() -> str:
+    """Render inyecta DATABASE_URL; en local se usan DB_* por separado."""
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
+    user = os.getenv("DB_USER", "postgres")
+    password = os.getenv("DB_PASS", "password")
+    host = os.getenv("DB_HOST", "localhost")
+    port = os.getenv("DB_PORT", "5432")
+    name = os.getenv("DB_NAME", "supertiendas_db")
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+
+SQLALCHEMY_DATABASE_URL = _database_url()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -4,19 +4,22 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
+import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
 app = FastAPI(title="Supertiendas Cañaveral API")
 
 # 2. CORS Configuration
+_cors_raw = os.getenv("CORS_ORIGINS", "*").strip()
+_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +44,8 @@ try:
         catalogo_res.migrar_cortes_res_existentes_a_local(_db)
 except Exception as _seed_err:
     print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
+
+startup_seed.run_if_enabled()
 
 # 5. Start background popularity task
 threading.Thread(target=background_tasks.popularity_background_task, args=(SessionLocal,), daemon=True).start()

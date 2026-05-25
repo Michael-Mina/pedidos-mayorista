@@ -130,7 +130,12 @@ CATEGORIA_RES_IMAGEN = {
 
 
 def public_api_base() -> str:
-    return os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+    base = (
+        os.getenv("PUBLIC_API_URL")
+        or os.getenv("RENDER_EXTERNAL_URL")
+        or "http://localhost:8000"
+    )
+    return base.rstrip("/")
 
 
 def _descargar_imagen(destino: Path, origen: str, pausa_seg: float = 1.25) -> bool:
