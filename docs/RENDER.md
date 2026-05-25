@@ -93,9 +93,25 @@ Render asigna automáticamente `RENDER_EXTERNAL_URL` (URL pública del API). Las
 
 > Importante: tras cambiar `VITE_*`, haz **Manual Deploy** del frontend para recompilar.
 
-### 4. Rutas SPA
+### 4. Rutas SPA (importante)
 
-El archivo `frontend/public/_redirects` envía todas las rutas a `index.html` (necesario para React Router).
+React Router usa rutas como `/login`, `/mayorista`. En Render hay que **reescribir** todas las rutas a `index.html`.
+
+**En Blueprint** (ya en `render.yaml`):
+
+```yaml
+routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html
+```
+
+**Si ves 404 en `/login`**, añade la regla a mano en el dashboard:
+
+1. Servicio **pedidos-mayorista-web** → **Redirects/Rewrites**
+2. **Add Rule** → Action: **Rewrite**
+3. Source: `/*` → Destination: `/index.html`
+4. Guardar y **Manual Deploy** del frontend
 
 ---
 
