@@ -52,6 +52,13 @@
     background: rgba(239, 68, 68, 0.1);
 }
 
+.mobileTopBar,
+.mobileNavBackdrop,
+.mobileNav,
+.mobileTopSpacer {
+    display: none;
+}
+
 .mainGrid {
     display: grid;
     grid-template-columns: 300px 1fr 350px;
@@ -749,6 +756,144 @@
     padding: 12px 10px;
     font-size: 0.9rem;
     border-bottom: 1px solid var(--glass-border);
+}
+
+/* --- Menú móvil (hamburguesa) --- */
+@media (max-width: 1024px) {
+    .mobileTopBar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 300;
+        padding: 10px 14px;
+        background: #0f172a;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .menuToggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-light);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .mobileLogo {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        flex: 1;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    .mobileLogo span {
+        color: var(--text-light);
+    }
+
+    .mobileLogo small {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    .mobileTopSpacer {
+        display: block;
+        width: 44px;
+        flex-shrink: 0;
+    }
+
+    .mobileNavBackdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 400;
+        border: none;
+        padding: 0;
+        margin: 0;
+        background: rgba(0, 0, 0, 0.55);
+        cursor: pointer;
+    }
+
+    .mobileNav {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 410;
+        width: min(280px, 88vw);
+        height: 100dvh;
+        padding: 24px 18px;
+        background: #0f172a;
+        border-right: 1px solid var(--glass-border);
+        transform: translateX(-105%);
+        transition: transform 0.28s ease;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+        gap: 8px;
+    }
+
+    .mobileNavOpen {
+        transform: translateX(0);
+    }
+
+    .mobileNavLogo {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+    }
+
+    .mobileNavLogo span {
+        color: var(--text-light);
+    }
+
+    .mobileNavUser {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin: 0 0 16px 8px;
+    }
+
+    .mobileNavItem {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 14px 16px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-light);
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .mobileNavItem:hover,
+    .mobileNavItem:active {
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .mobileNavLogout {
+        margin-top: auto;
+        color: var(--error);
+    }
+
+    .header {
+        display: none;
+    }
 }
 
 /* --- Responsivo móvil / tablet --- */

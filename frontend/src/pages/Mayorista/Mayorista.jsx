@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
-import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2 } from 'lucide-react';
+import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu } from 'lucide-react';
 import { formatPedidoNumero } from '../../utils/pedidos';
 
 const Mayorista = () => {
@@ -23,6 +23,22 @@ const Mayorista = () => {
     const [tempObs, setTempObs] = useState('');
     const [editingIndex, setEditingIndex] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = prev; };
+    }, [menuOpen]);
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth > 1024) setMenuOpen(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     const [selection, setSelection] = useState({
         category: null,
@@ -220,12 +236,56 @@ const Mayorista = () => {
 
     return (
         <div className={styles.container}>
-            {/* Header */}
+            <header className={styles.mobileTopBar}>
+                <button
+                    type="button"
+                    className={styles.menuToggle}
+                    onClick={() => setMenuOpen((o) => !o)}
+                    aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+                    aria-expanded={menuOpen}
+                >
+                    {menuOpen ? <X size={22} /> : <Menu size={22} />}
+                </button>
+                <div className={styles.mobileLogo}>
+                    Caña<span>veral</span> <small>| Mayorista</small>
+                </div>
+                <span className={styles.mobileTopSpacer} aria-hidden="true" />
+            </header>
+
+            {menuOpen && (
+                <button
+                    type="button"
+                    className={styles.mobileNavBackdrop}
+                    onClick={() => setMenuOpen(false)}
+                    aria-label="Cerrar menú"
+                />
+            )}
+
+            <nav className={`${styles.mobileNav} ${menuOpen ? styles.mobileNavOpen : ''}`}>
+                <div className={styles.mobileNavLogo}>Caña<span>veral</span></div>
+                <p className={styles.mobileNavUser}>{user?.username}</p>
+                <button
+                    type="button"
+                    className={styles.mobileNavItem}
+                    onClick={() => { setShowHistoryModal(true); setMenuOpen(false); }}
+                >
+                    <History size={20} /> Historial Global
+                </button>
+                <button
+                    type="button"
+                    className={`${styles.mobileNavItem} ${styles.mobileNavLogout}`}
+                    onClick={() => { setMenuOpen(false); logout(); }}
+                >
+                    <LogOut size={20} /> Cerrar Sesión
+                </button>
+            </nav>
+
             <header className={`${styles.header} glass-card`}>
                 <div className={styles.logo}>Caña<span>veral</span> <small>| Mayorista</small></div>
 
                 <div className={styles.headerActions}>
                     <button
+                        type="button"
                         className={`${styles.actionBtn} glass-card`}
                         onClick={() => setShowHistoryModal(true)}
                     >
@@ -233,7 +293,7 @@ const Mayorista = () => {
                     </button>
                     <div className={styles.userInfo}>
                         <span>{user?.username}</span>
-                        <button onClick={logout} className={styles.logoutBtn}><LogOut size={18} /></button>
+                        <button type="button" onClick={logout} className={styles.logoutBtn}><LogOut size={18} /></button>
                     </div>
                 </div>
             </header>

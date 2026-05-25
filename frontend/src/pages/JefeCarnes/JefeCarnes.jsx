@@ -21,7 +21,8 @@ import {
     ToggleRight,
     Edit2,
     Trash2,
-    Info
+    Info,
+    Menu
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { formatPedidoNumero } from '../../utils/pedidos';
@@ -52,6 +53,34 @@ const JefeCarnes = () => {
     // Custom Notifications State
     const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
     const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    const navTabs = [
+        { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
+        { id: 'personal', label: 'Personal', icon: Users },
+        { id: 'history', label: 'Historial & Reportes', icon: History },
+    ];
+
+    const goToTab = (tabId) => {
+        setActiveTab(tabId);
+        setMenuOpen(false);
+    };
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = prev; };
+    }, [menuOpen]);
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth > 1024) setMenuOpen(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
     const showNotify = (message, type = 'success') => {
         setNotification({ show: true, message, type });
         setTimeout(() => {
@@ -213,37 +242,52 @@ const JefeCarnes = () => {
 
     return (
         <div className={styles.container}>
-            {/* ... sidebar ... */}
-            <aside className={styles.sidebar}>
+            <header className={styles.mobileTopBar}>
+                <button
+                    type="button"
+                    className={styles.menuToggle}
+                    onClick={() => setMenuOpen((o) => !o)}
+                    aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+                    aria-expanded={menuOpen}
+                >
+                    {menuOpen ? <X size={22} /> : <Menu size={22} />}
+                </button>
+                <div className={styles.mobileLogo}>Caña<span>veral</span></div>
+                <span className={styles.mobileTopSpacer} aria-hidden="true" />
+            </header>
+
+            {menuOpen && (
+                <button
+                    type="button"
+                    className={styles.sidebarBackdrop}
+                    onClick={() => setMenuOpen(false)}
+                    aria-label="Cerrar menú"
+                />
+            )}
+
+            <aside className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.logo}>Caña<span>veral</span></div>
 
                 <nav className={styles.nav}>
-                    <button
-                        className={`${styles.navItem} ${activeTab === 'monitor' ? styles.active : ''}`}
-                        onClick={() => setActiveTab('monitor')}
-                    >
-                        <Monitor size={20} />
-                        Monitor Real-Time
-                    </button>
-                    
-                    <button
-                        className={`${styles.navItem} ${activeTab === 'personal' ? styles.active : ''}`}
-                        onClick={() => setActiveTab('personal')}
-                    >
-                        <Users size={20} />
-                        Personal
-                    </button>
-                    <button
-                        className={`${styles.navItem} ${activeTab === 'history' ? styles.active : ''}`}
-                        onClick={() => setActiveTab('history')}
-                    >
-                        <History size={20} />
-                        Historial & Reportes
-                    </button>
+                    {navTabs.map(({ id, label, icon: Icon }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            className={`${styles.navItem} ${activeTab === id ? styles.active : ''}`}
+                            onClick={() => goToTab(id)}
+                        >
+                            <Icon size={20} />
+                            {label}
+                        </button>
+                    ))}
                 </nav>
 
                 <div className={styles.sidebarFooter}>
-                    <button onClick={logout} className={styles.logoutBtn}>
+                    <button
+                        type="button"
+                        onClick={() => { setMenuOpen(false); logout(); }}
+                        className={styles.logoutBtn}
+                    >
                         <Power size={18} />
                         Cerrar Sesión
                     </button>
