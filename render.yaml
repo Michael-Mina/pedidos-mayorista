@@ -1,10 +1,11 @@
 # Blueprint Render — Pedidos Mayorista
-# Dashboard: New > Blueprint > conectar repo pedidos-mayorista (rama main)
+# Dashboard: New > Blueprint > repo pedidos-mayorista (rama main)
 
 services:
+  # API FastAPI + Socket.IO (plan free solo en servicios web con runtime)
   - type: web
     name: pedidos-mayorista-api
-    env: python
+    runtime: python
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -31,11 +32,11 @@ services:
           name: pedidos-mayorista-web
           envVarKey: RENDER_EXTERNAL_URL
 
+  # Sitio estático: sin "plan" (no aplica instance type en static)
   - type: web
     name: pedidos-mayorista-web
-    env: static
+    runtime: static
     rootDir: frontend
-    plan: free
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:

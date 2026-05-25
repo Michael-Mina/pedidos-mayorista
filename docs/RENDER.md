@@ -22,6 +22,8 @@ Guía para publicar **API (FastAPI + Socket.IO)**, **frontend (React)** y **Post
 4. Render detecta `render.yaml` en la raíz
 5. Pulsa **Apply** y espera el despliegue (10–20 min la primera vez)
 
+> Si aparece `no such plan free for service type web` en el **frontend**, asegúrate de usar el `render.yaml` actualizado: el sitio estático **no** lleva `plan: free` (solo el API Python).
+
 ### Tras el primer despliegue
 
 1. Abre el servicio **`pedidos-mayorista-api`** → copia la URL (ej. `https://pedidos-mayorista-api.onrender.com`)
