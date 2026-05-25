@@ -24,6 +24,7 @@ import {
     Info
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
+import { formatPedidoNumero } from '../../utils/pedidos';
 
 const JefeCarnes = () => {
     const { user, logout } = useAuth();
@@ -66,7 +67,8 @@ const JefeCarnes = () => {
         // 2. Text Search (Client or ID)
         if (filterText) {
             const search = filterText.toLowerCase();
-            const matchesId = order.id.toString().includes(search);
+            const matchesId = order.id.toString().includes(search) ||
+                (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search));
             const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
             if (!matchesId && !matchesClient) return false;
         }
@@ -309,6 +311,7 @@ const JefeCarnes = () => {
                                 )}
                             </div>
 
+                            <div className={styles.tableScrollWrap}>
                             <table className={styles.mainTable}>
                                 <thead>
                                     <tr>
@@ -326,7 +329,7 @@ const JefeCarnes = () => {
                                             className={styles.orderRow}
                                             onClick={() => setSelectedOrder(order)}
                                         >
-                                            <td>#{order.id}</td>
+                                            <td>{formatPedidoNumero(order)}</td>
                                             <td>{order.cliente_nombre}</td>
                                             <td>
                                                 <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
@@ -344,6 +347,7 @@ const JefeCarnes = () => {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
 
                             <div className={styles.pagination}>
                                 <button
@@ -390,7 +394,7 @@ const JefeCarnes = () => {
                                         <tbody>
                                             {globalOrders.filter(o => o.problema_reportado).map(order => (
                                                 <tr key={order.id} className={styles.orderRow} onClick={() => setSelectedOrder(order)}>
-                                                    <td>#{order.id}</td>
+                                                    <td>{formatPedidoNumero(order)}</td>
                                                     <td>{new Date(order.timestamp).toLocaleDateString()}</td>
                                                     <td>{order.cliente_nombre}</td>
                                                     <td style={{ color: 'var(--warning)', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -638,7 +642,7 @@ const JefeCarnes = () => {
                             <div className={styles.modalHeader}>
                                 <h2 className={styles.modalTitle}>
                                     <Package size={28} color="var(--primary-color)" />
-                                    Detalles del Pedido #{selectedOrder.id}
+                                    Detalles del Pedido {formatPedidoNumero(selectedOrder)}
                                 </h2>
                                 <button className={styles.closeIconBtn} onClick={() => setSelectedOrder(null)}>
                                     <X size={24} />

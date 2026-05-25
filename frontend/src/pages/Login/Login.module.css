@@ -49,3 +49,21 @@
         transform: translateY(0);
     }
 }
+
+@media (max-width: 480px) {
+    .loginContainer {
+        padding: 16px;
+        align-items: flex-start;
+        padding-top: max(24px, env(safe-area-inset-top));
+    }
+
+    .loginCard {
+        padding: 24px 20px;
+        max-width: none;
+    }
+
+    .logo {
+        font-size: 2rem;
+        margin-bottom: 24px;
+    }
+}

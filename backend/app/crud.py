@@ -269,8 +269,43 @@ def get_pedidos_by_sede(db: Session, sede_id: str):
         .filter(models.Pedido.sede_id == sede_id)\
         .order_by(models.Pedido.updated_at.desc()).all()
 
+def _parse_numero_pedido(value: str | None) -> int | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if text.isdigit():
+        return int(text)
+
+    try:
+        return int(text.split("-")[-1])
+    except (TypeError, ValueError):
+        return None
+
+def _next_numero_pedido(db: Session, sede_id: int) -> str:
+    """Consecutivo global por sede (no se reinicia cada día)."""
+    numeros = (
+        db.query(models.Pedido.numero_pedido)
+        .filter(
+            models.Pedido.sede_id == sede_id,
+            models.Pedido.numero_pedido.isnot(None),
+        )
+        .all()
+    )
+
+    max_seq = 0
+    for (numero_pedido,) in numeros:
+        seq = _parse_numero_pedido(numero_pedido)
+        if seq is not None:
+            max_seq = max(max_seq, seq)
+
+    return str(max_seq + 1)
+
 def create_pedido(db: Session, pedido: schemas.PedidoCreate):
+    numero_pedido = _next_numero_pedido(db, pedido.sede_id)
+
     db_pedido = models.Pedido(
+        numero_pedido=numero_pedido,
         mayorista_id=pedido.mayorista_id,
         cliente_nombre=pedido.cliente_nombre,
         sede_id=pedido.sede_id,

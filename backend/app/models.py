@@ -83,6 +83,7 @@ class TipoCorte(Base):
 class Pedido(Base):
     __tablename__ = "pedidos"
     id = Column(Integer, primary_key=True, index=True)
+    numero_pedido = Column(String, index=True, nullable=True)  # Consecutivo por sede: 1, 2, 3... (sin reinicio diario)
     mayorista_id = Column(Integer, ForeignKey("users.id"))
     carnicero_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cliente_nombre = Column(String)

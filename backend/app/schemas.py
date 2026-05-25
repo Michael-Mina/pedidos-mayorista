@@ -107,6 +107,7 @@ class PedidoCreate(PedidoBase):
 
 class Pedido(PedidoBase):
     id: int
+    numero_pedido: Optional[str] = None
     mayorista_id: int
     carnicero_id: Optional[int] = None
     carnicero: Optional[User] = None

@@ -7,6 +7,7 @@ import {
     Clock, Package, UserCheck, Bell, BellRing, Monitor
 } from 'lucide-react';
 import styles from './Sede.module.css';
+import { formatPedidoNumero } from '../../utils/pedidos';
 
 const Sede = () => {
     const { user, logout } = useAuth();
@@ -143,7 +144,7 @@ const Sede = () => {
                                 onClick={() => handleSelectPedido(pedido.id)}
                             >
                                 <div className={styles.orderCardTop}>
-                                    <span className={styles.orderId}>#{pedido.id}</span>
+                                    <span className={styles.orderId}>{formatPedidoNumero(pedido)}</span>
                                     {newOrderIds.has(pedido.id) && <span className={styles.newTag}>NUEVO</span>}
                                     <span className={styles.orderTime}>{new Date(pedido.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
@@ -163,7 +164,7 @@ const Sede = () => {
                         <div className={styles.detailWrapper}>
                             <div className={styles.detailTitle}>
                                 <div>
-                                    <h1>PEDIDO #{selectedPedido.id}</h1>
+                                    <h1>PEDIDO {formatPedidoNumero(selectedPedido)}</h1>
                                     <p>{selectedPedido.cliente_nombre} | {new Date(selectedPedido.timestamp).toLocaleTimeString()}</p>
                                 </div>
                                 <div className={`${styles.statusBadge} ${styles[selectedPedido.estado]}`}>
@@ -174,24 +175,28 @@ const Sede = () => {
                             {selectedPedido.estado === 'pendiente' ? (
                                 <div className={styles.actionArea}>
                                     <div className={styles.instructionBox}>
-                                        <Users size={32} />
-                                        <h2>Asignar a Carnicero</h2>
-                                        <p>Seleccione al personal disponible para iniciar la preparación.</p>
+                                        <Users size={22} />
+                                        <div>
+                                            <h2>Asignar a carnicero</h2>
+                                            <p>Seleccione al personal disponible para iniciar la preparación.</p>
+                                        </div>
                                     </div>
-                                    <div className={styles.butcherGrid}>
-                                        {allCarniceros
-                                            .filter(c => c.is_available)
-                                            .sort((a, b) => (parseInt(a.numero_carnicero) || 0) - (parseInt(b.numero_carnicero) || 0))
-                                            .map(carnicero => (
-                                            <button
-                                                key={carnicero.id}
-                                                className={styles.butcherBtn}
-                                                onClick={() => handleTakeOrder(selectedPedido.id, carnicero.id)}
-                                            >
-                                                <span className={styles.butcherNum}>{carnicero.numero_carnicero}</span>
-                                                <span className={styles.butcherText}>{carnicero.nombre} {carnicero.apellido}</span>
-                                            </button>
-                                        ))}
+                                    <div className={styles.butcherPanel}>
+                                        <div className={styles.butcherGrid}>
+                                            {allCarniceros
+                                                .filter(c => c.is_available)
+                                                .sort((a, b) => (parseInt(a.numero_carnicero) || 0) - (parseInt(b.numero_carnicero) || 0))
+                                                .map(carnicero => (
+                                                    <button
+                                                        key={carnicero.id}
+                                                        className={styles.butcherBtn}
+                                                        onClick={() => handleTakeOrder(selectedPedido.id, carnicero.id)}
+                                                    >
+                                                        <span className={styles.butcherNum}>{carnicero.numero_carnicero}</span>
+                                                        <span className={styles.butcherText}>{carnicero.nombre} {carnicero.apellido}</span>
+                                                    </button>
+                                                ))}
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -256,7 +261,7 @@ const Sede = () => {
                                 style={{ borderLeft: '4px solid var(--warning)' }}
                             >
                                 <div className={styles.orderCardTop}>
-                                    <span className={styles.orderId}>#{pedido.id}</span>
+                                    <span className={styles.orderId}>{formatPedidoNumero(pedido)}</span>
                                     <span className={styles.prepBy}>
                                         <UserCheck size={12} /> {getButcherName(pedido.carnicero_id)}
                                     </span>

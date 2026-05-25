@@ -1,0 +1,59 @@
+/* Utilidades y base responsiva — importar desde index.css */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.app-container {
+  width: 100%;
+  min-height: 100dvh;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Áreas táctiles mínimas en móvil */
+@media (max-width: 768px) {
+  .premium-button,
+  button.premium-button {
+    min-height: 44px;
+    padding: 12px 18px;
+  }
+
+  .input-field {
+    font-size: 16px; /* evita zoom en iOS */
+    min-height: 44px;
+  }
+}
+
+/* Tablas desplazables horizontalmente */
+.tableScrollX {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 768px) {
+  .toastContainer {
+    left: 12px;
+    right: 12px;
+    top: max(12px, env(safe-area-inset-top));
+  }
+
+  .toast {
+    min-width: 0;
+    width: 100%;
+  }
+}

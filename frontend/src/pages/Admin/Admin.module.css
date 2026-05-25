@@ -223,15 +223,93 @@
 
 /* Products Layout */
 .productsGrid {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
+    display: flex;
+    flex-direction: column;
     gap: 30px;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .column h2 {
     font-size: 1.1rem;
-    margin: 0 0 20px 0;
+    margin: 0;
     color: var(--text-light);
+}
+
+.column .managementHeader {
+    margin-bottom: 16px;
+}
+
+.searchBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+}
+
+.searchBar input {
+    flex: 1;
+}
+
+.userFilters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px 220px;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.userFilters .searchBar {
+    margin-bottom: 0;
+}
+
+.sectionScroll,
+.managementScroll {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.sectionScroll {
+    max-height: min(320px, calc((100vh - 320px) / 2));
+}
+
+.managementScroll {
+    max-height: min(520px, calc(100vh - 280px));
+}
+
+.sectionScroll .table thead th,
+.managementScroll .table thead th {
+    position: sticky;
+    top: 0;
+    background: #1e293b;
+    z-index: 1;
+}
+
+.sectionScroll::-webkit-scrollbar,
+.managementScroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sectionScroll::-webkit-scrollbar-track,
+.managementScroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+}
+
+.sectionScroll::-webkit-scrollbar-thumb,
+.managementScroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 4px;
+}
+
+.sectionScroll::-webkit-scrollbar-thumb:hover,
+.managementScroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.55);
 }
 
 /* Modal Styles */
@@ -313,5 +391,121 @@
 @media (max-width: 1024px) {
     .productsGrid {
         grid-template-columns: 1fr;
+    }
+
+    .userFilters {
+        grid-template-columns: 1fr;
+    }
+
+    .adminContainer {
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    .sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 8px;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .sidebarLogo {
+        margin-bottom: 0;
+        margin-right: auto;
+    }
+
+    .navItem {
+        flex: 0 1 auto;
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
+
+    .mainContent {
+        padding: 16px;
+        overflow: visible;
+    }
+
+    .managementHeader {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .sectionScroll,
+    .managementScroll {
+        max-height: none;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table {
+        min-width: 520px;
+    }
+}
+
+@media (max-width: 768px) {
+    .topBanner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 16px;
+    }
+
+    .kpiInfo h2 {
+        font-size: 1.75rem;
+    }
+
+    .chartLegend {
+        min-height: 220px;
+    }
+
+    .modal {
+        width: calc(100% - 24px);
+        max-width: none;
+        margin: 12px;
+        padding: 24px 20px;
+    }
+
+    .modalActions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .modalActions button {
+        width: 100%;
+    }
+
+    .productCell {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sidebarLogo {
+        margin-right: 0;
+        text-align: center;
+    }
+
+    .navItem {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .mainContent {
+        padding: 12px;
+    }
+
+    .dashboardWrapper {
+        gap: 16px;
     }
 }

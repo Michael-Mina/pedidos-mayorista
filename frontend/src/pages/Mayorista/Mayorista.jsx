@@ -4,6 +4,7 @@ import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2 } from 'lucide-react';
+import { formatPedidoNumero } from '../../utils/pedidos';
 
 const Mayorista = () => {
     const { user, logout } = useAuth();
@@ -55,17 +56,28 @@ const Mayorista = () => {
     }, [user]);
 
     const fetchInitialData = async () => {
-        try {
-            const [cats, history, types] = await Promise.all([
-                productService.getCategories(),
-                pedidoService.getAll(user.sede_id),
-                productService.getTiposCorte()
-            ]);
-            setCategories(cats);
-            setPedidosHistory(history);
-            setTiposCorte(types);
-        } catch (error) {
-            console.error("Error fetching data:", error);
+        const [categoriesResult, historyResult, typesResult] = await Promise.allSettled([
+            productService.getCategories(),
+            pedidoService.getAll(user.sede_id),
+            productService.getTiposCorte()
+        ]);
+
+        if (categoriesResult.status === 'fulfilled') {
+            setCategories(categoriesResult.value);
+        } else {
+            console.error("Error fetching categories:", categoriesResult.reason);
+        }
+
+        if (historyResult.status === 'fulfilled') {
+            setPedidosHistory(historyResult.value);
+        } else {
+            console.error("Error fetching order history:", historyResult.reason);
+        }
+
+        if (typesResult.status === 'fulfilled') {
+            setTiposCorte(typesResult.value);
+        } else {
+            console.error("Error fetching cut types:", typesResult.reason);
         }
     };
 
@@ -192,7 +204,8 @@ const Mayorista = () => {
             const matchesDate = p.timestamp.startsWith(filterDate);
             const matchesSearch =
                 p.cliente_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.id.toString().includes(searchTerm);
+                p.id.toString().includes(searchTerm) ||
+                (p.numero_pedido && p.numero_pedido.toLowerCase().includes(searchTerm.toLowerCase()));
             return matchesDate && matchesSearch;
         })
         .sort((a, b) => b.id - a.id);
@@ -315,9 +328,9 @@ const Mayorista = () => {
 
                     {step === 3 && (
                         <div>
-                            <button onClick={() => setStep(2)} className={styles.backBtn}>← Volver a Cortes</button>
+                            <button onClick={() => setStep(2)} className={styles.backBtn}>← Volver a Productos</button>
                             <div className={styles.grid}>
-                                {tiposCorte.map(tipo => (
+                                {((selection.corte?.tipos_corte && selection.corte.tipos_corte.length > 0) ? selection.corte.tipos_corte : tiposCorte).map(tipo => (
                                     <div key={tipo.id} className={styles.card} onClick={() => handleTipoCorteClick(tipo)}>
                                         <span className={styles.cardIcon}>🔪</span>
                                         <h3>{tipo.nombre}</h3>
@@ -396,7 +409,7 @@ const Mayorista = () => {
                                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                 >
                                     <div className={styles.historyInfo}>
-                                        <strong>#{item.id} - {item.cliente_nombre}</strong>
+                                        <strong>{formatPedidoNumero(item)} - {item.cliente_nombre}</strong>
                                         <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
                                     </div>
                                     <span className={styles.statusBadge}>{item.estado.replace('_', ' ')}</span>
@@ -452,7 +465,7 @@ const Mayorista = () => {
                                 <tbody>
                                     {filteredHistory.map(p => (
                                         <tr key={p.id}>
-                                            <td><strong>#{p.id}</strong></td>
+                                            <td><strong>{formatPedidoNumero(p)}</strong></td>
                                             <td>{new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                             <td>{p.cliente_nombre}</td>
                                             <td>
@@ -496,7 +509,7 @@ const Mayorista = () => {
             {reportingPedido && (
                 <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
                     <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '400px' }}>
-                        <h3>Reportar problema en Pedido #{reportingPedido.id}</h3>
+                        <h3>Reportar problema en Pedido {formatPedidoNumero(reportingPedido)}</h3>
                         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
                             Describe brevemente el inconveniente con este pedido para que la carnicería lo revise.
                         </p>
@@ -519,7 +532,7 @@ const Mayorista = () => {
                 <div className={styles.modalOverlay} style={{ zIndex: 1200 }}>
                     <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '600px' }}>
                         <div className={styles.modalHeader}>
-                            <h2><Package size={22} /> Detalles del Pedido #{viewingOrder.id}</h2>
+                            <h2><Package size={22} /> Detalles del Pedido {formatPedidoNumero(viewingOrder)}</h2>
                             <button onClick={() => setViewingOrder(null)} className={styles.closeBtn}><X size={24} /></button>
                         </div>
 

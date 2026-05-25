@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pathlib import Path
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -26,6 +28,19 @@ socket_app = socketio.ASGIApp(sio, app)
 
 # 4. Create database tables
 models.Base.metadata.create_all(bind=engine)
+
+# 4b. Archivos estáticos (imágenes de cortes en el servidor)
+_STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
+_STATIC_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_ROOT)), name="static")
+
+# 4c. Catálogo de res en BD + imágenes locales (idempotente al arrancar)
+try:
+    with SessionLocal() as _db:
+        catalogo_res.ensure_cortes_res(_db)
+        catalogo_res.migrar_cortes_res_existentes_a_local(_db)
+except Exception as _seed_err:
+    print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
 
 # 5. Start background popularity task
 threading.Thread(target=background_tasks.popularity_background_task, args=(SessionLocal,), daemon=True).start()
