@@ -44,12 +44,14 @@ Blueprint en la raíz: **`render.yaml`** (API + frontend estático + PostgreSQL)
 
 Tras el login, la app redirige automáticamente según el rol.
 
-**Usuario de prueba** (si ejecutaste `setup_initial_data.py`):
+**Usuarios de prueba** (si ejecutaste `setup_initial_data.py` o `SEED_ON_STARTUP=true` en Render):
 
-- Usuario: `mayorista_test`
-- Contraseña: `test123`
+| Rol | Usuario | Contraseña | Ruta |
+|-----|---------|------------|------|
+| Mayorista | `mayorista_test` | `test123` | `/mayorista` |
+| Admin | `admin1` | `12345678` | `/admin` |
 
-Para crear un administrador: `python backend/create_admin.py`
+Scripts: `python setup_initial_data.py` o `python create_admin.py` (desde `backend/`).
 
 ---
 

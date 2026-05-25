@@ -50,8 +50,29 @@ try:
         muser.sede_id = sede.id
     db.commit()
 
+    # 6. Usuario administrador
+    admin_user = "admin1"
+    auser = db.query(models.User).filter(models.User.username == admin_user).first()
+    admin_hash = auth.get_password_hash("12345678")
+    if not auser:
+        auser = models.User(
+            username=admin_user,
+            role=models.UserRole.ADMIN,
+            sede_id=sede.id,
+            password_hash=admin_hash,
+            session_active=1,
+            session_approved=1,
+        )
+        db.add(auser)
+    else:
+        auser.password_hash = admin_hash
+        auser.role = models.UserRole.ADMIN
+        auser.sede_id = sede.id
+    db.commit()
+
     print("Initial data setup complete.")
     print(f"Mayorista: {demo_user} / test123")
+    print(f"Admin: {admin_user} / 12345678")
     print(f"Sede ID: {sede.id}")
     print(f"Category ID: {cat.id}")
 

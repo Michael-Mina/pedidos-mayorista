@@ -30,10 +30,14 @@ Guía para publicar **API (FastAPI + Socket.IO)**, **frontend (React)** y **Post
 2. Prueba: `https://TU-API.onrender.com/` → debe responder JSON con `"message": "... running"`
 3. Prueba Swagger: `https://TU-API.onrender.com/docs`
 4. Abre **`pedidos-mayorista-web`** → URL del frontend (ej. `https://pedidos-mayorista-web.onrender.com`)
-5. Login de prueba:
-   - Usuario: `mayorista_test`
-   - Contraseña: `test123`
-   - Si ves **Incorrect username or password**, crea/resetea el usuario en Shell (paso 6).
+5. Usuarios creados automáticamente (`SEED_ON_STARTUP=true` o `setup_initial_data.py`):
+
+   | Rol | Usuario | Contraseña |
+   |-----|---------|------------|
+   | Mayorista | `mayorista_test` | `test123` |
+   | Admin | `admin1` | `12345678` |
+
+   Si ves **Incorrect username or password**, ejecuta el Shell del paso 6.
 
 6. **Crear o resetear usuarios** (Shell del servicio **pedidos-mayorista-api**):
 

@@ -6,6 +6,32 @@ from .database import SessionLocal
 
 DEMO_USER = "mayorista_test"
 DEMO_PASS = "test123"
+ADMIN_USER = "admin1"
+ADMIN_PASS = "12345678"
+
+
+def _upsert_user(db, *, username: str, password: str, role, sede_id: int, **extra):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    pwd_hash = auth.get_password_hash(password)
+    if not user:
+        db.add(
+            models.User(
+                username=username,
+                role=role,
+                sede_id=sede_id,
+                password_hash=pwd_hash,
+                **extra,
+            )
+        )
+        print(f"[startup_seed] Creado {username} / {password}")
+    else:
+        user.password_hash = pwd_hash
+        user.role = role
+        user.sede_id = sede_id
+        for key, val in extra.items():
+            setattr(user, key, val)
+        print(f"[startup_seed] Actualizado {username} / {password}")
+    db.commit()
 
 
 def run_if_enabled() -> None:
@@ -25,28 +51,22 @@ def run_if_enabled() -> None:
                 db.add(models.TipoCorte(nombre=name))
             db.commit()
 
-        user = (
-            db.query(models.User)
-            .filter(models.User.username == DEMO_USER)
-            .first()
+        _upsert_user(
+            db,
+            username=DEMO_USER,
+            password=DEMO_PASS,
+            role=models.UserRole.MAYORISTA,
+            sede_id=sede.id,
         )
-        pwd_hash = auth.get_password_hash(DEMO_PASS)
-        if not user:
-            db.add(
-                models.User(
-                    username=DEMO_USER,
-                    role=models.UserRole.MAYORISTA,
-                    sede_id=sede.id,
-                    password_hash=pwd_hash,
-                )
-            )
-            db.commit()
-            print(f"[startup_seed] Creado {DEMO_USER} / {DEMO_PASS}")
-        else:
-            user.password_hash = pwd_hash
-            user.sede_id = sede.id
-            db.commit()
-            print(f"[startup_seed] Contraseña actualizada: {DEMO_USER} / {DEMO_PASS}")
+        _upsert_user(
+            db,
+            username=ADMIN_USER,
+            password=ADMIN_PASS,
+            role=models.UserRole.ADMIN,
+            sede_id=sede.id,
+            session_active=1,
+            session_approved=1,
+        )
     except Exception as err:
         print(f"[startup_seed] Error: {err}")
     finally:
