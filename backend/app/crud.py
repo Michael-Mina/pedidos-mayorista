@@ -181,15 +181,34 @@ def get_users(db: Session):
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
-def update_user(db: Session, user_id: int, user: schemas.UserBase):
+
+def get_user(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+
+def update_user(db: Session, user_id: int, user: schemas.UserBase, password_hash: str | None = None):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if db_user:
-        db_user.username = user.username
-        db_user.role = user.role
-        db_user.sede_id = user.sede_id
+    if not db_user:
+        return None
+
+    duplicate = (
+        db.query(models.User)
+        .filter(models.User.username == user.username, models.User.id != user_id)
+        .first()
+    )
+    if duplicate:
+        raise ValueError("El nombre de usuario ya está registrado")
+
+    db_user.username = user.username
+    db_user.role = user.role
+    db_user.sede_id = int(user.sede_id)
+    if user.session_active is not None:
         db_user.session_active = user.session_active
-        db.commit()
-        db.refresh(db_user)
+    if password_hash:
+        db_user.password_hash = password_hash
+
+    db.commit()
+    db.refresh(db_user)
     return db_user
 
 def update_session_status(db: Session, user_id: int, active: int):

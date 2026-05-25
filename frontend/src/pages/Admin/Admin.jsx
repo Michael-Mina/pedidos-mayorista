@@ -142,6 +142,13 @@ const Admin = () => {
         setEditItem(item);
         if (type === 'cut' && item) {
             setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map(t => t.id) || [] });
+        } else if (type === 'user' && item) {
+            setFormData({
+                username: item.username,
+                role: item.role,
+                sede_id: item.sede_id != null ? String(item.sede_id) : '',
+                password: '',
+            });
         } else {
             setFormData(item || {});
         }
@@ -156,11 +163,19 @@ const Admin = () => {
 
             if (modalType === 'user') {
                 endpoint = '/users';
+                const sedeId = parseInt(formData.sede_id, 10);
+                if (!formData.username?.trim() || !formData.role || Number.isNaN(sedeId)) {
+                    alert('Complete usuario, rol y sede.');
+                    return;
+                }
                 dataToSend = {
-                    username: formData.username,
+                    username: formData.username.trim(),
                     role: formData.role,
-                    sede_id: formData.sede_id
+                    sede_id: sedeId,
                 };
+                if (formData.password?.trim()) {
+                    dataToSend.password = formData.password;
+                }
             } else if (modalType === 'sede') {
                 endpoint = '/sedes';
                 dataToSend = {
@@ -699,9 +714,13 @@ const Admin = () => {
                             {modalType === 'user' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input placeholder="Nombre de usuario" className="input-field" value={formData.username || ''} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
-                                    {!editItem && formData.role !== 'carnicero' && (
-                                        <input placeholder="Contraseña" type="password" className="input-field" onChange={e => setFormData({ ...formData, password: e.target.value })} required />
-                                    )}
+                                    <input
+                                        placeholder={editItem ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+                                        type="password"
+                                        className="input-field"
+                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        required={!editItem && formData.role !== 'carnicero'}
+                                    />
                                     <select className="input-field" value={formData.role || ''} onChange={e => setFormData({ ...formData, role: e.target.value })} required>
                                         <option value="">Seleccionar Rol</option>
                                         <option value="admin">Administrador</option>

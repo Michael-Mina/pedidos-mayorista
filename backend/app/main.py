@@ -15,14 +15,27 @@ from .database import engine, get_db, SessionLocal
 app = FastAPI(title="Supertiendas Cañaveral API")
 
 # 2. CORS Configuration
-_cors_raw = os.getenv("CORS_ORIGINS", "*").strip()
-_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+def _build_cors_origins():
+    raw = os.getenv("CORS_ORIGINS", "*").strip()
+    if raw == "*" or not raw:
+        return ["*"]
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    for key in ("RENDER_EXTERNAL_URL", "PUBLIC_API_URL"):
+        extra = os.getenv(key, "").strip().rstrip("/")
+        if extra and extra not in origins:
+            origins.append(extra)
+    return origins or ["*"]
+
+
+_cors_origins = _build_cors_origins()
+_use_credentials = "*" not in _cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_credentials=_use_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # 3. Socket.io Setup
@@ -130,11 +143,32 @@ async def logout(user_id: int, db: Session = Depends(get_db)):
 # DEPRECATED: /approve-sedes endpoint removed
 
 @app.put("/users/{user_id}", response_model=schemas.User)
-def update_user(user_id: int, user: schemas.UserBase, db: Session = Depends(get_db)):
+def update_user(user_id: int, user: schemas.UserUpdate, db: Session = Depends(get_db)):
     db_user = crud.get_user(db, user_id=user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return crud.update_user(db=db, user_id=user_id, user=user)
+    password_hash = None
+    if user.password:
+        password_hash = auth.get_password_hash(user.password)
+    try:
+        updated = crud.update_user(
+            db=db,
+            user_id=user_id,
+            user=schemas.UserBase(
+                username=user.username,
+                role=user.role,
+                sede_id=user.sede_id,
+                session_active=user.session_active if user.session_active is not None else db_user.session_active,
+            ),
+            password_hash=password_hash,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al actualizar usuario: {e}")
+    if updated is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated
 
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db)):

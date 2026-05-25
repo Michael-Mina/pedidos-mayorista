@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime, date
 from typing import List, Optional
 from .models import UserRole, PedidoEstado
@@ -29,6 +29,21 @@ class UserBase(BaseModel):
     apellido: Optional[str] = None
     numero_carnicero: Optional[str] = None
     is_available: Optional[bool] = True
+
+
+class UserUpdate(BaseModel):
+    username: str
+    role: UserRole
+    sede_id: int
+    password: Optional[str] = None
+    session_active: Optional[int] = None
+
+    @field_validator("sede_id", mode="before")
+    @classmethod
+    def coerce_sede_id(cls, v):
+        if v is None or v == "":
+            raise ValueError("sede_id es obligatorio")
+        return int(v)
 
 class CarniceroCreate(UserBase):
     password: str
