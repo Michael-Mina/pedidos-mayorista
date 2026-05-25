@@ -4,7 +4,7 @@ import styles from './Admin.module.css';
 import api from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
-    TrendingUp, BarChart3, Plus, RefreshCw, Search
+    TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -53,6 +53,36 @@ const Admin = () => {
     const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userSedeFilter, setUserSedeFilter] = useState('');
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    const navTabs = [
+        { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
+        { id: 'users', label: 'Usuarios', icon: Users },
+        { id: 'sedes', label: 'Sedes', icon: MapPin },
+        { id: 'products', label: 'Productos', icon: Package },
+    ];
+
+    const goToTab = (tabId) => {
+        setActiveTab(tabId);
+        setMenuOpen(false);
+    };
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [menuOpen]);
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth > 1024) setMenuOpen(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -255,35 +285,51 @@ const Admin = () => {
 
     return (
         <div className={styles.adminContainer}>
-            {/* Sidebar */}
-            <nav className={styles.sidebar}>
-                <div className={styles.sidebarLogo}>Caña<span>veral</span></div>
-                <div
-                    className={`${styles.navItem} ${activeTab === 'dashboard' ? styles.activeNavItem : ''}`}
-                    onClick={() => setActiveTab('dashboard')}
+            {/* Sidebar móvil + escritorio */}
+            <header className={styles.mobileTopBar}>
+                <button
+                    type="button"
+                    className={styles.menuToggle}
+                    onClick={() => setMenuOpen((open) => !open)}
+                    aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+                    aria-expanded={menuOpen}
                 >
-                    <LayoutDashboard size={20} /> Panel de Control
-                </div>
-                <div
-                    className={`${styles.navItem} ${activeTab === 'users' ? styles.activeNavItem : ''}`}
-                    onClick={() => setActiveTab('users')}
-                >
-                    <Users size={20} /> Usuarios
-                </div>
-                <div
-                    className={`${styles.navItem} ${activeTab === 'sedes' ? styles.activeNavItem : ''}`}
-                    onClick={() => setActiveTab('sedes')}
-                >
-                    <MapPin size={20} /> Sedes
-                </div>
-                <div
-                    className={`${styles.navItem} ${activeTab === 'products' ? styles.activeNavItem : ''}`}
-                    onClick={() => setActiveTab('products')}
-                >
-                    <Package size={20} /> Productos
-                </div>
+                    {menuOpen ? <X size={22} /> : <Menu size={22} />}
+                </button>
+                <div className={styles.mobileLogo}>Caña<span>veral</span></div>
+                <span className={styles.mobileTopSpacer} aria-hidden="true" />
+            </header>
 
-                <div className={styles.navItem} style={{ marginTop: 'auto', color: 'var(--error)' }} onClick={logout}>
+            {menuOpen && (
+                <button
+                    type="button"
+                    className={styles.sidebarBackdrop}
+                    onClick={() => setMenuOpen(false)}
+                    aria-label="Cerrar menú"
+                />
+            )}
+
+            <nav className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
+                <div className={styles.sidebarLogo}>Caña<span>veral</span></div>
+                {navTabs.map(({ id, label, icon: Icon }) => (
+                    <div
+                        key={id}
+                        className={`${styles.navItem} ${activeTab === id ? styles.activeNavItem : ''}`}
+                        onClick={() => goToTab(id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && goToTab(id)}
+                    >
+                        <Icon size={20} /> {label}
+                    </div>
+                ))}
+
+                <div
+                    className={`${styles.navItem} ${styles.navLogout}`}
+                    onClick={() => { setMenuOpen(false); logout(); }}
+                    role="button"
+                    tabIndex={0}
+                >
                     <LogOut size={20} /> Cerrar Sesión
                 </div>
             </nav>
@@ -507,7 +553,7 @@ const Admin = () => {
                             <h1>Sedes / Sucursales</h1>
                             <button className="premium-button" onClick={() => handleOpenModal('sede')}><Plus size={18} /> Agregar Sede</button>
                         </div>
-                        <div className="glass-card" style={{ padding: '0px' }}>
+                        <div className={`glass-card ${styles.managementScroll}`} style={{ padding: '0px' }}>
                             <table className={styles.table}>
                                 <thead>
                                     <tr>

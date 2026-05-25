@@ -48,6 +48,21 @@
     font-weight: 600;
 }
 
+.navLogout {
+    margin-top: auto;
+    color: var(--error) !important;
+}
+
+.mobileTopBar,
+.sidebarBackdrop {
+    display: none;
+}
+
+.mobileTopSpacer {
+    width: 44px;
+    flex-shrink: 0;
+}
+
 .mainContent {
     flex: 1;
     padding: 40px;
@@ -389,6 +404,113 @@
 }
 
 @media (max-width: 1024px) {
+    .adminContainer {
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    .mobileTopBar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 300;
+        padding: 10px 14px;
+        background: #0f172a;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .menuToggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-light);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .menuToggle:active {
+        background: rgba(46, 204, 113, 0.15);
+    }
+
+    .mobileLogo {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        text-align: center;
+        flex: 1;
+    }
+
+    .mobileLogo span {
+        color: var(--text-light);
+    }
+
+    .sidebarBackdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 400;
+        border: none;
+        padding: 0;
+        margin: 0;
+        background: rgba(0, 0, 0, 0.55);
+        cursor: pointer;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 410;
+        width: min(280px, 88vw);
+        height: 100dvh;
+        padding: 20px 16px;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        gap: 8px;
+        border-right: 1px solid var(--glass-border);
+        border-bottom: none;
+        background: #0f172a;
+        transform: translateX(-105%);
+        transition: transform 0.28s ease;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+        overflow-y: auto;
+    }
+
+    .sidebarOpen {
+        transform: translateX(0);
+    }
+
+    .sidebarLogo {
+        margin-bottom: 24px;
+        margin-right: 0;
+        padding: 0 8px;
+    }
+
+    .navItem {
+        width: 100%;
+        flex: none;
+        justify-content: flex-start;
+        font-size: 0.95rem;
+        padding: 14px 16px;
+    }
+
+    .mainContent {
+        padding: 16px;
+        overflow: visible;
+        width: 100%;
+    }
+
     .productsGrid {
         grid-template-columns: 1fr;
     }
@@ -397,43 +519,13 @@
         grid-template-columns: 1fr;
     }
 
-    .adminContainer {
-        flex-direction: column;
-        height: auto;
-        min-height: 100dvh;
-        overflow: visible;
-    }
-
-    .sidebar {
-        width: 100%;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        padding: 12px 16px;
-        gap: 8px;
-        border-right: none;
-        border-bottom: 1px solid var(--glass-border);
-    }
-
-    .sidebarLogo {
-        margin-bottom: 0;
-        margin-right: auto;
-    }
-
-    .navItem {
-        flex: 0 1 auto;
-        padding: 10px 12px;
-        font-size: 0.85rem;
-    }
-
-    .mainContent {
-        padding: 16px;
-        overflow: visible;
-    }
-
     .managementHeader {
         flex-wrap: wrap;
         gap: 12px;
+    }
+
+    .managementHeader h1 {
+        font-size: 1.25rem;
     }
 
     .sectionScroll,
@@ -446,14 +538,33 @@
     .table {
         min-width: 520px;
     }
+
+    .dashboardGrid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
     .topBanner {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
         gap: 10px;
         padding: 12px 16px;
+    }
+
+    .topBanner h1 {
+        font-size: 0.75rem;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .kpiCard,
+    .smallCard,
+    .mainChartCard,
+    .pieCard {
+        padding: 18px;
+        min-height: auto;
     }
 
     .kpiInfo h2 {
@@ -464,11 +575,19 @@
         min-height: 220px;
     }
 
+    .pieCard > div {
+        height: 180px !important;
+    }
+
     .modal {
         width: calc(100% - 24px);
         max-width: none;
         margin: 12px;
         padding: 24px 20px;
+    }
+
+    .modal form [style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
     }
 
     .modalActions {
@@ -483,29 +602,23 @@
     .productCell {
         flex-wrap: wrap;
     }
-}
 
-@media (max-width: 480px) {
-    .sidebar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .sidebarLogo {
-        margin-right: 0;
-        text-align: center;
-    }
-
-    .navItem {
+    .managementHeader .premium-button {
         width: 100%;
         justify-content: center;
     }
+}
 
+@media (max-width: 480px) {
     .mainContent {
         padding: 12px;
     }
 
     .dashboardWrapper {
         gap: 16px;
+    }
+
+    .mobileTopBar {
+        padding: 8px 12px;
     }
 }
