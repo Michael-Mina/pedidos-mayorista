@@ -161,6 +161,9 @@ Archivo de referencia: [.env.example](.env.example)
 | `VITE_API_URL` | Frontend | URL del API (ej. `http://localhost:8000`) |
 | `VITE_WS_URL` | Frontend | URL WebSocket (misma que el API en local) |
 | `PUBLIC_API_URL` | Backend (opc.) | URL pública para enlaces de imágenes estáticas |
+| `BACKUP_DIR` | Backend (opc.) | Carpeta de respaldos por script (default: `backups/`) |
+| `BACKUP_RETENTION_DAYS` | Backend (opc.) | Días de retención de carpetas `backup_*` (default: `30`) |
+| `PG_DUMP_PATH` | Backend (opc.) | Ruta a `pg_dump` si no está en PATH |
 
 ---
 
@@ -170,17 +173,22 @@ Archivo de referencia: [.env.example](.env.example)
 Pedidos mayorista/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py           # Rutas API + Socket.IO + archivos estáticos
+│   │   ├── main.py           # Rutas API + Socket.IO + /admin/backup/*
 │   │   ├── models.py         # Tablas (usuarios, pedidos, cortes…)
 │   │   ├── crud.py           # Lógica de negocio y numeración de pedidos
-│   │   ├── auth.py           # Hash de contraseñas y JWT
+│   │   ├── auth.py           # JWT + require_admin
+│   │   ├── backup.py         # pg_dump, ZIP, restauración
 │   │   └── catalogo_res.py   # Catálogo de cortes de res (servidor)
 │   ├── static/cortes/res/    # Imágenes de productos servidas por /static/...
+│   ├── backup_db.py          # CLI: crear respaldo en backups/
+│   ├── restore_db.py         # CLI: restaurar desde backups/
 │   ├── setup_initial_data.py # Sede, categoría Res, usuario mayorista_test
 │   ├── reset_db.py           # Borra y recrea tablas (¡destructivo!)
 │   └── requirements.txt
+├── backups/                  # Respaldos locales (ignorado por Git)
 ├── frontend/
-│   └── src/pages/            # Login, Mayorista, Sede, JefeCarnes, Admin
+│   └── src/pages/            # Login, Mayorista, Sede, JefeCarnes, Admin (+ pestaña Respaldo)
+├── docs/BACKUP.md            # Guía de respaldo y restauración
 ├── init_db.sql               # Esquema SQL alternativo (opcional)
 └── README.md                 # Este archivo
 ```
@@ -226,6 +234,12 @@ Las sedes se unen a la sala `sede_{id}` para recibir avisos de su punto de venta
 - En base de datos se almacena **`password_hash`** (hash irreversible con **PBKDF2-SHA256** vía Passlib).
 - El login compara con `verify_password`; no es posible “leer” la contraseña original desde la BD.
 - Las sesiones usan **JWT**; configura un `SECRET_KEY` fuerte en producción.
+- La descarga de respaldos (`/admin/backup/*`) exige rol **admin** y token Bearer.
+
+### Respaldo de datos
+
+- **Admin → Respaldo:** descarga un ZIP (estructura BD + datos + imágenes).
+- **Terminal:** `python backup_db.py` / `python restore_db.py` (ver [docs/BACKUP.md](docs/BACKUP.md)).
 
 ---
 
@@ -241,6 +255,10 @@ Ejecutar desde la carpeta `backend` con el venv activado:
 | `seed_cortes_res_servidor.py` | Insertar/actualizar cortes de res en BD |
 | `descargar_imagenes_res.py` | Generar/descargar imágenes y actualizar URLs |
 | `migrate_db.py` y otros `migrate_*.py` | Migraciones puntuales (solo si las necesitas) |
+| `backup_db.py` | Respaldo de estructura BD, datos e imágenes estáticas |
+| `restore_db.py` | Restaurar desde una carpeta en `backups/` |
+
+Guía completa: [docs/BACKUP.md](docs/BACKUP.md). Desde el panel **Admin → Respaldo** puede descargar el ZIP sin usar la terminal.
 
 ---
 

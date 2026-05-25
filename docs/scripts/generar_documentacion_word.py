@@ -632,7 +632,7 @@ def build_document() -> Document:
             ["Política de seguridad", "No cumple", "Documento corporativo pendiente"],
             ["Control de acceso", "Parcial", "JWT; validación por rol en frontend principalmente"],
             ["Registro de eventos", "No cumple", "Sin log de accesos/auditoría"],
-            ["Continuidad / backup BD", "No cumple", "Definir RPO/RTO"],
+            ["Continuidad / backup BD", "Parcial", "Admin + scripts; ver docs/BACKUP.md"],
         ],
     )
     h2(doc, "14.4 Ley 1581 de 2012 (Colombia)")
@@ -665,7 +665,7 @@ def build_document() -> Document:
         [
             ["1", "Política tratamiento datos Ley 1581", "Legal CO"],
             ["2", "Plan de pruebas + automatización (pytest)", "ISO 29119"],
-            ["3", "Backup y restauración PostgreSQL", "ISO 27001"],
+            ["3", "Backup y restauración PostgreSQL (Admin + backup_db.py)", "ISO 27001"],
             ["4", "Restringir CORS y rate limiting en API", "Seguridad"],
             ["5", "Validación de permisos en todos los endpoints", "ISO 27001"],
         ],

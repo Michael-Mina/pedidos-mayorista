@@ -195,6 +195,12 @@ python descargar_imagenes_res.py
 
 - En el API, pon `CORS_ORIGINS` = URL exacta del frontend (con `https://`, sin barra final).
 
+**Respaldo desde Admin deshabilitado**
+
+- El build del API instala `postgresql-client` (`render.yaml`). Tras un redeploy, en el frontend: **Admin → Respaldo** debe mostrar “Servidor listo”.
+- Si sigue fallando, respaldo manual: copia `DATABASE_URL` del panel PostgreSQL a tu `backend/.env` local y ejecuta `python backup_db.py`.
+- Guía completa: [BACKUP.md](BACKUP.md).
+
 ---
 
 ## Actualizar producción

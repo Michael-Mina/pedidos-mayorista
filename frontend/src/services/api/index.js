@@ -9,6 +9,14 @@ const api = axios.create({
     },
 });
 
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
 export const pedidoService = {
     getAll: async (sedeId) => {
         const response = await api.get(`/pedidos?sede_id=${sedeId}`);
@@ -39,6 +47,36 @@ export const productService = {
         const response = await api.get('/tipos-corte');
         return response.data;
     }
+};
+
+/** Descarga respaldo ZIP (solo admin, requiere token). */
+export const downloadAdminBackup = async () => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/admin/backup/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+        let detail = 'No se pudo generar el respaldo';
+        try {
+            const body = await response.json();
+            detail = body.detail || detail;
+        } catch {
+            /* respuesta no JSON */
+        }
+        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^";\n]+)"?/i);
+    const filename = match ? match[1].trim() : `pedidos_mayorista_backup_${Date.now()}.zip`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 };
 
 export default api;

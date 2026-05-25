@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Admin.module.css';
-import api from '../../services/api';
+import api, { downloadAdminBackup } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
-    TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X
+    TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
+    HardDriveDownload, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -54,12 +55,15 @@ const Admin = () => {
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userSedeFilter, setUserSedeFilter] = useState('');
     const [menuOpen, setMenuOpen] = useState(false);
+    const [backupLoading, setBackupLoading] = useState(false);
+    const [backupStatus, setBackupStatus] = useState(null);
 
     const navTabs = [
         { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
         { id: 'users', label: 'Usuarios', icon: Users },
         { id: 'sedes', label: 'Sedes', icon: MapPin },
         { id: 'products', label: 'Productos', icon: Package },
+        { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
     ];
 
     const goToTab = (tabId) => {
@@ -130,6 +134,9 @@ const Admin = () => {
                     api.get('/tipos-corte')
                 ]);
                 setProducts({ categories: resCats.data, cuts: resCortes.data, tiposCorte: resTipos.data });
+            } else if (activeTab === 'backup') {
+                const res = await api.get('/admin/backup/status');
+                setBackupStatus(res.data);
             }
         } catch (error) {
             console.error("Error fetching admin data:", error);
@@ -222,6 +229,17 @@ const Admin = () => {
         } catch (error) {
             console.error("Error detailed:", error.response?.data);
             alert("Error al guardar: " + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message));
+        }
+    };
+
+    const handleDownloadBackup = async () => {
+        setBackupLoading(true);
+        try {
+            await downloadAdminBackup();
+        } catch (error) {
+            alert(error.message || 'Error al descargar el respaldo');
+        } finally {
+            setBackupLoading(false);
         }
     };
 
@@ -694,6 +712,57 @@ const Admin = () => {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'backup' && (
+                    <div className={styles.backupWrapper}>
+                        <div className={styles.topBanner}>
+                            <h1>RESPALDO DE DATOS</h1>
+                        </div>
+                        <div className={`${styles.backupCard} glass-card`}>
+                            <p className={styles.backupIntro}>
+                                Descargue un archivo ZIP con la estructura de la base de datos,
+                                los datos de pedidos/usuarios/productos y las imágenes estáticas del catálogo.
+                            </p>
+                            <ul className={styles.backupList}>
+                                <li><strong>schema.sql</strong> — estructura de tablas</li>
+                                <li><strong>data.sql</strong> — datos de la aplicación</li>
+                                <li><strong>static.zip</strong> — imágenes en el servidor</li>
+                                <li><strong>manifest.json</strong> — metadatos del respaldo</li>
+                            </ul>
+                            {backupStatus && (
+                                <div className={styles.backupStatusRow}>
+                                    {backupStatus.pg_dump_available ? (
+                                        <>
+                                            <CheckCircle2 size={18} className={styles.statusOk} />
+                                            <span>Servidor listo · BD: {backupStatus.database}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertCircle size={18} className={styles.statusError} />
+                                            <span>
+                                                El servidor no tiene pg_dump. Use el script local{' '}
+                                                <code>python backup_db.py</code> (ver docs/BACKUP.md).
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                className="premium-button"
+                                onClick={handleDownloadBackup}
+                                disabled={backupLoading || !backupStatus?.pg_dump_available}
+                            >
+                                <HardDriveDownload size={18} />
+                                {backupLoading ? 'Generando respaldo…' : 'Descargar respaldo ZIP'}
+                            </button>
+                            <p className={styles.backupHint}>
+                                La descarga puede tardar unos segundos según el tamaño de la base de datos.
+                                Guarde el archivo en un lugar seguro fuera del servidor.
+                            </p>
                         </div>
                     </div>
                 )}

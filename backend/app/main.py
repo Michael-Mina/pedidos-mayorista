@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -8,7 +9,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -360,6 +361,32 @@ async def set_availability_bulk(data: schemas.ButcherAvailabilityBulkUpdate, man
     }, room=f"sede_{sede_id}")
     
     return {"success": True, "updated": len(results)}
+
+
+@app.get("/admin/backup/status")
+def admin_backup_status(_admin: models.User = Depends(auth.require_admin)):
+    """Comprueba si el servidor puede generar respaldos (pg_dump)."""
+    return {
+        "pg_dump_available": backup.pg_tools_available(),
+        "database": backup.get_db_connection_params().database,
+    }
+
+
+@app.get("/admin/backup/download")
+def admin_backup_download(_admin: models.User = Depends(auth.require_admin)):
+    """Genera y devuelve un ZIP con estructura BD, datos e imágenes estáticas."""
+    try:
+        content, filename = backup.build_backup_download()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 # Final app definition for ASGI
 app = socket_app
