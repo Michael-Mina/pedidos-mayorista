@@ -33,20 +33,25 @@ try:
             db.add(models.TipoCorte(nombre=tname))
         db.commit()
 
-    # 5. Ensure Mayorista User exists
-    muser = db.query(models.User).filter(models.User.role == "mayorista").first()
+    # 5. Usuario mayorista de prueba (siempre idempotente por username)
+    demo_user = "mayorista_test"
+    muser = db.query(models.User).filter(models.User.username == demo_user).first()
+    demo_hash = auth.get_password_hash("test123")
     if not muser:
         muser = models.User(
-            username="mayorista_test",
-            role="mayorista",
+            username=demo_user,
+            role=models.UserRole.MAYORISTA,
             sede_id=sede.id,
-            password_hash=auth.get_password_hash("test123")
+            password_hash=demo_hash,
         )
         db.add(muser)
-        db.commit()
-    
+    else:
+        muser.password_hash = demo_hash
+        muser.sede_id = sede.id
+    db.commit()
+
     print("Initial data setup complete.")
-    print(f"Mayorista: mayorista_test / test123")
+    print(f"Mayorista: {demo_user} / test123")
     print(f"Sede ID: {sede.id}")
     print(f"Category ID: {cat.id}")
 

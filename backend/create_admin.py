@@ -1,60 +1,60 @@
-import sys
+"""Crea o actualiza usuario admin en producción (Shell de Render)."""
 import os
+import sys
 
-# Set up path to import app modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.database import engine, Base, SessionLocal
+from app.database import SessionLocal
 from app import models
 from app.auth import get_password_hash
+
+ADMIN_USER = "admin1"
+ADMIN_PASS = "12345678"
+
 
 def create_initial_data():
     db = SessionLocal()
     try:
-        # 1. Check or Create Sede Central
-        existing_sede = db.query(models.Sede).filter(models.Sede.id == "001").first()
-        if not existing_sede:
-            print("Creating Sede Central...")
-            sede = models.Sede(
-                id="001",
-                nombre="Sede Central",
-                ciudad="General"
-            )
+        sede = db.query(models.Sede).first()
+        if not sede:
+            print("Creando Sede Central...")
+            sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
             db.add(sede)
             db.commit()
-            print("Sede '001 - Sede Central' created.")
-        else:
-            print("Sede '001' already exists. Skipping creation.")
+            db.refresh(sede)
 
-        # 2. Check or Create Admin User
-        target_username = "admin1"
-        existing_user = db.query(models.User).filter(models.User.username == target_username).first()
-        
-        if not existing_user:
-            print(f"Creating User '{target_username}'...")
-            admin_user = models.User(
-                username=target_username,
-                password_hash=get_password_hash("12345678"),
-                role=models.UserRole.ADMIN,
-                sede_id="001",
-                session_active=1,
-                session_approved=1
+        user = (
+            db.query(models.User)
+            .filter(models.User.username == ADMIN_USER)
+            .first()
+        )
+        pwd_hash = get_password_hash(ADMIN_PASS)
+        if not user:
+            db.add(
+                models.User(
+                    username=ADMIN_USER,
+                    password_hash=pwd_hash,
+                    role=models.UserRole.ADMIN,
+                    sede_id=sede.id,
+                    session_active=1,
+                    session_approved=1,
+                )
             )
-            db.add(admin_user)
             db.commit()
-            print(f"User '{target_username}' created successfully.")
+            print(f"Admin creado: {ADMIN_USER} / {ADMIN_PASS}")
         else:
-            print(f"User '{target_username}' already exists. Updating password...")
-            existing_user.password_hash = get_password_hash("12345678")
+            user.password_hash = pwd_hash
+            user.role = models.UserRole.ADMIN
             db.commit()
-            print(f"User '{target_username}' password updated.")
-        
+            print(f"Admin actualizado: {ADMIN_USER} / {ADMIN_PASS}")
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         db.rollback()
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     create_initial_data()

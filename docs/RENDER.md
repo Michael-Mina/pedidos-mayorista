@@ -30,16 +30,28 @@ Guía para publicar **API (FastAPI + Socket.IO)**, **frontend (React)** y **Post
 2. Prueba: `https://TU-API.onrender.com/` → debe responder JSON con `"message": "... running"`
 3. Prueba Swagger: `https://TU-API.onrender.com/docs`
 4. Abre **`pedidos-mayorista-web`** → URL del frontend (ej. `https://pedidos-mayorista-web.onrender.com`)
-5. Login de prueba (si la BD estaba vacía y `SEED_ON_STARTUP=true`):
+5. Login de prueba:
    - Usuario: `mayorista_test`
    - Contraseña: `test123`
+   - Si ves **Incorrect username or password**, crea/resetea el usuario en Shell (paso 6).
 
-6. **Crea el administrador** (Shell del API en Render):
-   - Servicio API → **Shell**
+6. **Crear o resetear usuarios** (Shell del servicio **pedidos-mayorista-api**):
+
+   ```bash
+   python setup_initial_data.py
+   ```
+
+   Credenciales mayorista: `mayorista_test` / `test123`
+
+   Administrador:
+
    ```bash
    python create_admin.py
    ```
-   Sigue las preguntas en consola.
+
+   Credenciales admin: `admin1` / `12345678`
+
+   Luego en el API: **Manual Deploy** (o reinicia el servicio) solo si cambiaste código; para seed basta ejecutar el script.
 
 7. **Cambia la contraseña de prueba** en producción y crea usuarios reales desde `/admin`.
 
@@ -162,10 +174,13 @@ python descargar_imagenes_res.py
 - Usa la URL que Render proporciona en el panel de PostgreSQL.
 - `database.py` convierte `postgres://` → `postgresql://` automáticamente.
 
-**Login falla**
+**Login falla (`Incorrect username or password`)**
 
-- Ejecuta Shell: `python setup_initial_data.py` o deja `SEED_ON_STARTUP=true` y reinicia el API.
-- Crea admin: `python create_admin.py`
+- La app y el API **sí conectan**; falta el usuario en PostgreSQL o la contraseña no coincide.
+- Render → **pedidos-mayorista-api** → **Shell** → `python setup_initial_data.py`
+- Usa exactamente: `mayorista_test` / `test123` (sin espacios).
+- Comprueba en el frontend (Settings → Environment) que `VITE_API_URL` sea la URL del API con `https://`.
+- Tras cambiar `SEED_ON_STARTUP`, redeploy del API para que `startup_seed` actualice la contraseña al arrancar.
 
 **Las imágenes no cargan**
 

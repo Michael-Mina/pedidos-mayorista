@@ -1,8 +1,11 @@
-"""Datos mínimos en BD vacía (Render primer despliegue). Idempotente."""
+"""Datos mínimos en Render (idempotente). Activa con SEED_ON_STARTUP=true."""
 import os
 
 from . import auth, models
 from .database import SessionLocal
+
+DEMO_USER = "mayorista_test"
+DEMO_PASS = "test123"
 
 
 def run_if_enabled() -> None:
@@ -10,28 +13,40 @@ def run_if_enabled() -> None:
         return
     db = SessionLocal()
     try:
-        if db.query(models.User).count() > 0:
-            return
-        sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
-        db.add(sede)
-        db.commit()
-        db.refresh(sede)
+        sede = db.query(models.Sede).first()
+        if not sede:
+            sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
+            db.add(sede)
+            db.commit()
+            db.refresh(sede)
 
         if db.query(models.TipoCorte).count() == 0:
             for name in ("Mariposa", "Delgado", "Grueso"):
                 db.add(models.TipoCorte(nombre=name))
             db.commit()
 
-        db.add(
-            models.User(
-                username="mayorista_test",
-                role=models.UserRole.MAYORISTA,
-                sede_id=sede.id,
-                password_hash=auth.get_password_hash("test123"),
-            )
+        user = (
+            db.query(models.User)
+            .filter(models.User.username == DEMO_USER)
+            .first()
         )
-        db.commit()
-        print("[startup_seed] Usuario mayorista_test / test123 creado.")
+        pwd_hash = auth.get_password_hash(DEMO_PASS)
+        if not user:
+            db.add(
+                models.User(
+                    username=DEMO_USER,
+                    role=models.UserRole.MAYORISTA,
+                    sede_id=sede.id,
+                    password_hash=pwd_hash,
+                )
+            )
+            db.commit()
+            print(f"[startup_seed] Creado {DEMO_USER} / {DEMO_PASS}")
+        else:
+            user.password_hash = pwd_hash
+            user.sede_id = sede.id
+            db.commit()
+            print(f"[startup_seed] Contraseña actualizada: {DEMO_USER} / {DEMO_PASS}")
     except Exception as err:
         print(f"[startup_seed] Error: {err}")
     finally:
