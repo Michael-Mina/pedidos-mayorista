@@ -1,4 +1,4 @@
-# Gestión de pedidos — Supertiendas Cañaveral
+# Pedidos Mayorista
 
 Sistema web para **pedidos de carnicería en tiempo real**: el mayorista arma pedidos por sede, la carnicería los prepara y el jefe de carnes/admin los supervisa. Incluye notificaciones en vivo (WebSockets), catálogo de cortes con imágenes en el servidor y numeración de pedidos por sede.
 
@@ -314,4 +314,4 @@ Ver `init_db.sql` o la sección histórica en [README_SETUP.md](README_SETUP.md)
 
 ## Licencia
 
-Uso interno — Supertiendas Cañaveral.
+Uso interno — Pedidos Mayorista.

@@ -1,4 +1,4 @@
-# Frontend — Gestión de pedidos Cañaveral
+# Frontend — Pedidos Mayorista
 
 Interfaz React + Vite. Toda la documentación del proyecto (instalación, API, roles, despliegue) está en la raíz del repositorio:
 

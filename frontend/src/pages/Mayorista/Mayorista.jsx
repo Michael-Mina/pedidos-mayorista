@@ -247,7 +247,7 @@ const Mayorista = () => {
                     {menuOpen ? <X size={22} /> : <Menu size={22} />}
                 </button>
                 <div className={styles.mobileLogo}>
-                    Caña<span>veral</span> <small>| Mayorista</small>
+                    Pedidos <span>Mayorista</span> <small>| Mayorista</small>
                 </div>
                 <span className={styles.mobileTopSpacer} aria-hidden="true" />
             </header>
@@ -262,7 +262,7 @@ const Mayorista = () => {
             )}
 
             <nav className={`${styles.mobileNav} ${menuOpen ? styles.mobileNavOpen : ''}`}>
-                <div className={styles.mobileNavLogo}>Caña<span>veral</span></div>
+                <div className={styles.mobileNavLogo}>Pedidos <span>Mayorista</span></div>
                 <p className={styles.mobileNavUser}>{user?.username}</p>
                 <button
                     type="button"
@@ -281,7 +281,7 @@ const Mayorista = () => {
             </nav>
 
             <header className={`${styles.header} glass-card`}>
-                <div className={styles.logo}>Caña<span>veral</span> <small>| Mayorista</small></div>
+                <div className={styles.logo}>Pedidos <span>Mayorista</span> <small>| Mayorista</small></div>
 
                 <div className={styles.headerActions}>
                     <button

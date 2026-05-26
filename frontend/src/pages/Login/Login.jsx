@@ -33,8 +33,8 @@ const Login = () => {
     return (
         <div className={styles.loginContainer}>
             <div className={`${styles.loginCard} glass-card`}>
-                <h1 className={styles.logo}>Caña<span>veral</span></h1>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Sistema de Gestión de Pedidos</p>
+                <h1 className={styles.logo}>Pedidos <span>Mayorista</span></h1>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Sistema de gestión de pedidos mayoristas</p>
 
                 <form onSubmit={handleSubmit}>
                     <div className={styles.formGroup}>

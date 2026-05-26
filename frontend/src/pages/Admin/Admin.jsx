@@ -329,7 +329,7 @@ const Admin = () => {
                 >
                     {menuOpen ? <X size={22} /> : <Menu size={22} />}
                 </button>
-                <div className={styles.mobileLogo}>Caña<span>veral</span></div>
+                <div className={styles.mobileLogo}>Pedidos <span>Mayorista</span></div>
                 <span className={styles.mobileTopSpacer} aria-hidden="true" />
             </header>
 
@@ -343,7 +343,7 @@ const Admin = () => {
             )}
 
             <nav className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
-                <div className={styles.sidebarLogo}>Caña<span>veral</span></div>
+                <div className={styles.sidebarLogo}>Pedidos <span>Mayorista</span></div>
                 {navTabs.map(({ id, label, icon: Icon }) => (
                     <div
                         key={id}

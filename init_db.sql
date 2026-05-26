@@ -1,4 +1,4 @@
--- Supertiendas Cañaveral - Script de Inicialización de Base de Datos
+-- Pedidos Mayorista - Script de Inicialización de Base de Datos
 
 -- 1. Crear la base de datos (Ejecutar manualmente en psql o pgAdmin)
 -- CREATE DATABASE supertiendas_db;

@@ -97,7 +97,7 @@ def build_document() -> Document:
     # Portada
     t = doc.add_paragraph()
     t.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = t.add_run("SUPERTIENDAS CAÑAVERAL\n")
+    r = t.add_run("PEDIDOS MAYORISTA\n")
     r.font.size = Pt(14)
     r.font.bold = True
     t2 = doc.add_paragraph()
@@ -119,11 +119,11 @@ def build_document() -> Document:
         ["Campo", "Valor"],
         [
             ["Código del documento", "DOC-PEDIDOS-MAYORISTA-001"],
-            ["Nombre del producto", "Pedidos Mayorista (Supertiendas Cañaveral)"],
+            ["Nombre del producto", "Pedidos Mayorista"],
             ["Versión documental", "1.0"],
             ["Fecha de elaboración", str(date.today())],
             ["Clasificación", "Uso interno — Confidencial"],
-            ["API", "Supertiendas Cañaveral API (FastAPI)"],
+            ["API", "Pedidos Mayorista API (FastAPI)"],
             ["Repositorio / carpeta", r"D:\Pedidos mayorista"],
         ],
         [5, 11],
@@ -731,7 +731,7 @@ def build_document() -> Document:
     doc.add_page_break()
     h1(doc, "Fin del documento")
     p(doc, f"DOC-PEDIDOS-MAYORISTA-001 — Versión 1.0 — Generado {date.today().isoformat()}")
-    p(doc, "© Uso interno Supertiendas Cañaveral.")
+    p(doc, "© Uso interno Pedidos Mayorista.")
 
     return doc
 

@@ -13,7 +13,7 @@ from . import models, schemas, crud, database, auth, background_tasks, catalogo_
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
-app = FastAPI(title="Supertiendas Cañaveral API")
+app = FastAPI(title="Pedidos Mayorista API")
 
 # 2. CORS Configuration
 def _build_cors_origins():
@@ -82,7 +82,7 @@ async def join_room(sid, room_name):
 
 @app.get("/")
 def read_root():
-    return {"message": "Supertiendas Cañaveral API is running", "docs": "/docs"}
+    return {"message": "Pedidos Mayorista API is running", "docs": "/docs"}
 
 @app.post("/register", response_model=schemas.User)
 def register_user(user: schemas.UserBase, password: Optional[str] = None, db: Session = Depends(get_db)):

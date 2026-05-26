@@ -146,7 +146,7 @@ def _descargar_imagen(destino: Path, origen: str, pausa_seg: float = 1.25) -> bo
         time.sleep(pausa_seg)
     req = urllib.request.Request(
         origen,
-        headers={"User-Agent": "SupertiendasCanaveral/1.0 (catalog seed)"},
+        headers={"User-Agent": "PedidosMayorista/1.0 (catalog seed)"},
     )
     try:
         with urllib.request.urlopen(req, timeout=45) as resp:

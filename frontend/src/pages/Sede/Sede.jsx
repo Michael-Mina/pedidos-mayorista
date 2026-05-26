@@ -115,7 +115,7 @@ const Sede = () => {
             <header className={`${styles.header} glass-card`}>
                 <div className={styles.logo}>
                     <Monitor size={24} style={{ marginRight: '10px', color: 'var(--primary-color)' }} />
-                    Caña<span>veral</span> <small>| Panel de Sede</small>
+                    Pedidos <span>Mayorista</span> <small>| Panel de Sede</small>
                 </div>
 
                 <div className={styles.headerRight}>

@@ -252,7 +252,7 @@ const JefeCarnes = () => {
                 >
                     {menuOpen ? <X size={22} /> : <Menu size={22} />}
                 </button>
-                <div className={styles.mobileLogo}>Caña<span>veral</span></div>
+                <div className={styles.mobileLogo}>Pedidos <span>Mayorista</span></div>
                 <span className={styles.mobileTopSpacer} aria-hidden="true" />
             </header>
 
@@ -266,7 +266,7 @@ const JefeCarnes = () => {
             )}
 
             <aside className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
-                <div className={styles.logo}>Caña<span>veral</span></div>
+                <div className={styles.logo}>Pedidos <span>Mayorista</span></div>
 
                 <nav className={styles.nav}>
                     {navTabs.map(({ id, label, icon: Icon }) => (
