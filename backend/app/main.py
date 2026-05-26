@@ -280,14 +280,29 @@ def read_users(db: Session = Depends(get_db)):
     return crud.get_users(db)
 
 @app.get("/stats/orders-by-sede")
-def get_stats_orders(db: Session = Depends(get_db)):
-    result = crud.get_stats_orders_by_sede(db)
+def get_stats_orders(sede_id: Optional[int] = None, db: Session = Depends(get_db)):
+    result = crud.get_stats_orders_by_sede(db, sede_id=sede_id)
     return [{"name": r[0], "count": r[1]} for r in result]
 
+
+@app.get("/stats/orders-by-estado")
+def get_stats_orders_by_estado(sede_id: int, db: Session = Depends(get_db)):
+    result = crud.get_stats_orders_by_estado(db, sede_id=sede_id)
+    labels = {
+        "pendiente": "Pendiente",
+        "en_proceso": "En proceso",
+        "finalizado": "Finalizado",
+    }
+    return [
+        {"name": labels.get(r[0].value if hasattr(r[0], "value") else str(r[0]), str(r[0])), "count": r[1]}
+        for r in result
+    ]
+
+
 @app.get("/stats/top-cuts")
-def get_stats_cuts(db: Session = Depends(get_db)):
-    result = crud.get_stats_top_cuts(db)
-    return [{"name": r[0], "total_kg": r[1]} for r in result]
+def get_stats_cuts(sede_id: Optional[int] = None, db: Session = Depends(get_db)):
+    result = crud.get_stats_top_cuts(db, sede_id=sede_id)
+    return [{"name": r[0], "total_kg": float(r[1] or 0)} for r in result]
 
 @app.get("/pedidos", response_model=List[schemas.Pedido])
 def read_pedidos(sede_id: str = None, db: Session = Depends(get_db)):

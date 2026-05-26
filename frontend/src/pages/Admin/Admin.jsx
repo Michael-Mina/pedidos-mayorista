@@ -38,7 +38,8 @@ ChartJS.register(
 const Admin = () => {
     const { logout } = useAuth();
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [stats, setStats] = useState({ sedeOrders: [], topCuts: [] });
+    const [stats, setStats] = useState({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
+    const [dashboardSedeFilter, setDashboardSedeFilter] = useState('');
     const [usersList, setUsersList] = useState([]);
     const [sedesList, setSedesList] = useState([]);
     const [products, setProducts] = useState({ categories: [], cuts: [], tiposCorte: [] });
@@ -90,7 +91,7 @@ const Admin = () => {
 
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, [activeTab, dashboardSedeFilter]);
 
     useEffect(() => {
         if (activeTab !== 'products') {
@@ -108,13 +109,25 @@ const Admin = () => {
         setLoading(true);
         try {
             if (activeTab === 'dashboard') {
-                const [sedeStats, cutStats, resUsers, resSedes] = await Promise.all([
-                    api.get('/stats/orders-by-sede'),
-                    api.get('/stats/top-cuts'),
+                const statsParams = dashboardSedeFilter ? { sede_id: dashboardSedeFilter } : {};
+                const requests = [
+                    api.get('/stats/orders-by-sede', { params: statsParams }),
+                    api.get('/stats/top-cuts', { params: statsParams }),
                     api.get('/users'),
-                    api.get('/sedes')
-                ]);
-                setStats({ sedeOrders: sedeStats.data, topCuts: cutStats.data });
+                    api.get('/sedes'),
+                ];
+                if (dashboardSedeFilter) {
+                    requests.push(
+                        api.get('/stats/orders-by-estado', { params: { sede_id: dashboardSedeFilter } })
+                    );
+                }
+                const results = await Promise.all(requests);
+                const [sedeStats, cutStats, resUsers, resSedes, estadoStats] = results;
+                setStats({
+                    sedeOrders: sedeStats.data,
+                    topCuts: cutStats.data,
+                    ordersByEstado: estadoStats?.data ?? [],
+                });
                 setUsersList(resUsers.data);
                 setSedesList(resSedes.data);
             } else if (activeTab === 'users') {
@@ -260,11 +273,33 @@ const Admin = () => {
         }
     };
 
+    const selectedSede = sedesList.find((s) => String(s.id) === dashboardSedeFilter);
+    const isAllSedes = !dashboardSedeFilter;
+    const totalPedidos = stats.sedeOrders.reduce((a, b) => a + b.count, 0);
+    const totalKg = stats.topCuts.reduce((a, b) => a + (b.total_kg || 0), 0);
+    const mayoristasEnVista = usersList.filter((u) => {
+        if (u.role !== 'mayorista') return false;
+        if (!dashboardSedeFilter) return true;
+        return String(u.sede_id) === dashboardSedeFilter;
+    });
+    const ciudadesEnVista = isAllSedes
+        ? [...new Set(sedesList.map((s) => s.ciudad).filter(Boolean))]
+        : selectedSede?.ciudad
+            ? [selectedSede.ciudad]
+            : [];
+
+    const mainChartLabels = isAllSedes
+        ? stats.sedeOrders.map((s) => s.name)
+        : stats.ordersByEstado.map((s) => s.name);
+    const mainChartCounts = isAllSedes
+        ? stats.sedeOrders.map((s) => s.count)
+        : stats.ordersByEstado.map((s) => s.count);
+
     const barData = {
-        labels: stats.sedeOrders.map(s => s.name),
+        labels: mainChartLabels,
         datasets: [{
-            label: 'Pedidos por Sede',
-            data: stats.sedeOrders.map(s => s.count),
+            label: isAllSedes ? 'Pedidos por sede' : 'Pedidos por estado',
+            data: mainChartCounts,
             backgroundColor: 'rgba(46, 204, 113, 0.5)',
             borderColor: '#2ecc71',
             borderWidth: 1
@@ -372,8 +407,33 @@ const Admin = () => {
                 {activeTab === 'dashboard' && (
                     <div className={styles.dashboardWrapper}>
                         <div className={styles.topBanner}>
-                            <h1>RESUMEN DE OPERACIONES</h1>
-                            <button className="premium-button" onClick={fetchData}><RefreshCw size={18} /></button>
+                            <div className={styles.topBannerLeft}>
+                                <h1>RESUMEN DE OPERACIONES</h1>
+                                {selectedSede && (
+                                    <span className={styles.sedeFilterBadge}>{selectedSede.nombre}</span>
+                                )}
+                            </div>
+                            <div className={styles.topBannerActions}>
+                                <label className={styles.sedeFilterLabel}>
+                                    <MapPin size={16} aria-hidden="true" />
+                                    <select
+                                        className={styles.sedeFilterSelect}
+                                        value={dashboardSedeFilter}
+                                        onChange={(e) => setDashboardSedeFilter(e.target.value)}
+                                        aria-label="Filtrar por sede"
+                                    >
+                                        <option value="">Todas las sedes</option>
+                                        {sedesList.map((sede) => (
+                                            <option key={sede.id} value={String(sede.id)}>
+                                                {sede.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <button type="button" className="premium-button" onClick={fetchData} aria-label="Actualizar datos">
+                                    <RefreshCw size={18} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className={styles.dashboardGrid}>
@@ -382,7 +442,7 @@ const Admin = () => {
                                 <div className={`${styles.kpiCard} glass-card`}>
                                     <div className={styles.kpiInfo}>
                                         <span>PEDIDOS TOTALES</span>
-                                        <h2>{stats.sedeOrders.reduce((a, b) => a + b.count, 0)}</h2>
+                                        <h2>{totalPedidos}</h2>
                                     </div>
                                     <div className={styles.miniChart}>
                                         <Line
@@ -408,7 +468,7 @@ const Admin = () => {
                                 <div className={`${styles.kpiCard} glass-card`}>
                                     <div className={styles.kpiInfo}>
                                         <span>KG PROMEDIO / PEDIDO</span>
-                                        <h2>{stats.topCuts.length > 0 ? (stats.topCuts.reduce((a, b) => a + b.total_kg, 0) / (stats.sedeOrders.reduce((a, b) => a + b.count, 0) || 1)).toFixed(1) : '0'} kg</h2>
+                                        <h2>{totalPedidos > 0 ? (totalKg / totalPedidos).toFixed(1) : '0'} kg</h2>
                                     </div>
                                     <div className={styles.miniChart}>
                                         <Line
@@ -435,15 +495,19 @@ const Admin = () => {
                             {/* Main Trend Chart */}
                             <div className={`${styles.mainChartCard} glass-card`}>
                                 <div className={styles.cardHeader}>
-                                    <h3>TENDENCIA DE PEDIDOS POR SEDE</h3>
+                                    <h3>
+                                        {isAllSedes
+                                            ? 'PEDIDOS POR SEDE'
+                                            : `PEDIDOS POR ESTADO — ${selectedSede?.nombre || 'Sede'}`}
+                                    </h3>
                                     <div className={styles.chartLegend}>
                                         <Bar
                                             data={{
-                                                labels: stats.sedeOrders.map(s => s.name),
+                                                labels: mainChartLabels,
                                                 datasets: [{
-                                                    label: 'Pedidos',
-                                                    data: stats.sedeOrders.map(s => s.count),
-                                                    backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c'],
+                                                    label: isAllSedes ? 'Pedidos' : 'Pedidos por estado',
+                                                    data: mainChartCounts,
+                                                    backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#9b59b6'],
                                                     borderRadius: 5
                                                 }]
                                             }}
@@ -460,8 +524,8 @@ const Admin = () => {
                             {/* Bottom Row - More KPIs and Distribution */}
                             <div className={`${styles.smallCard} glass-card`}>
                                 <div className={styles.kpiInfo}>
-                                    <span>MAYORISTAS ACTIVOS</span>
-                                    <h2>{usersList.filter(u => u.role === 'mayorista').length}</h2>
+                                    <span>MAYORISTAS {isAllSedes ? 'ACTIVOS' : 'EN SEDE'}</span>
+                                    <h2>{mayoristasEnVista.length}</h2>
                                 </div>
                                 <div className={styles.miniChart}>
                                     <Line
@@ -483,8 +547,11 @@ const Admin = () => {
 
                             <div className={`${styles.smallCard} glass-card`}>
                                 <div className={styles.kpiInfo}>
-                                    <span>CIUDADES CUBIERTAS</span>
-                                    <h2>{[...new Set(sedesList.map(s => s.ciudad))].length}</h2>
+                                    <span>{isAllSedes ? 'CIUDADES CUBIERTAS' : 'CIUDAD'}</span>
+                                    <h2>{ciudadesEnVista.length}</h2>
+                                    {!isAllSedes && ciudadesEnVista[0] && (
+                                        <p className={styles.kpiSubtext}>{ciudadesEnVista[0]}</p>
+                                    )}
                                 </div>
                                 <div className={styles.miniChart}>
                                     <Line

@@ -159,17 +159,48 @@ def delete_tipo_corte(db: Session, tipo_id: int):
     return db_tipo
 
 # Analytics
-def get_stats_orders_by_sede(db: Session):
-    return db.query(
-        models.Sede.nombre, 
-        func.count(models.Pedido.id).label('count')
-    ).join(models.Pedido).group_by(models.Sede.nombre).all()
+def get_stats_orders_by_sede(db: Session, sede_id: int | None = None):
+    q = (
+        db.query(
+            models.Sede.nombre,
+            func.count(models.Pedido.id).label("count"),
+        )
+        .outerjoin(models.Pedido, models.Pedido.sede_id == models.Sede.id)
+    )
+    if sede_id is not None:
+        q = q.filter(models.Sede.id == sede_id)
+    return q.group_by(models.Sede.id, models.Sede.nombre).order_by(models.Sede.nombre).all()
 
-def get_stats_top_cuts(db: Session):
-    return db.query(
-        models.Corte.nombre,
-        func.sum(models.DetallePedido.cantidad_kg).label('total_kg')
-    ).join(models.DetallePedido).group_by(models.Corte.nombre).order_by(func.sum(models.DetallePedido.cantidad_kg).desc()).limit(5).all()
+
+def get_stats_orders_by_estado(db: Session, sede_id: int):
+    return (
+        db.query(
+            models.Pedido.estado,
+            func.count(models.Pedido.id).label("count"),
+        )
+        .filter(models.Pedido.sede_id == sede_id)
+        .group_by(models.Pedido.estado)
+        .all()
+    )
+
+
+def get_stats_top_cuts(db: Session, sede_id: int | None = None, limit: int = 5):
+    q = (
+        db.query(
+            models.Corte.nombre,
+            func.sum(models.DetallePedido.cantidad_kg).label("total_kg"),
+        )
+        .join(models.DetallePedido, models.DetallePedido.corte_id == models.Corte.id)
+        .join(models.Pedido, models.DetallePedido.pedido_id == models.Pedido.id)
+    )
+    if sede_id is not None:
+        q = q.filter(models.Pedido.sede_id == sede_id)
+    return (
+        q.group_by(models.Corte.nombre)
+        .order_by(func.sum(models.DetallePedido.cantidad_kg).desc())
+        .limit(limit)
+        .all()
+    )
 
 # User Management
 def get_users(db: Session):

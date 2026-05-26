@@ -100,6 +100,57 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
+.topBannerLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.topBannerActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.sedeFilterLabel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.sedeFilterSelect {
+    min-width: 180px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-light);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.sedeFilterSelect:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.sedeFilterBadge {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.kpiSubtext {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .topBanner h1 {
     font-size: 0.9rem;
     font-weight: 700;
@@ -546,17 +597,24 @@
 
 @media (max-width: 768px) {
     .topBanner {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
+        flex-direction: column;
+        align-items: stretch;
         gap: 10px;
         padding: 12px 16px;
     }
 
-    .topBanner h1 {
-        font-size: 0.75rem;
+    .topBannerActions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .sedeFilterSelect {
         flex: 1;
         min-width: 0;
+    }
+
+    .topBanner h1 {
+        font-size: 0.75rem;
     }
 
     .kpiCard,
