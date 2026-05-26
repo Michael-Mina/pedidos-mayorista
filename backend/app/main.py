@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
+from datetime import date
 import os
 import socketio
 import threading
@@ -79,6 +80,15 @@ async def join_room(sid, room_name):
     print(f"Client {sid} joined room: {room_name}")
 
 # --- API Routes ---
+
+def _parse_stats_date(value: Optional[str]) -> Optional[date]:
+    if not value or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Fecha inválida: {value}. Use YYYY-MM-DD.")
+
 
 @app.get("/")
 def read_root():
@@ -280,14 +290,34 @@ def read_users(db: Session = Depends(get_db)):
     return crud.get_users(db)
 
 @app.get("/stats/orders-by-sede")
-def get_stats_orders(sede_id: Optional[int] = None, db: Session = Depends(get_db)):
-    result = crud.get_stats_orders_by_sede(db, sede_id=sede_id)
+def get_stats_orders(
+    sede_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    result = crud.get_stats_orders_by_sede(
+        db,
+        sede_id=sede_id,
+        date_from=_parse_stats_date(date_from),
+        date_to=_parse_stats_date(date_to),
+    )
     return [{"name": r[0], "count": r[1]} for r in result]
 
 
 @app.get("/stats/orders-by-estado")
-def get_stats_orders_by_estado(sede_id: int, db: Session = Depends(get_db)):
-    result = crud.get_stats_orders_by_estado(db, sede_id=sede_id)
+def get_stats_orders_by_estado(
+    sede_id: int,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    result = crud.get_stats_orders_by_estado(
+        db,
+        sede_id=sede_id,
+        date_from=_parse_stats_date(date_from),
+        date_to=_parse_stats_date(date_to),
+    )
     labels = {
         "pendiente": "Pendiente",
         "en_proceso": "En proceso",
@@ -300,8 +330,18 @@ def get_stats_orders_by_estado(sede_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/stats/top-cuts")
-def get_stats_cuts(sede_id: Optional[int] = None, db: Session = Depends(get_db)):
-    result = crud.get_stats_top_cuts(db, sede_id=sede_id)
+def get_stats_cuts(
+    sede_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    result = crud.get_stats_top_cuts(
+        db,
+        sede_id=sede_id,
+        date_from=_parse_stats_date(date_from),
+        date_to=_parse_stats_date(date_to),
+    )
     return [{"name": r[0], "total_kg": float(r[1] or 0)} for r in result]
 
 @app.get("/pedidos", response_model=List[schemas.Pedido])

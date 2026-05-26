@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from . import models, schemas
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, time
 
 # Sede CRUD
 def get_sedes(db: Session):
@@ -159,32 +159,70 @@ def delete_tipo_corte(db: Session, tipo_id: int):
     return db_tipo
 
 # Analytics
-def get_stats_orders_by_sede(db: Session, sede_id: int | None = None):
+def _pedido_timestamp_bounds(date_from: date | None, date_to: date | None) -> tuple[datetime | None, datetime | None]:
+    start = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
+    end = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
+    return start, end
+
+
+def _pedido_join_conditions(date_from: date | None = None, date_to: date | None = None):
+    conditions = [models.Pedido.sede_id == models.Sede.id]
+    start, end = _pedido_timestamp_bounds(date_from, date_to)
+    if start is not None:
+        conditions.append(models.Pedido.timestamp >= start)
+    if end is not None:
+        conditions.append(models.Pedido.timestamp <= end)
+    return and_(*conditions)
+
+
+def _apply_pedido_date_filter(q, date_from: date | None = None, date_to: date | None = None):
+    start, end = _pedido_timestamp_bounds(date_from, date_to)
+    if start is not None:
+        q = q.filter(models.Pedido.timestamp >= start)
+    if end is not None:
+        q = q.filter(models.Pedido.timestamp <= end)
+    return q
+
+
+def get_stats_orders_by_sede(
+    db: Session,
+    sede_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
     q = (
         db.query(
             models.Sede.nombre,
             func.count(models.Pedido.id).label("count"),
         )
-        .outerjoin(models.Pedido, models.Pedido.sede_id == models.Sede.id)
+        .outerjoin(models.Pedido, _pedido_join_conditions(date_from, date_to))
     )
     if sede_id is not None:
         q = q.filter(models.Sede.id == sede_id)
     return q.group_by(models.Sede.id, models.Sede.nombre).order_by(models.Sede.nombre).all()
 
 
-def get_stats_orders_by_estado(db: Session, sede_id: int):
-    return (
-        db.query(
-            models.Pedido.estado,
-            func.count(models.Pedido.id).label("count"),
-        )
-        .filter(models.Pedido.sede_id == sede_id)
-        .group_by(models.Pedido.estado)
-        .all()
-    )
+def get_stats_orders_by_estado(
+    db: Session,
+    sede_id: int,
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
+    q = db.query(
+        models.Pedido.estado,
+        func.count(models.Pedido.id).label("count"),
+    ).filter(models.Pedido.sede_id == sede_id)
+    q = _apply_pedido_date_filter(q, date_from, date_to)
+    return q.group_by(models.Pedido.estado).all()
 
 
-def get_stats_top_cuts(db: Session, sede_id: int | None = None, limit: int = 5):
+def get_stats_top_cuts(
+    db: Session,
+    sede_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = 5,
+):
     q = (
         db.query(
             models.Corte.nombre,
@@ -195,6 +233,7 @@ def get_stats_top_cuts(db: Session, sede_id: int | None = None, limit: int = 5):
     )
     if sede_id is not None:
         q = q.filter(models.Pedido.sede_id == sede_id)
+    q = _apply_pedido_date_filter(q, date_from, date_to)
     return (
         q.group_by(models.Corte.nombre)
         .order_by(func.sum(models.DetallePedido.cantidad_kg).desc())

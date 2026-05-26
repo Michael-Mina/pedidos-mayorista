@@ -5,7 +5,7 @@ import api, { downloadAdminBackup } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -21,6 +21,44 @@ import {
     Filler
 } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
+
+const DASHBOARD_PERIODS = [
+    { value: 'all', label: 'Todo el tiempo' },
+    { value: 'today', label: 'Hoy' },
+    { value: 'last_7_days', label: 'Últimos 7 días' },
+    { value: 'last_30_days', label: 'Últimos 30 días' },
+    { value: 'this_month', label: 'Este mes' },
+];
+
+const formatDateParam = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+const getDashboardDateRange = (period) => {
+    if (period === 'all') return {};
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let start = new Date(end);
+    switch (period) {
+        case 'today':
+            break;
+        case 'last_7_days':
+            start.setDate(start.getDate() - 6);
+            break;
+        case 'last_30_days':
+            start.setDate(start.getDate() - 29);
+            break;
+        case 'this_month':
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+        default:
+            return {};
+    }
+    return { date_from: formatDateParam(start), date_to: formatDateParam(end) };
+};
 
 ChartJS.register(
     CategoryScale,
@@ -40,6 +78,7 @@ const Admin = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [stats, setStats] = useState({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
     const [dashboardSedeFilter, setDashboardSedeFilter] = useState('');
+    const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState('all');
     const [usersList, setUsersList] = useState([]);
     const [sedesList, setSedesList] = useState([]);
     const [products, setProducts] = useState({ categories: [], cuts: [], tiposCorte: [] });
@@ -91,7 +130,7 @@ const Admin = () => {
 
     useEffect(() => {
         fetchData();
-    }, [activeTab, dashboardSedeFilter]);
+    }, [activeTab, dashboardSedeFilter, dashboardPeriodFilter]);
 
     useEffect(() => {
         if (activeTab !== 'products') {
@@ -109,7 +148,10 @@ const Admin = () => {
         setLoading(true);
         try {
             if (activeTab === 'dashboard') {
-                const statsParams = dashboardSedeFilter ? { sede_id: dashboardSedeFilter } : {};
+                const statsParams = {
+                    ...getDashboardDateRange(dashboardPeriodFilter),
+                    ...(dashboardSedeFilter ? { sede_id: dashboardSedeFilter } : {}),
+                };
                 const requests = [
                     api.get('/stats/orders-by-sede', { params: statsParams }),
                     api.get('/stats/top-cuts', { params: statsParams }),
@@ -118,7 +160,7 @@ const Admin = () => {
                 ];
                 if (dashboardSedeFilter) {
                     requests.push(
-                        api.get('/stats/orders-by-estado', { params: { sede_id: dashboardSedeFilter } })
+                        api.get('/stats/orders-by-estado', { params: statsParams })
                     );
                 }
                 const results = await Promise.all(requests);
@@ -274,6 +316,7 @@ const Admin = () => {
     };
 
     const selectedSede = sedesList.find((s) => String(s.id) === dashboardSedeFilter);
+    const selectedPeriod = DASHBOARD_PERIODS.find((p) => p.value === dashboardPeriodFilter);
     const isAllSedes = !dashboardSedeFilter;
     const totalPedidos = stats.sedeOrders.reduce((a, b) => a + b.count, 0);
     const totalKg = stats.topCuts.reduce((a, b) => a + (b.total_kg || 0), 0);
@@ -409,11 +452,31 @@ const Admin = () => {
                         <div className={styles.topBanner}>
                             <div className={styles.topBannerLeft}>
                                 <h1>RESUMEN DE OPERACIONES</h1>
-                                {selectedSede && (
-                                    <span className={styles.sedeFilterBadge}>{selectedSede.nombre}</span>
-                                )}
+                                <div className={styles.filterBadges}>
+                                    {selectedPeriod && dashboardPeriodFilter !== 'all' && (
+                                        <span className={styles.sedeFilterBadge}>{selectedPeriod.label}</span>
+                                    )}
+                                    {selectedSede && (
+                                        <span className={styles.sedeFilterBadge}>{selectedSede.nombre}</span>
+                                    )}
+                                </div>
                             </div>
                             <div className={styles.topBannerActions}>
+                                <label className={styles.sedeFilterLabel}>
+                                    <Calendar size={16} aria-hidden="true" />
+                                    <select
+                                        className={styles.sedeFilterSelect}
+                                        value={dashboardPeriodFilter}
+                                        onChange={(e) => setDashboardPeriodFilter(e.target.value)}
+                                        aria-label="Filtrar por periodo"
+                                    >
+                                        {DASHBOARD_PERIODS.map((period) => (
+                                            <option key={period.value} value={period.value}>
+                                                {period.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <label className={styles.sedeFilterLabel}>
                                     <MapPin size={16} aria-hidden="true" />
                                     <select

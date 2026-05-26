@@ -138,6 +138,12 @@
     border-color: var(--primary-color);
 }
 
+.filterBadges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 .sedeFilterBadge {
     font-size: 0.75rem;
     color: var(--primary-color);
