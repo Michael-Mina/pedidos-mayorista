@@ -147,15 +147,15 @@ Si el ZIP tenía una subcarpeta interna, apunte a la carpeta que contiene `manif
 
 ## Render (producción)
 
-El `render.yaml` del proyecto instala **`postgresql-client`** en el build del API para que **Admin → Respaldo** pueda usar `pg_dump` en el servidor.
+En Render **no** se instala `postgresql-client` en el build (provoca fallo de deploy). El API usa **respaldo por Python** (SQLAlchemy) cuando `pg_dump` no está disponible.
 
-Tras cambiar `render.yaml`, redepliegue el servicio `pedidos-mayorista-api`.
+En Admin verá: *Servidor listo · modo Python (sin pg_dump)* — el ZIP se genera igual.
 
-Si el botón sigue deshabilitado:
+Si el botón está deshabilitado:
 
-1. Compruebe en Admin que el estado diga “Servidor listo”.
-2. Pruebe `GET https://SU-API.onrender.com/admin/backup/status` con token admin.
-3. Como alternativa, en su PC copie `DATABASE_URL` del dashboard Render a `backend/.env` y ejecute `python backup_db.py`.
+1. Compruebe conexión a la BD (`DATABASE_URL` en el servicio API).
+2. Pruebe `GET https://SU-API.onrender.com/admin/backup/status` → `backup_available: true`.
+3. Alternativa local: copie `DATABASE_URL` a `backend/.env` y ejecute `python backup_db.py` (usa `pg_dump` si está instalado).
 
 **Nota:** en Render el disco del contenedor es **efímero**; las imágenes nuevas en `static/` pueden perderse al redeploy. Incluya siempre `static.zip` en el respaldo y guarde copias fuera del servidor.
 

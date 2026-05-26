@@ -19,7 +19,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from dotenv import load_dotenv
+from sqlalchemy import MetaData, inspect, text
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.schema import CreateTable
+
+from .database import engine
 
 load_dotenv()
 
@@ -170,16 +174,106 @@ def _run_pg_dump(params: DbConnectionParams, extra: list[str], output_file: Path
         raise RuntimeError(f"pg_dump falló (código {result.returncode}): {err}")
 
 
+def _pg_dump_usable() -> bool:
+    try:
+        _find_pg_tool("pg_dump")
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def _reflect_metadata() -> MetaData:
+    metadata = MetaData()
+    metadata.reflect(bind=engine, schema="public")
+    return metadata
+
+
+def _sql_literal(value: Any) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return f"'{value.isoformat()}'"
+        return f"'{value.isoformat()}'"
+    if isinstance(value, (bytes, bytearray)):
+        return f"'\\x{value.hex()}'"
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _dump_schema_python(output_file: Path) -> None:
+    metadata = _reflect_metadata()
+    lines = [
+        "-- Respaldo de estructura (SQLAlchemy, sin pg_dump)",
+        "SET client_encoding = 'UTF8';",
+        "",
+    ]
+    for table in metadata.sorted_tables:
+        ddl = str(CreateTable(table).compile(dialect=engine.dialect))
+        lines.append(f"{ddl};")
+        lines.append("")
+    output_file.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _dump_data_python(output_file: Path) -> None:
+    metadata = _reflect_metadata()
+    inspector = inspect(engine)
+    lines = [
+        "-- Respaldo de datos (INSERT, sin pg_dump)",
+        "SET client_encoding = 'UTF8';",
+        "",
+    ]
+    with engine.connect() as conn:
+        for table in metadata.sorted_tables:
+            pk = inspector.get_pk_constraint(table.name).get("constrained_columns") or []
+            order_cols = list(pk) if pk else [c.name for c in table.columns[:1]]
+            order_sql = ", ".join(f'"{c}"' for c in order_cols) if order_cols else "1"
+            rows = conn.execute(
+                text(f'SELECT * FROM "{table.name}" ORDER BY {order_sql}')
+            ).mappings().all()
+            if not rows:
+                continue
+            col_names = list(rows[0].keys())
+            cols_sql = ", ".join(f'"{c}"' for c in col_names)
+            lines.append(f"-- {table.name}")
+            for row in rows:
+                vals = ", ".join(_sql_literal(row[c]) for c in col_names)
+                lines.append(f'INSERT INTO "{table.name}" ({cols_sql}) VALUES ({vals});')
+            lines.append("")
+    output_file.write_text("\n".join(lines), encoding="utf-8")
+
+
 def dump_schema(params: DbConnectionParams, output_file: Path) -> None:
-    _run_pg_dump(params, ["--schema-only"], output_file)
+    if _pg_dump_usable():
+        _run_pg_dump(params, ["--schema-only"], output_file)
+    else:
+        _dump_schema_python(output_file)
 
 
 def dump_data(params: DbConnectionParams, output_file: Path) -> None:
-    _run_pg_dump(params, ["--data-only", "--inserts"], output_file)
+    if _pg_dump_usable():
+        _run_pg_dump(params, ["--data-only", "--inserts"], output_file)
+    else:
+        _dump_data_python(output_file)
 
 
 def dump_full(params: DbConnectionParams, output_file: Path) -> None:
-    _run_pg_dump(params, [], output_file)
+    if _pg_dump_usable():
+        _run_pg_dump(params, [], output_file)
+    else:
+        _dump_schema_python(output_file)
+        data_tmp = output_file.parent / f".{output_file.stem}_data_tmp.sql"
+        try:
+            _dump_data_python(data_tmp)
+            with output_file.open("a", encoding="utf-8") as out:
+                out.write("\n")
+                out.write(data_tmp.read_text(encoding="utf-8"))
+        finally:
+            data_tmp.unlink(missing_ok=True)
 
 
 def _zip_static_dirs(target_zip: Path) -> int:
@@ -289,6 +383,7 @@ def create_backup(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "database": params.database,
         "host": params.host,
+        "backup_method": "pg_dump" if _pg_dump_usable() else "python",
         "files": files,
         "static_files_count": static_files_count,
     }
@@ -409,10 +504,18 @@ def restore_backup(
 
 
 def pg_tools_available() -> bool:
-    try:
-        _find_pg_tool("pg_dump")
+    return _pg_dump_usable()
+
+
+def backup_available() -> bool:
+    """True si pg_dump existe o la BD responde (respaldo por Python en Render)."""
+    if _pg_dump_usable():
         return True
-    except FileNotFoundError:
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
         return False
 
 
@@ -430,10 +533,9 @@ def build_backup_download() -> tuple[bytes, str]:
     Genera un ZIP listo para descargar (estructura BD + datos + estáticos).
     Devuelve (contenido, nombre_archivo).
     """
-    if not pg_tools_available():
+    if not backup_available():
         raise FileNotFoundError(
-            "pg_dump no está disponible en el servidor. "
-            "En Render/local instale el cliente PostgreSQL o use backup_db.py desde su PC."
+            "No se puede conectar a la base de datos para generar el respaldo."
         )
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

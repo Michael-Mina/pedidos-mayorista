@@ -734,17 +734,21 @@ const Admin = () => {
                             </ul>
                             {backupStatus && (
                                 <div className={styles.backupStatusRow}>
-                                    {backupStatus.pg_dump_available ? (
+                                    {backupStatus.backup_available ? (
                                         <>
                                             <CheckCircle2 size={18} className={styles.statusOk} />
-                                            <span>Servidor listo · BD: {backupStatus.database}</span>
+                                            <span>
+                                                Servidor listo · BD: {backupStatus.database}
+                                                {backupStatus.backup_method === 'python' && (
+                                                    <> · modo Python (sin pg_dump)</>
+                                                )}
+                                            </span>
                                         </>
                                     ) : (
                                         <>
                                             <AlertCircle size={18} className={styles.statusError} />
                                             <span>
-                                                El servidor no tiene pg_dump. Use el script local{' '}
-                                                <code>python backup_db.py</code> (ver docs/BACKUP.md).
+                                                No se puede conectar a la base de datos para generar el respaldo.
                                             </span>
                                         </>
                                     )}
@@ -754,7 +758,7 @@ const Admin = () => {
                                 type="button"
                                 className="premium-button"
                                 onClick={handleDownloadBackup}
-                                disabled={backupLoading || !backupStatus?.pg_dump_available}
+                                disabled={backupLoading || !backupStatus?.backup_available}
                             >
                                 <HardDriveDownload size={18} />
                                 {backupLoading ? 'Generando respaldo…' : 'Descargar respaldo ZIP'}

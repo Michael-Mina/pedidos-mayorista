@@ -368,6 +368,8 @@ def admin_backup_status(_admin: models.User = Depends(auth.require_admin)):
     """Comprueba si el servidor puede generar respaldos (pg_dump)."""
     return {
         "pg_dump_available": backup.pg_tools_available(),
+        "backup_available": backup.backup_available(),
+        "backup_method": "pg_dump" if backup.pg_tools_available() else "python",
         "database": backup.get_db_connection_params().database,
     }
 
