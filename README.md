@@ -40,7 +40,7 @@ Blueprint en la raíz: **`render.yaml`** (API + frontend estático + PostgreSQL)
 | `mayorista` | `/mayorista` | Crea pedidos, elige cortes, ve historial de su sede |
 | `sede_butcher` / `carnicero` | `/sede` | Recibe pedidos, asigna carnicero, marca en proceso / finalizado |
 | `jefe_carnes` | `/jefe` | Monitor de pedidos, historial, disponibilidad de personal |
-| `admin` | `/admin` | Usuarios, sedes, productos, categorías, estadísticas |
+| `admin` | `/admin` | Usuarios, sedes, productos, estadísticas filtrables y respaldo |
 
 Tras el login, la app redirige automáticamente según el rol.
 
@@ -225,6 +225,27 @@ cd backend
 | `availability_update` | Cambia disponibilidad de carniceros (jefe de carnes) |
 
 Las sedes se unen a la sala `sede_{id}` para recibir avisos de su punto de venta.
+
+### Panel Admin — estadísticas y respaldo
+
+En **Admin → Panel de Control**, el resumen admite dos filtros combinables:
+
+| Filtro | Opciones |
+|--------|----------|
+| **Sede** | Todas las sedes, o una sede concreta |
+| **Periodo** | Todo el tiempo, hoy, últimos 7 días, últimos 30 días, este mes |
+
+- Con **todas las sedes**, el gráfico principal muestra pedidos por sede.
+- Con **una sede**, el gráfico muestra pedidos por estado (pendiente, en proceso, finalizado).
+- Pedidos totales, kg promedio y cortes más solicitados respetan sede y periodo seleccionados.
+
+API de estadísticas (parámetros opcionales `sede_id`, `date_from`, `date_to` en formato `YYYY-MM-DD`):
+
+- `GET /stats/orders-by-sede`
+- `GET /stats/top-cuts`
+- `GET /stats/orders-by-estado?sede_id=…` (requiere sede)
+
+En **Admin → Respaldo** se descarga un ZIP de la base de datos y archivos estáticos (ver [docs/BACKUP.md](docs/BACKUP.md)).
 
 ---
 
