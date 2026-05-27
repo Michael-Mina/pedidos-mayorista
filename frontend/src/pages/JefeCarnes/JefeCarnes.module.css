@@ -465,6 +465,84 @@
     grid-column: span 2;
 }
 
+.historyFilterSection {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.historyDateGroup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 250px;
+}
+
+.historyDateGroup label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.historyDateInput {
+    padding: 10px 14px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: white;
+    font-size: 0.95rem;
+    outline: none;
+    max-width: 180px;
+}
+
+.historyDateInput:focus {
+    border-color: var(--primary-color);
+}
+
+.historySearchWrapper {
+    flex: 1;
+    min-width: 280px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0 16px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.historySearchWrapper:focus-within {
+    border-color: var(--primary-color);
+    background: rgba(46, 204, 113, 0.05);
+}
+
+.historySearchWrapper svg {
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.historySearchWrapper input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 12px 0;
+    color: white;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+.historySearchWrapper input::placeholder {
+    color: #64748b;
+}
+
 .filtersRow {
     display: flex;
     gap: 15px;
@@ -1132,8 +1210,15 @@
         padding: 12px;
     }
 
-    .filtersRow {
+    .filtersRow,
+    .historyFilterSection {
         flex-wrap: wrap;
+    }
+
+    .historyDateGroup,
+    .historySearchWrapper {
+        min-width: 0;
+        flex: 1 1 100%;
     }
 
     .filterInput,

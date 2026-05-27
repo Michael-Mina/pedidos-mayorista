@@ -1,10 +1,27 @@
 /** Hilo de mensajes del reporte (mayorista ↔ carnicería). */
 
+function parseReporteMensajesArray(pedido) {
+    const raw = pedido?.reporte_mensajes;
+    if (raw == null || raw === '') return null;
+    if (Array.isArray(raw)) {
+        return raw.length > 0 ? raw : null;
+    }
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {
+            /* JSON inválido: usar legacy */
+        }
+    }
+    return null;
+}
+
 export function getReporteMensajes(pedido) {
     if (!pedido) return [];
-    if (Array.isArray(pedido.reporte_mensajes) && pedido.reporte_mensajes.length > 0) {
-        return pedido.reporte_mensajes;
-    }
+    const fromJson = parseReporteMensajesArray(pedido);
+    if (fromJson) return fromJson;
+
     const mensajes = [];
     if (pedido.problema_reportado?.trim()) {
         mensajes.push({ rol: 'mayorista', texto: pedido.problema_reportado.trim(), at: null });
@@ -13,6 +30,18 @@ export function getReporteMensajes(pedido) {
         mensajes.push({ rol: 'carniceria', texto: pedido.problema_respuesta.trim(), at: null });
     }
     return mensajes;
+}
+
+/** Huella del hilo leído (más fiable que solo contar mensajes). */
+export function getReporteThreadSeenKey(pedido) {
+    const mensajes = getReporteMensajes(pedido);
+    if (!mensajes.length) return '';
+    const last = mensajes[mensajes.length - 1];
+    return `${mensajes.length}:${last.rol ?? ''}:${last.at ?? ''}:${last.texto ?? ''}`;
+}
+
+export function pedidoReporteId(pedido) {
+    return pedido?.id != null ? String(pedido.id) : '';
 }
 
 export function tieneReporte(pedido) {

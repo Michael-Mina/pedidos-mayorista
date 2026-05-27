@@ -5,9 +5,17 @@ import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
-import { getReporteMensajes, tieneReporte, ultimoRolMensaje, etiquetaRolMensaje } from '../../utils/reporteMensajes';
+import {
+    getReporteMensajes,
+    getReporteThreadSeenKey,
+    pedidoReporteId,
+    tieneReporte,
+    ultimoRolMensaje,
+    etiquetaRolMensaje,
+} from '../../utils/reporteMensajes';
 import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
 import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
+import { useScrollToBottom } from '../../hooks/useScrollToBottom';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
 function todayLocalIsoDate() {
@@ -68,10 +76,12 @@ const Mayorista = () => {
     const [seenReportCounts, setSeenReportCounts] = useState(() => loadSeenReportCounts());
 
     const markReportThreadSeen = useCallback((pedido) => {
-        const count = getReporteMensajes(pedido).length;
+        const orderId = pedidoReporteId(pedido);
+        if (!orderId) return;
+        const seenKey = getReporteThreadSeenKey(pedido);
         setSeenReportCounts((prev) => {
-            if (prev[pedido.id] === count) return prev;
-            const next = { ...prev, [pedido.id]: count };
+            if (prev[orderId] === seenKey) return prev;
+            const next = { ...prev, [orderId]: seenKey };
             localStorage.setItem(SEEN_REPORT_COUNTS_KEY, JSON.stringify(next));
             return next;
         });
@@ -81,8 +91,10 @@ const Mayorista = () => {
         (pedido) => {
             const mensajes = getReporteMensajes(pedido);
             if (!mensajes.length || ultimoRolMensaje(pedido) !== 'carniceria') return false;
-            const seen = seenReportCounts[pedido.id] ?? 0;
-            return mensajes.length > seen;
+            const orderId = pedidoReporteId(pedido);
+            const stored = seenReportCounts[orderId];
+            if (stored == null || stored === '') return true;
+            return getReporteThreadSeenKey(pedido) !== stored;
         },
         [seenReportCounts]
     );
@@ -92,6 +104,18 @@ const Mayorista = () => {
         [pedidosHistory, isUnreadReportResponse]
     );
 
+    const viewingReportMensajes = useMemo(
+        () => (viewingOrder && tieneReporte(viewingOrder) ? getReporteMensajes(viewingOrder) : []),
+        [viewingOrder]
+    );
+    const viewingUltimoMsg = viewingReportMensajes.at(-1);
+    const detailChatRef = useScrollToBottom([
+        viewingOrder?.id,
+        viewingReportMensajes.length,
+        viewingUltimoMsg?.at,
+        viewingUltimoMsg?.texto,
+    ]);
+
     const openReportModal = useCallback((pedido) => {
         setReportingPedido(pedido);
         setProblemText('');
@@ -99,9 +123,14 @@ const Mayorista = () => {
     }, [markReportThreadSeen]);
 
     const closeReportModal = useCallback(() => {
+        if (reportingPedido) {
+            const latest =
+                pedidosHistoryRef.current.find((p) => p.id === reportingPedido.id) ?? reportingPedido;
+            markReportThreadSeen(latest);
+        }
         setReportingPedido(null);
         setProblemText('');
-    }, []);
+    }, [reportingPedido, markReportThreadSeen]);
 
     useEffect(() => {
         reportingPedidoRef.current = reportingPedido;
@@ -817,8 +846,8 @@ const Mayorista = () => {
                         {tieneReporte(viewingOrder) && (
                             <div className={styles.detailReportSection}>
                                 <h3>Conversación del reporte</h3>
-                                <div className={styles.chatThread}>
-                                    {getReporteMensajes(viewingOrder).map((msg, idx) => (
+                                <div ref={detailChatRef} className={styles.chatThread}>
+                                    {viewingReportMensajes.map((msg, idx) => (
                                         <div
                                             key={`${idx}-${msg.at || ''}`}
                                             className={msg.rol === 'mayorista' ? styles.chatBubbleSelf : styles.chatBubbleOther}

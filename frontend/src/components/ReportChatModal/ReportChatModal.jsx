@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertTriangle, Package, Send, X } from 'lucide-react';
 import { formatPedidoNumero } from '../../utils/pedidos';
 import { getReporteMensajes, tieneReporte, etiquetaRolMensaje } from '../../utils/reporteMensajes';
+import { useScrollToBottom } from '../../hooks/useScrollToBottom';
 import styles from './ReportChatModal.module.css';
 
 /**
@@ -22,6 +23,14 @@ export default function ReportChatModal({
     if (!order) return null;
 
     const hasThread = tieneReporte(order);
+    const mensajes = getReporteMensajes(order);
+    const ultimoMensaje = mensajes.at(-1);
+    const chatThreadRef = useScrollToBottom([
+        order?.id,
+        mensajes.length,
+        ultimoMensaje?.at,
+        ultimoMensaje?.texto,
+    ]);
     const selfRol = perspective === 'jefe' ? 'carniceria' : 'mayorista';
     const labelCtx = perspective === 'jefe' ? 'jefe' : undefined;
     const submitLabel = hasThread ? 'Enviar mensaje' : 'Enviar reporte';
@@ -57,8 +66,8 @@ export default function ReportChatModal({
                     )}
 
                     {hasThread && (
-                        <div className={styles.chatThread}>
-                            {getReporteMensajes(order).map((msg, idx) => (
+                        <div ref={chatThreadRef} className={styles.chatThread}>
+                            {mensajes.map((msg, idx) => (
                                 <div
                                     key={`${idx}-${msg.at || ''}`}
                                     className={msg.rol === selfRol ? styles.chatBubbleSelf : styles.chatBubbleOther}

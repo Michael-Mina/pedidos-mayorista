@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
@@ -22,13 +22,34 @@ import {
     Trash2,
     Info,
     Menu,
-    MessageSquare
+    MessageSquare,
+    Calendar,
+    Search
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { formatPedidoNumero } from '../../utils/pedidos';
-import { getReporteMensajes, tieneReporte, ultimoRolMensaje } from '../../utils/reporteMensajes';
+import {
+    getReporteMensajes,
+    getReporteThreadSeenKey,
+    pedidoReporteId,
+    tieneReporte,
+    ultimoRolMensaje,
+} from '../../utils/reporteMensajes';
 import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
 import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
+
+const SEEN_REPORT_COUNTS_KEY = 'jefe_seen_report_msg_counts';
+
+function loadSeenReportCounts() {
+    try {
+        const raw = localStorage.getItem(SEEN_REPORT_COUNTS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
 
 const JefeCarnes = () => {
     const { user, logout } = useAuth();
@@ -49,6 +70,8 @@ const JefeCarnes = () => {
     // Filters & Pagination
     const [filterText, setFilterText] = useState('');
     const [filterDate, setFilterDate] = useState('');
+    const [historyFilterText, setHistoryFilterText] = useState('');
+    const [historyFilterDate, setHistoryFilterDate] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [reportModalOrder, setReportModalOrder] = useState(null);
     const reportModalOrderRef = useRef(null);
@@ -60,12 +83,42 @@ const JefeCarnes = () => {
     const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
     const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
     const [menuOpen, setMenuOpen] = useState(false);
+    const [seenReportCounts, setSeenReportCounts] = useState(() => loadSeenReportCounts());
 
-    const pendingReportsCount = globalOrders.filter((o) => {
-        if (!tieneReporte(o)) return false;
-        if (ultimoRolMensaje(o) !== 'mayorista') return false;
-        return !user?.sede_id || o.sede_id === user.sede_id;
-    }).length;
+    const markReportThreadSeen = useCallback((pedido) => {
+        const orderId = pedidoReporteId(pedido);
+        if (!orderId) return;
+        const seenKey = getReporteThreadSeenKey(pedido);
+        setSeenReportCounts((prev) => {
+            if (prev[orderId] === seenKey) return prev;
+            const next = { ...prev, [orderId]: seenKey };
+            localStorage.setItem(SEEN_REPORT_COUNTS_KEY, JSON.stringify(next));
+            return next;
+        });
+    }, []);
+
+    const isUnreadReportFromMayorista = useCallback(
+        (pedido) => {
+            const mensajes = getReporteMensajes(pedido);
+            if (!mensajes.length || ultimoRolMensaje(pedido) !== 'mayorista') return false;
+            const orderId = pedidoReporteId(pedido);
+            const stored = seenReportCounts[orderId];
+            if (stored == null || stored === '') return true;
+            return getReporteThreadSeenKey(pedido) !== stored;
+        },
+        [seenReportCounts]
+    );
+
+    const pendingReportsCount = useMemo(
+        () =>
+            globalOrders.filter((o) => {
+                if (!user?.sede_id || o.sede_id === user.sede_id) {
+                    return isUnreadReportFromMayorista(o);
+                }
+                return false;
+            }).length,
+        [globalOrders, user?.sede_id, isUnreadReportFromMayorista]
+    );
 
     const openOrderDetails = (order) => {
         setReportModalOrder(null);
@@ -78,9 +131,15 @@ const JefeCarnes = () => {
         setSelectedOrder(null);
         setReportModalOrder(order);
         setReportProblem('');
+        markReportThreadSeen(order);
     };
 
     const closeReportModal = () => {
+        if (reportModalOrder) {
+            const latest =
+                globalOrdersRef.current.find((o) => o.id === reportModalOrder.id) ?? reportModalOrder;
+            markReportThreadSeen(latest);
+        }
         setReportModalOrder(null);
         setReportProblem('');
     };
@@ -88,6 +147,19 @@ const JefeCarnes = () => {
     useEffect(() => {
         reportModalOrderRef.current = reportModalOrder;
     }, [reportModalOrder]);
+
+    useEffect(() => {
+        if (!reportModalOrder) return;
+        const latest =
+            globalOrdersRef.current.find((o) => o.id === reportModalOrder.id) ?? reportModalOrder;
+        markReportThreadSeen(latest);
+    }, [
+        reportModalOrder?.id,
+        reportModalOrder?.reporte_mensajes,
+        reportModalOrder?.problema_reportado,
+        reportModalOrder?.problema_respuesta,
+        markReportThreadSeen,
+    ]);
 
     useEffect(() => {
         globalOrdersRef.current = globalOrders;
@@ -106,6 +178,7 @@ const JefeCarnes = () => {
 
             setGlobalOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
             setReportModalOrder(updated);
+            markReportThreadSeen(updated);
             if (selectedOrder?.id === updated.id) {
                 setSelectedOrder(updated);
             }
@@ -118,10 +191,44 @@ const JefeCarnes = () => {
         }
     };
 
-    const reportesFiltrados = globalOrders.filter((o) => {
-        if (!tieneReporte(o)) return false;
-        return !user?.sede_id || o.sede_id === user.sede_id;
-    });
+    const reportesConReporte = useMemo(
+        () =>
+            globalOrders.filter((o) => {
+                if (!tieneReporte(o)) return false;
+                return !user?.sede_id || o.sede_id === user.sede_id;
+            }),
+        [globalOrders, user?.sede_id]
+    );
+
+    const reportesFiltrados = useMemo(() => {
+        return reportesConReporte.filter((order) => {
+            if (historyFilterText) {
+                const search = historyFilterText.toLowerCase();
+                const matchesId =
+                    order.id.toString().includes(search) ||
+                    (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search)) ||
+                    formatPedidoNumero(order).toLowerCase().includes(search);
+                const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
+                if (!matchesId && !matchesClient) return false;
+            }
+            if (historyFilterDate) {
+                const orderDate = new Date(order.timestamp).toISOString().split('T')[0];
+                if (orderDate !== historyFilterDate) return false;
+            }
+            return true;
+        });
+    }, [reportesConReporte, historyFilterText, historyFilterDate]);
+
+    const resetMonitorFilters = () => {
+        setFilterText('');
+        setFilterDate('');
+        setCurrentPage(1);
+    };
+
+    const resetHistoryFilters = () => {
+        setHistoryFilterText('');
+        setHistoryFilterDate('');
+    };
 
     const navTabs = [
         { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
@@ -420,9 +527,11 @@ const JefeCarnes = () => {
                         activeTab === 'personal' ? 'Gestión de Personal' :
                         'Historial'
                     }</h1>
-                    <button onClick={fetchData} className={styles.refreshBtn} disabled={loading}>
-                        <RefreshCcw size={18} className={loading ? styles.spinning : ''} />
-                    </button>
+                    {activeTab === 'monitor' && (
+                        <button onClick={fetchData} className={styles.refreshBtn} disabled={loading} title="Actualizar pedidos">
+                            <RefreshCcw size={18} className={loading ? styles.spinning : ''} />
+                        </button>
+                    )}
                 </header>
 
                 <div className={styles.scrollArea}>
@@ -468,7 +577,7 @@ const JefeCarnes = () => {
                                     onChange={(e) => setFilterDate(e.target.value)}
                                 />
                                 {(filterText || filterDate) && (
-                                    <button onClick={resetFilters} className={styles.clearBtn} title="Limpiar Filtros">
+                                    <button onClick={resetMonitorFilters} className={styles.clearBtn} title="Limpiar Filtros">
                                         <Eraser size={20} />
                                     </button>
                                 )}
@@ -540,8 +649,43 @@ const JefeCarnes = () => {
                                     <h2>Reportes de Problemas</h2>
                                 </div>
 
-                                {reportesFiltrados.length === 0 ? (
+                                <div className={styles.historyFilterSection}>
+                                    <div className={styles.historyDateGroup}>
+                                        <label>
+                                            <Calendar size={16} /> Filtrar por día:
+                                        </label>
+                                        <input
+                                            type="date"
+                                            className={styles.historyDateInput}
+                                            value={historyFilterDate}
+                                            onChange={(e) => setHistoryFilterDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className={styles.historySearchWrapper}>
+                                        <Search size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por cliente, ID o número (#12)..."
+                                            value={historyFilterText}
+                                            onChange={(e) => setHistoryFilterText(e.target.value)}
+                                        />
+                                    </div>
+                                    {(historyFilterText || historyFilterDate) && (
+                                        <button
+                                            type="button"
+                                            onClick={resetHistoryFilters}
+                                            className={styles.clearBtn}
+                                            title="Limpiar filtros"
+                                        >
+                                            <Eraser size={20} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {reportesConReporte.length === 0 ? (
                                     <p className={styles.emptyMsg}>No hay problemas reportados en el historial reciente.</p>
+                                ) : reportesFiltrados.length === 0 ? (
+                                    <p className={styles.emptyMsg}>No hay reportes que coincidan con los filtros.</p>
                                 ) : (
                                     <table className={styles.mainTable}>
                                         <thead>
@@ -557,7 +701,7 @@ const JefeCarnes = () => {
                                         <tbody>
                                             {reportesFiltrados.map(order => {
                                                 const ultimoMsg = getReporteMensajes(order).at(-1);
-                                                const pendienteMayorista = ultimoRolMensaje(order) === 'mayorista';
+                                                const unreadFromMayorista = isUnreadReportFromMayorista(order);
                                                 return (
                                                 <tr key={order.id} className={styles.orderRow}>
                                                     <td>{formatPedidoNumero(order)}</td>
@@ -583,12 +727,12 @@ const JefeCarnes = () => {
                                                             </button>
                                                             <button
                                                                 type="button"
-                                                                className={`${styles.revokeBtn} ${styles.reportActionBtn} ${pendienteMayorista ? styles.reportActionPending : ''}`}
+                                                                className={`${styles.revokeBtn} ${styles.reportActionBtn} ${unreadFromMayorista ? styles.reportActionPending : ''}`}
                                                                 onClick={() => openReportModal(order)}
                                                             >
                                                                 <MessageSquare size={14} />
-                                                                {pendienteMayorista ? 'Responder' : 'Ver reporte'}
-                                                                {pendienteMayorista && <span className={styles.rowNotifDot} aria-hidden />}
+                                                                {unreadFromMayorista ? 'Responder' : 'Ver reporte'}
+                                                                {unreadFromMayorista && <span className={styles.rowNotifDot} aria-hidden />}
                                                             </button>
                                                         </div>
                                                     </td>
