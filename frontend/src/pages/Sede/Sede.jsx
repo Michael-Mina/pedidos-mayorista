@@ -4,7 +4,7 @@ import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import { 
     ClipboardList, LogOut, Play, CheckCircle, Users, 
-    Clock, Package, UserCheck, Bell, BellRing, Monitor
+    Clock, Package, UserCheck, Bell, BellRing, Monitor, X
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero } from '../../utils/pedidos';
@@ -122,6 +122,10 @@ const Sede = () => {
         return c ? `${c.nombre} ${c.apellido}` : 'Desconocido';
     };
 
+    const pendingCarnicero = pendingCarniceroId
+        ? allCarniceros.find((c) => c.id === pendingCarniceroId)
+        : null;
+
     return (
         <div className={styles.container}>
             <header className={`${styles.header} glass-card`}>
@@ -210,34 +214,6 @@ const Sede = () => {
                                                     </button>
                                                 ))}
                                         </div>
-                                        {pendingCarniceroId && (
-                                            <div className={styles.assignConfirmBar}>
-                                                <p className={styles.assignConfirmText}>
-                                                    ¿Asignar pedido <strong>{formatPedidoNumero(selectedPedido)}</strong>
-                                                    {' '}({selectedPedido.cliente_nombre}) a{' '}
-                                                    <strong>{getButcherName(pendingCarniceroId)}</strong>?
-                                                </p>
-                                                <div className={styles.assignConfirmActions}>
-                                                    <button
-                                                        type="button"
-                                                        className={styles.assignCancelBtn}
-                                                        onClick={() => setPendingCarniceroId(null)}
-                                                        disabled={assigningOrder}
-                                                    >
-                                                        Cancelar
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={styles.assignConfirmBtn}
-                                                        onClick={handleConfirmAssign}
-                                                        disabled={assigningOrder}
-                                                    >
-                                                        <UserCheck size={18} />
-                                                        {assigningOrder ? 'Asignando…' : 'Confirmar asignación'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -316,6 +292,63 @@ const Sede = () => {
                     </div>
                 </aside>
             </main>
+
+            {pendingCarnicero && selectedPedido && (
+                <div
+                    className={styles.assignModalOverlay}
+                    onClick={() => !assigningOrder && setPendingCarniceroId(null)}
+                    role="presentation"
+                >
+                    <div
+                        className={styles.assignModal}
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="assign-modal-title"
+                    >
+                        <div className={styles.assignModalHeader}>
+                            <h2 id="assign-modal-title">Confirmar asignación</h2>
+                            <button
+                                type="button"
+                                className={styles.assignModalClose}
+                                onClick={() => setPendingCarniceroId(null)}
+                                disabled={assigningOrder}
+                                aria-label="Cerrar"
+                            >
+                                <X size={22} />
+                            </button>
+                        </div>
+                        <p className={styles.assignConfirmText}>
+                            ¿Asignar el pedido <strong>{formatPedidoNumero(selectedPedido)}</strong>
+                            {' '}de <strong>{selectedPedido.cliente_nombre}</strong> al carnicero{' '}
+                            <strong>
+                                {pendingCarnicero.numero_carnicero} — {pendingCarnicero.nombre}{' '}
+                                {pendingCarnicero.apellido}
+                            </strong>
+                            ?
+                        </p>
+                        <div className={styles.assignConfirmActions}>
+                            <button
+                                type="button"
+                                className={styles.assignCancelBtn}
+                                onClick={() => setPendingCarniceroId(null)}
+                                disabled={assigningOrder}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.assignConfirmBtn}
+                                onClick={handleConfirmAssign}
+                                disabled={assigningOrder}
+                            >
+                                <UserCheck size={18} />
+                                {assigningOrder ? 'Asignando…' : 'Confirmar asignación'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
