@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
-import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
@@ -45,6 +45,24 @@ const Mayorista = () => {
     const [editingIndex, setEditingIndex] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+    const toastDismissRef = useRef(null);
+
+    const showToast = useCallback((message, type = 'success') => {
+        if (toastDismissRef.current) {
+            clearTimeout(toastDismissRef.current);
+            toastDismissRef.current = null;
+        }
+        setToast({ show: true, message, type });
+        toastDismissRef.current = setTimeout(() => {
+            setToast((t) => ({ ...t, show: false }));
+            toastDismissRef.current = null;
+        }, 4000);
+    }, []);
+
+    useEffect(() => () => {
+        if (toastDismissRef.current) clearTimeout(toastDismissRef.current);
+    }, []);
 
     useEffect(() => {
         if (!menuOpen) return;
@@ -251,11 +269,16 @@ const Mayorista = () => {
             ));
             setReportingPedido(null);
             setProblemText('');
-            alert('Problema reportado con éxito');
+            setViewingOrder(null);
+            setShowHistoryModal(true);
+            showToast('Problema reportado con éxito', 'success');
         } catch (error) {
             console.error('Error reporting problem:', error);
             const detail = error.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : 'No se pudo reportar el problema');
+            showToast(
+                typeof detail === 'string' ? detail : 'No se pudo reportar el problema',
+                'error'
+            );
         }
     };
 
@@ -765,6 +788,21 @@ const Mayorista = () => {
                                 Confirmar y Enviar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {toast.show && (
+                <div className={styles.toastContainer} role="status" aria-live="polite">
+                    <div
+                        className={`${styles.toast} ${toast.type === 'error' ? styles.toastError : styles.toastSuccess}`}
+                    >
+                        {toast.type === 'success' ? (
+                            <CheckCircle size={20} color="#2ecc71" aria-hidden />
+                        ) : (
+                            <AlertTriangle size={20} color="#ef4444" aria-hidden />
+                        )}
+                        <span>{toast.message}</span>
                     </div>
                 </div>
             )}
