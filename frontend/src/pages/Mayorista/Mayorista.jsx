@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
@@ -26,6 +26,19 @@ function pedidoLocalDateKey(ts) {
     return `${y}-${m}-${day}`;
 }
 
+const SEEN_REPORT_RESPONSES_KEY = 'mayorista_seen_report_responses';
+
+function loadSeenReportResponseIds() {
+    try {
+        const raw = localStorage.getItem(SEEN_REPORT_RESPONSES_KEY);
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw);
+        return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+        return new Set();
+    }
+}
+
 const Mayorista = () => {
     const { user, logout } = useAuth();
     const [step, setStep] = useState(1);
@@ -47,6 +60,40 @@ const Mayorista = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const toastDismissRef = useRef(null);
+    const [seenReportResponseIds, setSeenReportResponseIds] = useState(() => loadSeenReportResponseIds());
+
+    const markReportResponseSeen = useCallback((pedidoId) => {
+        setSeenReportResponseIds((prev) => {
+            if (prev.has(pedidoId)) return prev;
+            const next = new Set(prev);
+            next.add(pedidoId);
+            localStorage.setItem(SEEN_REPORT_RESPONSES_KEY, JSON.stringify([...next]));
+            return next;
+        });
+    }, []);
+
+    const isUnreadReportResponse = useCallback(
+        (pedido) => !!pedido?.problema_respuesta?.trim() && !seenReportResponseIds.has(pedido.id),
+        [seenReportResponseIds]
+    );
+
+    const unreadAnsweredReportsCount = useMemo(
+        () => pedidosHistory.filter((p) => isUnreadReportResponse(p)).length,
+        [pedidosHistory, isUnreadReportResponse]
+    );
+
+    const openReportModal = useCallback((pedido) => {
+        setReportingPedido(pedido);
+        setProblemText(pedido.problema_reportado ? String(pedido.problema_reportado) : '');
+        if (pedido.problema_respuesta?.trim()) {
+            markReportResponseSeen(pedido.id);
+        }
+    }, [markReportResponseSeen]);
+
+    const closeReportModal = useCallback(() => {
+        setReportingPedido(null);
+        setProblemText('');
+    }, []);
 
     const showToast = useCallback((message, type = 'success') => {
         if (toastDismissRef.current) {
@@ -279,8 +326,7 @@ const Mayorista = () => {
             setPedidosHistory((prev) => prev.map((p) =>
                 p.id === reportingPedido.id ? { ...p, ...updated } : p
             ));
-            setReportingPedido(null);
-            setProblemText('');
+            closeReportModal();
             setViewingOrder(null);
             setShowHistoryModal(true);
             showToast('Problema reportado con éxito', 'success');
@@ -354,6 +400,9 @@ const Mayorista = () => {
                     onClick={() => { setShowHistoryModal(true); setMenuOpen(false); }}
                 >
                     <History size={20} /> Historial Global
+                    {unreadAnsweredReportsCount > 0 && (
+                        <span className={styles.navBadge}>{unreadAnsweredReportsCount}</span>
+                    )}
                 </button>
                 <button
                     type="button"
@@ -370,10 +419,15 @@ const Mayorista = () => {
                 <div className={styles.headerActions}>
                     <button
                         type="button"
-                        className={`${styles.actionBtn} glass-card`}
+                        className={`${styles.actionBtn} glass-card ${styles.btnWithBadge}`}
                         onClick={() => setShowHistoryModal(true)}
                     >
                         <History size={18} /> Historial Global
+                        {unreadAnsweredReportsCount > 0 && (
+                            <span className={styles.notifBubble} aria-label={`${unreadAnsweredReportsCount} respuestas nuevas`}>
+                                {unreadAnsweredReportsCount > 9 ? '9+' : unreadAnsweredReportsCount}
+                            </span>
+                        )}
                     </button>
                     <div className={styles.userInfo}>
                         <span>{user?.username}</span>
@@ -569,7 +623,12 @@ const Mayorista = () => {
                 <div className={styles.modalOverlay}>
                     <div className={`${styles.modalContent} glass-card`}>
                         <div className={styles.modalHeader}>
-                            <h2><Search size={22} /> Consulta de Pedidos</h2>
+                            <h2 className={styles.modalTitleWithBadge}>
+                                <Search size={22} /> Consulta de Pedidos
+                                {unreadAnsweredReportsCount > 0 && (
+                                    <span className={styles.notifBubbleInline}>{unreadAnsweredReportsCount}</span>
+                                )}
+                            </h2>
                             <button onClick={() => setShowHistoryModal(false)} className={styles.closeBtn}><X size={24} /></button>
                         </div>
 
@@ -636,15 +695,23 @@ const Mayorista = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        className={styles.reportBtn}
-                                                        disabled={!!p.problema_respuesta?.trim()}
-                                                        title={p.problema_respuesta?.trim() ? 'Reporte respondido por la carnicería' : (p.problema_reportado?.trim() ? 'Editar texto del reporte enviado a la carnicería' : 'Informar un problema en este pedido')}
-                                                        onClick={() => {
-                                                            setReportingPedido(p);
-                                                            setProblemText(p.problema_reportado ? String(p.problema_reportado) : '');
-                                                        }}
+                                                        className={`${styles.reportBtn} ${styles.btnWithBadge} ${p.problema_respuesta?.trim() ? styles.reportBtnAnswered : ''}`}
+                                                        title={
+                                                            p.problema_respuesta?.trim()
+                                                                ? 'Ver reporte y respuesta de la carnicería'
+                                                                : (p.problema_reportado?.trim()
+                                                                    ? 'Editar texto del reporte enviado a la carnicería'
+                                                                    : 'Informar un problema en este pedido')
+                                                        }
+                                                        onClick={() => openReportModal(p)}
                                                     >
-                                                        <AlertCircle size={14} /> {p.problema_respuesta?.trim() ? 'Respondido' : (p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar')}
+                                                        <AlertCircle size={14} />
+                                                        {p.problema_respuesta?.trim()
+                                                            ? 'Ver reporte'
+                                                            : (p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar')}
+                                                        {isUnreadReportResponse(p) && (
+                                                            <span className={styles.reportBtnDot} aria-hidden />
+                                                        )}
                                                     </button>
                                                 </div>
                                             </td>
@@ -666,21 +733,27 @@ const Mayorista = () => {
             {/* Modal de Reporte de Problema */}
             {reportingPedido && (
                 <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
-                    <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '400px' }}>
+                    <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '480px' }}>
                         <h3>
-                            {!!reportingPedido.problema_respuesta?.trim()
-                                ? `Reporte respondido · Pedido ${formatPedidoNumero(reportingPedido)}`
-                                : `${(reportingPedido.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar problema')} · Pedido ${formatPedidoNumero(reportingPedido)}`}
+                            Reporte · Pedido {formatPedidoNumero(reportingPedido)}
                         </h3>
                         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
                             {reportingPedido.problema_respuesta?.trim()
-                                ? 'La carnicería ya respondió este reporte.'
+                                ? 'Puede consultar su reporte y la respuesta de la carnicería en cualquier momento.'
                                 : 'Describe brevemente el inconveniente para que la carnicería lo revise. Puede modificar el texto si ya envió un reporte.'}
                         </p>
+
+                        {reportingPedido.problema_reportado?.trim() ? (
+                            <div className={styles.reportBlock}>
+                                <div className={`${styles.reportBlockLabel} ${styles.reportBlockWarning}`}>Su reporte</div>
+                                <div className={styles.reportBlockText}>{reportingPedido.problema_reportado}</div>
+                            </div>
+                        ) : null}
+
                         {reportingPedido.problema_respuesta?.trim() ? (
-                            <div style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                                <div style={{ color: 'var(--primary-color)', fontWeight: 700, marginBottom: 6 }}>Respuesta</div>
-                                <div style={{ color: 'white', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{reportingPedido.problema_respuesta}</div>
+                            <div className={styles.reportBlock}>
+                                <div className={`${styles.reportBlockLabel} ${styles.reportBlockSuccess}`}>Respuesta de la carnicería</div>
+                                <div className={styles.reportBlockText}>{reportingPedido.problema_respuesta}</div>
                             </div>
                         ) : (
                             <textarea
@@ -689,16 +762,17 @@ const Mayorista = () => {
                                 placeholder="Ej: Faltó un corte, peso incorrecto..."
                                 value={problemText}
                                 onChange={(e) => setProblemText(e.target.value)}
-                            ></textarea>
+                            />
                         )}
+
                         <div className={styles.modalActions}>
                             <button
                                 type="button"
                                 className="premium-button"
-                                style={{ background: 'var(--error)' }}
-                                onClick={() => { setReportingPedido(null); setProblemText(''); }}
+                                style={{ background: reportingPedido.problema_respuesta?.trim() ? 'var(--primary-color)' : 'var(--error)', color: reportingPedido.problema_respuesta?.trim() ? '#020617' : 'white' }}
+                                onClick={closeReportModal}
                             >
-                                Cancelar
+                                Cerrar
                             </button>
                             {!reportingPedido.problema_respuesta?.trim() && (
                                 <button
@@ -763,6 +837,34 @@ const Mayorista = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {(viewingOrder.problema_reportado?.trim() || viewingOrder.problema_respuesta?.trim()) && (
+                            <div className={styles.detailReportSection}>
+                                <h3>Reporte</h3>
+                                {viewingOrder.problema_reportado?.trim() && (
+                                    <div className={styles.reportBlock}>
+                                        <div className={`${styles.reportBlockLabel} ${styles.reportBlockWarning}`}>Su reporte</div>
+                                        <div className={styles.reportBlockText}>{viewingOrder.problema_reportado}</div>
+                                    </div>
+                                )}
+                                {viewingOrder.problema_respuesta?.trim() ? (
+                                    <div className={styles.reportBlock}>
+                                        <div className={`${styles.reportBlockLabel} ${styles.reportBlockSuccess}`}>Respuesta de la carnicería</div>
+                                        <div className={styles.reportBlockText}>{viewingOrder.problema_respuesta}</div>
+                                    </div>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    className={`${styles.reportBtn} ${styles.reportBtnAnswered} ${styles.btnWithBadge}`}
+                                    onClick={() => openReportModal(viewingOrder)}
+                                >
+                                    <AlertCircle size={14} /> Ver reporte completo
+                                    {isUnreadReportResponse(viewingOrder) && (
+                                        <span className={styles.reportBtnDot} aria-hidden />
+                                    )}
+                                </button>
+                            </div>
+                        )}
 
                         <div className={styles.modalActions}>
                             <button className="premium-button" style={{ width: '100%' }} onClick={() => setViewingOrder(null)}>Cerrar</button>
