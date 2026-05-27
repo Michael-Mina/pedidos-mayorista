@@ -1,10 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
-import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu } from 'lucide-react';
-import { formatPedidoNumero } from '../../utils/pedidos';
+import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw } from 'lucide-react';
+import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
+
+/** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
+function todayLocalIsoDate() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+/** Misma convención YYYY-MM-DD para la fecha del pedido en hora local. */
+function pedidoLocalDateKey(ts) {
+    if (ts == null || ts === '') return '';
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 
 const Mayorista = () => {
     const { user, logout } = useAuth();
@@ -14,7 +34,8 @@ const Mayorista = () => {
     const [tiposCorte, setTiposCorte] = useState([]);
     const [pedidosHistory, setPedidosHistory] = useState([]);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
-    const [filterDate, setFilterDate] = useState(new Date().toLocaleDateString('sv-SE')); // sv-SE uses YYYY-MM-DD format logically
+    const [filterDate, setFilterDate] = useState(todayLocalIsoDate);
+    const [historyRefreshing, setHistoryRefreshing] = useState(false);
     const [reportingPedido, setReportingPedido] = useState(null);
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,44 +71,68 @@ const Mayorista = () => {
         items: []
     });
 
+    const refreshPedidosHistory = useCallback(async ({ showRefreshing = false } = {}) => {
+        if (!user?.sede_id) return;
+        if (showRefreshing) setHistoryRefreshing(true);
+        try {
+            const data = await pedidoService.getAll(user.sede_id);
+            setPedidosHistory(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error fetching order history:', error);
+        } finally {
+            if (showRefreshing) setHistoryRefreshing(false);
+        }
+    }, [user?.sede_id]);
+
+    useEffect(() => {
+        if (showHistoryModal && user) {
+            refreshPedidosHistory({ showRefreshing: true });
+        }
+    }, [showHistoryModal, user, refreshPedidosHistory]);
+
     useEffect(() => {
         if (user) {
             socketService.connect(`sede_${user.sede_id}`);
             fetchInitialData();
 
-            socketService.onOrderUpdate((updatedOrder) => {
-                setPedidosHistory(prev => {
-                    const filtered = prev.filter(p => p.id !== updatedOrder.id);
-                    return [updatedOrder, ...filtered];
+            socketService.onNewOrder((newOrder) => {
+                setPedidosHistory((prev) => {
+                    if (prev.some((p) => p.id === newOrder.id)) return prev;
+                    return [newOrder, ...prev];
                 });
-                // Update active modal if it's the same order
-                setViewingOrder(prev => (prev?.id === updatedOrder.id ? updatedOrder : prev));
+            });
+
+            socketService.onOrderUpdate((updatedOrder) => {
+                setPedidosHistory((prev) => {
+                    const ix = prev.findIndex((p) => p.id === updatedOrder.id);
+                    if (ix === -1) return [updatedOrder, ...prev];
+                    const next = [...prev];
+                    next[ix] = updatedOrder;
+                    return next;
+                });
+                setViewingOrder((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
             });
         }
 
         return () => {
+            socketService.offNewOrder();
             socketService.offOrderUpdate();
             socketService.disconnect();
         };
     }, [user]);
 
     const fetchInitialData = async () => {
-        const [categoriesResult, historyResult, typesResult] = await Promise.allSettled([
+        const [categoriesResult, typesResult] = await Promise.allSettled([
             productService.getCategories(),
-            pedidoService.getAll(user.sede_id),
             productService.getTiposCorte()
         ]);
+
+        await refreshPedidosHistory();
 
         if (categoriesResult.status === 'fulfilled') {
             setCategories(categoriesResult.value);
         } else {
             console.error("Error fetching categories:", categoriesResult.reason);
-        }
-
-        if (historyResult.status === 'fulfilled') {
-            setPedidosHistory(historyResult.value);
-        } else {
-            console.error("Error fetching order history:", historyResult.reason);
         }
 
         if (typesResult.status === 'fulfilled') {
@@ -197,31 +242,35 @@ const Mayorista = () => {
     };
 
     const handleReportProblem = async () => {
-        if (!problemText) return;
+        const texto = problemText.trim();
+        if (!texto) return;
         try {
-            await api.put(`/pedidos/${reportingPedido.id}/problema`, null, {
-                params: { problema: problemText }
-            });
-            // Update local state
-            setPedidosHistory(prev => prev.map(p =>
-                p.id === reportingPedido.id ? { ...p, problema_reportado: problemText } : p
+            const { data: updated } = await api.put(`/pedidos/${reportingPedido.id}/problema`, { problema: texto });
+            setPedidosHistory((prev) => prev.map((p) =>
+                p.id === reportingPedido.id ? { ...p, ...updated } : p
             ));
             setReportingPedido(null);
             setProblemText('');
-            alert("Problema reportado con éxito");
+            alert('Problema reportado con éxito');
         } catch (error) {
-            console.error("Error reporting problem:", error);
-            alert("No se pudo reportar el problema");
+            console.error('Error reporting problem:', error);
+            const detail = error.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : 'No se pudo reportar el problema');
         }
     };
 
     const filteredHistory = pedidosHistory
-        .filter(p => {
-            const matchesDate = p.timestamp.startsWith(filterDate);
+        .filter((p) => {
+            const matchesDate = pedidoLocalDateKey(p.timestamp) === filterDate;
+            const raw = searchTerm.trim().toLowerCase();
+            const idPart = raw.startsWith('#') ? raw.slice(1).trim() : raw;
+            const tracking = getPedidoTrackingNumber(p);
             const matchesSearch =
-                p.cliente_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.id.toString().includes(searchTerm) ||
-                (p.numero_pedido && p.numero_pedido.toLowerCase().includes(searchTerm.toLowerCase()));
+                !raw ||
+                (p.cliente_nombre || '').toLowerCase().includes(raw) ||
+                p.id.toString().includes(idPart) ||
+                (p.numero_pedido && String(p.numero_pedido).toLowerCase().includes(raw)) ||
+                (tracking && idPart && tracking.includes(idPart));
             return matchesDate && matchesSearch;
         })
         .sort((a, b) => b.id - a.id);
@@ -504,11 +553,20 @@ const Mayorista = () => {
                                 <input
                                     type="text"
                                     className="input-field"
-                                    placeholder="Buscar por Nombre o ID..."
+                                    placeholder="Buscar por cliente, ID o número (#12)..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            <button
+                                type="button"
+                                className={styles.refreshHistoryBtn}
+                                onClick={() => refreshPedidosHistory({ showRefreshing: true })}
+                                disabled={historyRefreshing}
+                                title="Volver a cargar pedidos desde el servidor"
+                            >
+                                <RefreshCw size={18} aria-hidden /> {historyRefreshing ? 'Actualizando…' : 'Actualizar lista'}
+                            </button>
                         </div>
 
                         <div className={styles.globalList}>
@@ -542,11 +600,15 @@ const Mayorista = () => {
                                                         <Search size={14} /> Detalles
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         className={styles.reportBtn}
-                                                        onClick={() => setReportingPedido(p)}
-                                                        disabled={p.problema_reportado}
+                                                        title={p.problema_reportado?.trim() ? 'Editar texto del reporte enviado a la carnicería' : 'Informar un problema en este pedido'}
+                                                        onClick={() => {
+                                                            setReportingPedido(p);
+                                                            setProblemText(p.problema_reportado ? String(p.problema_reportado) : '');
+                                                        }}
                                                     >
-                                                        <AlertCircle size={14} /> {p.problema_reportado ? 'Reportado' : 'Reportar'}
+                                                        <AlertCircle size={14} /> {p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar'}
                                                     </button>
                                                 </div>
                                             </td>
@@ -557,7 +619,7 @@ const Mayorista = () => {
                             {filteredHistory.length === 0 && (
                                 <div className={styles.emptySearch}>
                                     <Search size={48} />
-                                    <p>No se encontraron pedidos para esta fecha.</p>
+                                    <p>{historyRefreshing ? 'Cargando pedidos…' : 'No se encontraron pedidos para esta fecha o búsqueda.'}</p>
                                 </div>
                             )}
                         </div>
@@ -569,9 +631,11 @@ const Mayorista = () => {
             {reportingPedido && (
                 <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
                     <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '400px' }}>
-                        <h3>Reportar problema en Pedido {formatPedidoNumero(reportingPedido)}</h3>
+                        <h3>
+                            {(reportingPedido.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar problema')} · Pedido {formatPedidoNumero(reportingPedido)}
+                        </h3>
                         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                            Describe brevemente el inconveniente con este pedido para que la carnicería lo revise.
+                            Describe brevemente el inconveniente para que la carnicería lo revise. Puede modificar el texto si ya envió un reporte.
                         </p>
                         <textarea
                             className="input-field"
@@ -581,8 +645,15 @@ const Mayorista = () => {
                             onChange={(e) => setProblemText(e.target.value)}
                         ></textarea>
                         <div className={styles.modalActions}>
-                            <button className="premium-button" style={{ background: 'var(--error)' }} onClick={() => setReportingPedido(null)}>Cancelar</button>
-                            <button className="premium-button" onClick={handleReportProblem} disabled={!problemText}>Enviar Reporte</button>
+                            <button
+                                type="button"
+                                className="premium-button"
+                                style={{ background: 'var(--error)' }}
+                                onClick={() => { setReportingPedido(null); setProblemText(''); }}
+                            >
+                                Cancelar
+                            </button>
+                            <button type="button" className="premium-button" onClick={handleReportProblem} disabled={!problemText.trim()}>Enviar reporte</button>
                         </div>
                     </div>
                 </div>

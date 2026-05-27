@@ -352,6 +352,31 @@
     border-bottom: 1px solid var(--glass-border);
 }
 
+.refreshHistoryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(46, 204, 113, 0.12);
+    color: var(--primary-color);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-left: auto;
+}
+
+.refreshHistoryBtn:hover:not(:disabled) {
+    background: rgba(46, 204, 113, 0.22);
+}
+
+.refreshHistoryBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .dateInputGroup {
     display: flex;
     align-items: center;
@@ -958,6 +983,12 @@
     .filterSection {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .refreshHistoryBtn {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
     }
 
     .dateInputGroup {

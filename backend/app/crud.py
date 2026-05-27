@@ -531,11 +531,22 @@ def update_pedido_estado(db: Session, pedido_id: int, estado: str, carnicero_id:
 
 def report_pedido_problema(db: Session, pedido_id: int, problema: str):
     db_pedido = db.query(models.Pedido).filter(models.Pedido.id == pedido_id).first()
-    if db_pedido:
-        db_pedido.problema_reportado = problema
-        db.commit()
-        db.refresh(db_pedido)
-    return db_pedido
+    if not db_pedido:
+        return None
+    db_pedido.problema_reportado = problema.strip() if problema else None
+    db.commit()
+    return (
+        db.query(models.Pedido)
+        .options(
+            joinedload(models.Pedido.carnicero),
+            joinedload(models.Pedido.mayorista),
+            joinedload(models.Pedido.sede),
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte),
+        )
+        .filter(models.Pedido.id == pedido_id)
+        .first()
+    )
 
 # Butcher Availability CRUD
 def get_butchers_by_sede(db: Session, sede_id: str):

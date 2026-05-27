@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -379,17 +379,23 @@ async def update_pedido_estado_endpoint(pedido_id: int, estado: str, carnicero_i
     return db_pedido
 
 @app.put("/pedidos/{pedido_id}/problema", response_model=schemas.Pedido)
-async def report_pedido_problema_endpoint(pedido_id: int, problema: str, db: Session = Depends(get_db)):
-    db_pedido = crud.report_pedido_problema(db=db, pedido_id=pedido_id, problema=problema)
+async def report_pedido_problema_endpoint(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    problema: Optional[str] = Query(None, description="Texto del reporte (legacy; preferir cuerpo JSON)"),
+    body: Optional[schemas.PedidoProblemaReport] = Body(default=None),
+):
+    texto = (body.problema if body else None) or problema
+    if texto is None or not str(texto).strip():
+        raise HTTPException(status_code=400, detail="El texto del problema es obligatorio")
+    db_pedido = crud.report_pedido_problema(db=db, pedido_id=pedido_id, problema=str(texto).strip())
     if not db_pedido:
         raise HTTPException(status_code=404, detail="Pedido not found")
-    
-    # Notify Butcher/Manager about the problem (optional, but good for real-time)
-    await sio.emit("order_problem", {
-        "pedido_id": pedido_id,
-        "problema": problema
-    }, room=f"sede_{db_pedido.sede_id}")
-    
+
+    payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode="json")
+    await sio.emit("order_update", payload, room=f"sede_{db_pedido.sede_id}")
+    await sio.emit("order_problem", {"pedido_id": pedido_id, "problema": str(texto).strip()}, room=f"sede_{db_pedido.sede_id}")
+
     return db_pedido
 
 # Butcher Availability Endpoints

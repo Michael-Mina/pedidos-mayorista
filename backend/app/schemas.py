@@ -136,6 +136,11 @@ class Pedido(PedidoBase):
     detalles: List[DetallePedido]
     model_config = ConfigDict(from_attributes=True)
 
+class PedidoProblemaReport(BaseModel):
+    """Cuerpo JSON para PUT /pedidos/{id}/problema (evita límites de URL del query param)."""
+
+    problema: str
+
 class ButcherAvailabilityBase(BaseModel):
     butcher_id: int
     sede_id: int
