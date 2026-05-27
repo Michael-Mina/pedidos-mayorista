@@ -186,7 +186,7 @@ def _apply_pedido_date_filter(q, date_from: date | None = None, date_to: date | 
 
 def get_stats_orders_by_sede(
     db: Session,
-    sede_id: int | None = None,
+    sede_ids: list[int] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
 ):
@@ -197,8 +197,8 @@ def get_stats_orders_by_sede(
         )
         .outerjoin(models.Pedido, _pedido_join_conditions(date_from, date_to))
     )
-    if sede_id is not None:
-        q = q.filter(models.Sede.id == sede_id)
+    if sede_ids:
+        q = q.filter(models.Sede.id.in_(sede_ids))
     return q.group_by(models.Sede.id, models.Sede.nombre).order_by(models.Sede.nombre).all()
 
 
@@ -218,7 +218,7 @@ def get_stats_orders_by_estado(
 
 def get_stats_top_cuts(
     db: Session,
-    sede_id: int | None = None,
+    sede_ids: list[int] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     limit: int = 5,
@@ -231,8 +231,8 @@ def get_stats_top_cuts(
         .join(models.DetallePedido, models.DetallePedido.corte_id == models.Corte.id)
         .join(models.Pedido, models.DetallePedido.pedido_id == models.Pedido.id)
     )
-    if sede_id is not None:
-        q = q.filter(models.Pedido.sede_id == sede_id)
+    if sede_ids:
+        q = q.filter(models.Pedido.sede_id.in_(sede_ids))
     q = _apply_pedido_date_filter(q, date_from, date_to)
     return (
         q.group_by(models.Corte.nombre)

@@ -28,6 +28,7 @@ const DASHBOARD_PERIODS = [
     { value: 'last_7_days', label: 'Últimos 7 días' },
     { value: 'last_30_days', label: 'Últimos 30 días' },
     { value: 'this_month', label: 'Este mes' },
+    { value: 'custom', label: 'Personalizado (desde / hasta)' },
 ];
 
 const formatDateParam = (d) => {
@@ -37,7 +38,12 @@ const formatDateParam = (d) => {
     return `${y}-${m}-${day}`;
 };
 
-const getDashboardDateRange = (period) => {
+const getDashboardDateRange = (period, customFrom, customTo) => {
+    if (period === 'custom') {
+        if (!customFrom || !customTo) return { invalid: true };
+        if (customFrom > customTo) return { invalid: true };
+        return { date_from: customFrom, date_to: customTo };
+    }
     if (period === 'all') return {};
     const now = new Date();
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -60,6 +66,16 @@ const getDashboardDateRange = (period) => {
     return { date_from: formatDateParam(start), date_to: formatDateParam(end) };
 };
 
+const buildDashboardStatsParams = (period, dateFrom, dateTo, compareMode, selectedSedes) => {
+    const range = getDashboardDateRange(period, dateFrom, dateTo);
+    if (range.invalid) return null;
+    const params = { ...range };
+    if (compareMode === 'specific' && selectedSedes.length > 0) {
+        params.sede_ids = selectedSedes.map((id) => parseInt(id, 10));
+    }
+    return params;
+};
+
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -77,8 +93,12 @@ const Admin = () => {
     const { logout } = useAuth();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [stats, setStats] = useState({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
-    const [dashboardSedeFilter, setDashboardSedeFilter] = useState('');
+    const [dashboardCompareMode, setDashboardCompareMode] = useState('all');
+    const [dashboardSelectedSedes, setDashboardSelectedSedes] = useState([]);
     const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState('all');
+    const [dashboardDateFrom, setDashboardDateFrom] = useState('');
+    const [dashboardDateTo, setDashboardDateTo] = useState('');
+    const [dashboardFilterError, setDashboardFilterError] = useState('');
     const [usersList, setUsersList] = useState([]);
     const [sedesList, setSedesList] = useState([]);
     const [products, setProducts] = useState({ categories: [], cuts: [], tiposCorte: [] });
@@ -130,7 +150,7 @@ const Admin = () => {
 
     useEffect(() => {
         fetchData();
-    }, [activeTab, dashboardSedeFilter, dashboardPeriodFilter]);
+    }, [activeTab, dashboardPeriodFilter, dashboardCompareMode, dashboardSelectedSedes, dashboardDateFrom, dashboardDateTo]);
 
     useEffect(() => {
         if (activeTab !== 'products') {
@@ -148,19 +168,55 @@ const Admin = () => {
         setLoading(true);
         try {
             if (activeTab === 'dashboard') {
-                const statsParams = {
-                    ...getDashboardDateRange(dashboardPeriodFilter),
-                    ...(dashboardSedeFilter ? { sede_id: dashboardSedeFilter } : {}),
-                };
+                if (dashboardCompareMode === 'specific' && dashboardSelectedSedes.length === 0) {
+                    setDashboardFilterError('Seleccione al menos una sede para comparar.');
+                    const [resUsers, resSedes] = await Promise.all([
+                        api.get('/users'),
+                        api.get('/sedes'),
+                    ]);
+                    setUsersList(resUsers.data);
+                    setSedesList(resSedes.data);
+                    setStats({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
+                    setLoading(false);
+                    return;
+                }
+
+                const statsParams = buildDashboardStatsParams(
+                    dashboardPeriodFilter,
+                    dashboardDateFrom,
+                    dashboardDateTo,
+                    dashboardCompareMode,
+                    dashboardSelectedSedes
+                );
+                if (!statsParams) {
+                    setDashboardFilterError('Indique fechas Desde y Hasta válidas (Desde ≤ Hasta).');
+                    const [resUsers, resSedes] = await Promise.all([
+                        api.get('/users'),
+                        api.get('/sedes'),
+                    ]);
+                    setUsersList(resUsers.data);
+                    setSedesList(resSedes.data);
+                    setStats({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
+                    setLoading(false);
+                    return;
+                }
+
+                setDashboardFilterError('');
                 const requests = [
                     api.get('/stats/orders-by-sede', { params: statsParams }),
                     api.get('/stats/top-cuts', { params: statsParams }),
                     api.get('/users'),
                     api.get('/sedes'),
                 ];
-                if (dashboardSedeFilter) {
+                const singleSedeId =
+                    dashboardCompareMode === 'specific' && dashboardSelectedSedes.length === 1
+                        ? dashboardSelectedSedes[0]
+                        : null;
+                if (singleSedeId) {
                     requests.push(
-                        api.get('/stats/orders-by-estado', { params: statsParams })
+                        api.get('/stats/orders-by-estado', {
+                            params: { ...statsParams, sede_id: singleSedeId },
+                        })
                     );
                 }
                 const results = await Promise.all(requests);
@@ -315,33 +371,69 @@ const Admin = () => {
         }
     };
 
-    const selectedSede = sedesList.find((s) => String(s.id) === dashboardSedeFilter);
+    const toggleDashboardSede = (sedeId) => {
+        setDashboardSelectedSedes((prev) => {
+            const id = String(sedeId);
+            return prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id];
+        });
+    };
+
+    const selectAllDashboardSedes = () => {
+        setDashboardSelectedSedes(sedesList.map((s) => String(s.id)));
+    };
+
+    const clearDashboardSedes = () => {
+        setDashboardSelectedSedes([]);
+    };
+
     const selectedPeriod = DASHBOARD_PERIODS.find((p) => p.value === dashboardPeriodFilter);
-    const isAllSedes = !dashboardSedeFilter;
+    const selectedSedesInView = sedesList.filter((s) =>
+        dashboardSelectedSedes.includes(String(s.id))
+    );
+    const isAllSedesCompare = dashboardCompareMode === 'all';
+    const isSingleSedeView = dashboardCompareMode === 'specific' && dashboardSelectedSedes.length === 1;
+    const isMultiSedeCompare = dashboardCompareMode === 'specific' && dashboardSelectedSedes.length > 1;
     const totalPedidos = stats.sedeOrders.reduce((a, b) => a + b.count, 0);
     const totalKg = stats.topCuts.reduce((a, b) => a + (b.total_kg || 0), 0);
     const mayoristasEnVista = usersList.filter((u) => {
         if (u.role !== 'mayorista') return false;
-        if (!dashboardSedeFilter) return true;
-        return String(u.sede_id) === dashboardSedeFilter;
+        if (isAllSedesCompare) return true;
+        return dashboardSelectedSedes.includes(String(u.sede_id));
     });
-    const ciudadesEnVista = isAllSedes
+    const ciudadesEnVista = isAllSedesCompare
         ? [...new Set(sedesList.map((s) => s.ciudad).filter(Boolean))]
-        : selectedSede?.ciudad
-            ? [selectedSede.ciudad]
-            : [];
+        : [...new Set(selectedSedesInView.map((s) => s.ciudad).filter(Boolean))];
 
-    const mainChartLabels = isAllSedes
-        ? stats.sedeOrders.map((s) => s.name)
-        : stats.ordersByEstado.map((s) => s.name);
-    const mainChartCounts = isAllSedes
-        ? stats.sedeOrders.map((s) => s.count)
-        : stats.ordersByEstado.map((s) => s.count);
+    const mainChartLabels = isSingleSedeView
+        ? stats.ordersByEstado.map((s) => s.name)
+        : stats.sedeOrders.map((s) => s.name);
+    const mainChartCounts = isSingleSedeView
+        ? stats.ordersByEstado.map((s) => s.count)
+        : stats.sedeOrders.map((s) => s.count);
+
+    const mainChartTitle = isSingleSedeView
+        ? `PEDIDOS POR ESTADO — ${selectedSedesInView[0]?.nombre || 'Sede'}`
+        : isMultiSedeCompare
+            ? 'COMPARACIÓN ENTRE SEDES SELECCIONADAS'
+            : 'PEDIDOS POR SEDE';
+
+    const periodBadgeLabel =
+        dashboardPeriodFilter === 'custom' && dashboardDateFrom && dashboardDateTo
+            ? `${dashboardDateFrom} → ${dashboardDateTo}`
+            : selectedPeriod && dashboardPeriodFilter !== 'all'
+                ? selectedPeriod.label
+                : null;
+
+    const sedeBadgeLabel = isAllSedesCompare
+        ? null
+        : isSingleSedeView
+            ? selectedSedesInView[0]?.nombre
+            : `${dashboardSelectedSedes.length} sedes`;
 
     const barData = {
         labels: mainChartLabels,
         datasets: [{
-            label: isAllSedes ? 'Pedidos por sede' : 'Pedidos por estado',
+            label: isSingleSedeView ? 'Pedidos por estado' : 'Pedidos por sede',
             data: mainChartCounts,
             backgroundColor: 'rgba(46, 204, 113, 0.5)',
             borderColor: '#2ecc71',
@@ -449,21 +541,32 @@ const Admin = () => {
             <main className={styles.mainContent}>
                 {activeTab === 'dashboard' && (
                     <div className={styles.dashboardWrapper}>
-                        <div className={styles.topBanner}>
-                            <div className={styles.topBannerLeft}>
-                                <h1>RESUMEN DE OPERACIONES</h1>
-                                <div className={styles.filterBadges}>
-                                    {selectedPeriod && dashboardPeriodFilter !== 'all' && (
-                                        <span className={styles.sedeFilterBadge}>{selectedPeriod.label}</span>
-                                    )}
-                                    {selectedSede && (
-                                        <span className={styles.sedeFilterBadge}>{selectedSede.nombre}</span>
-                                    )}
+                        <div className={styles.dashboardFilters}>
+                            <div className={styles.filterHeaderRow}>
+                                <div className={styles.topBannerLeft}>
+                                    <h1>RESUMEN DE OPERACIONES</h1>
+                                    <div className={styles.filterBadges}>
+                                        {periodBadgeLabel && (
+                                            <span className={styles.sedeFilterBadge}>{periodBadgeLabel}</span>
+                                        )}
+                                        {sedeBadgeLabel && (
+                                            <span className={styles.sedeFilterBadge}>{sedeBadgeLabel}</span>
+                                        )}
+                                    </div>
                                 </div>
+                                <button type="button" className="premium-button" onClick={fetchData} aria-label="Actualizar datos">
+                                    <RefreshCw size={18} />
+                                </button>
                             </div>
-                            <div className={styles.topBannerActions}>
+
+                            {dashboardFilterError && (
+                                <p className={styles.filterError} role="alert">{dashboardFilterError}</p>
+                            )}
+
+                            <div className={styles.filterControlsRow}>
                                 <label className={styles.sedeFilterLabel}>
                                     <Calendar size={16} aria-hidden="true" />
+                                    <span>Periodo</span>
                                     <select
                                         className={styles.sedeFilterSelect}
                                         value={dashboardPeriodFilter}
@@ -477,26 +580,77 @@ const Admin = () => {
                                         ))}
                                     </select>
                                 </label>
+
+                                {dashboardPeriodFilter === 'custom' && (
+                                    <>
+                                        <label className={styles.sedeFilterLabel}>
+                                            <span>Desde</span>
+                                            <input
+                                                type="date"
+                                                className={styles.dateFilterInput}
+                                                value={dashboardDateFrom}
+                                                onChange={(e) => setDashboardDateFrom(e.target.value)}
+                                                aria-label="Fecha desde"
+                                            />
+                                        </label>
+                                        <label className={styles.sedeFilterLabel}>
+                                            <span>Hasta</span>
+                                            <input
+                                                type="date"
+                                                className={styles.dateFilterInput}
+                                                value={dashboardDateTo}
+                                                onChange={(e) => setDashboardDateTo(e.target.value)}
+                                                aria-label="Fecha hasta"
+                                            />
+                                        </label>
+                                    </>
+                                )}
+
                                 <label className={styles.sedeFilterLabel}>
                                     <MapPin size={16} aria-hidden="true" />
+                                    <span>Comparar</span>
                                     <select
                                         className={styles.sedeFilterSelect}
-                                        value={dashboardSedeFilter}
-                                        onChange={(e) => setDashboardSedeFilter(e.target.value)}
-                                        aria-label="Filtrar por sede"
+                                        value={dashboardCompareMode}
+                                        onChange={(e) => {
+                                            setDashboardCompareMode(e.target.value);
+                                            if (e.target.value === 'all') {
+                                                setDashboardSelectedSedes([]);
+                                            }
+                                        }}
+                                        aria-label="Modo de comparación de sedes"
                                     >
-                                        <option value="">Todas las sedes</option>
-                                        {sedesList.map((sede) => (
-                                            <option key={sede.id} value={String(sede.id)}>
-                                                {sede.nombre}
-                                            </option>
-                                        ))}
+                                        <option value="all">Todas las sedes</option>
+                                        <option value="specific">Sedes específicas</option>
                                     </select>
                                 </label>
-                                <button type="button" className="premium-button" onClick={fetchData} aria-label="Actualizar datos">
-                                    <RefreshCw size={18} />
-                                </button>
                             </div>
+
+                            {dashboardCompareMode === 'specific' && (
+                                <div className={styles.sedeComparePanel}>
+                                    <div className={styles.sedeCompareActions}>
+                                        <span className={styles.sedeCompareHint}>Seleccione una o más sedes para comparar</span>
+                                        <button type="button" className={styles.linkButton} onClick={selectAllDashboardSedes}>
+                                            Todas
+                                        </button>
+                                        <button type="button" className={styles.linkButton} onClick={clearDashboardSedes}>
+                                            Ninguna
+                                        </button>
+                                    </div>
+                                    <div className={styles.sedeCheckboxGrid}>
+                                        {sedesList.map((sede) => (
+                                            <label key={sede.id} className={styles.sedeCheckboxItem}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={dashboardSelectedSedes.includes(String(sede.id))}
+                                                    onChange={() => toggleDashboardSede(sede.id)}
+                                                />
+                                                <span>{sede.nombre}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className={styles.dashboardGrid}>
@@ -558,17 +712,13 @@ const Admin = () => {
                             {/* Main Trend Chart */}
                             <div className={`${styles.mainChartCard} glass-card`}>
                                 <div className={styles.cardHeader}>
-                                    <h3>
-                                        {isAllSedes
-                                            ? 'PEDIDOS POR SEDE'
-                                            : `PEDIDOS POR ESTADO — ${selectedSede?.nombre || 'Sede'}`}
-                                    </h3>
+                                    <h3>{mainChartTitle}</h3>
                                     <div className={styles.chartLegend}>
                                         <Bar
                                             data={{
                                                 labels: mainChartLabels,
                                                 datasets: [{
-                                                    label: isAllSedes ? 'Pedidos' : 'Pedidos por estado',
+                                                    label: isSingleSedeView ? 'Pedidos por estado' : 'Pedidos por sede',
                                                     data: mainChartCounts,
                                                     backgroundColor: ['#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#9b59b6'],
                                                     borderRadius: 5
@@ -587,7 +737,7 @@ const Admin = () => {
                             {/* Bottom Row - More KPIs and Distribution */}
                             <div className={`${styles.smallCard} glass-card`}>
                                 <div className={styles.kpiInfo}>
-                                    <span>MAYORISTAS {isAllSedes ? 'ACTIVOS' : 'EN SEDE'}</span>
+                                    <span>MAYORISTAS {isAllSedesCompare ? 'ACTIVOS' : 'EN SELECCIÓN'}</span>
                                     <h2>{mayoristasEnVista.length}</h2>
                                 </div>
                                 <div className={styles.miniChart}>
@@ -610,10 +760,10 @@ const Admin = () => {
 
                             <div className={`${styles.smallCard} glass-card`}>
                                 <div className={styles.kpiInfo}>
-                                    <span>{isAllSedes ? 'CIUDADES CUBIERTAS' : 'CIUDAD'}</span>
+                                    <span>{isAllSedesCompare ? 'CIUDADES CUBIERTAS' : 'CIUDADES EN SELECCIÓN'}</span>
                                     <h2>{ciudadesEnVista.length}</h2>
-                                    {!isAllSedes && ciudadesEnVista[0] && (
-                                        <p className={styles.kpiSubtext}>{ciudadesEnVista[0]}</p>
+                                    {!isAllSedesCompare && ciudadesEnVista.length > 0 && (
+                                        <p className={styles.kpiSubtext}>{ciudadesEnVista.join(', ')}</p>
                                     )}
                                 </div>
                                 <div className={styles.miniChart}>

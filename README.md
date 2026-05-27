@@ -228,22 +228,22 @@ Las sedes se unen a la sala `sede_{id}` para recibir avisos de su punto de venta
 
 ### Panel Admin — estadísticas y respaldo
 
-En **Admin → Panel de Control**, el resumen admite dos filtros combinables:
+En **Admin → Panel de Control**, el resumen admite filtros combinables:
 
 | Filtro | Opciones |
 |--------|----------|
-| **Sede** | Todas las sedes, o una sede concreta |
-| **Periodo** | Todo el tiempo, hoy, últimos 7 días, últimos 30 días, este mes |
+| **Periodo** | Todo el tiempo, hoy, últimos 7/30 días, este mes, **personalizado (desde / hasta)** |
+| **Comparar sedes** | **Todas las sedes** o **sedes específicas** (una o varias con casillas) |
 
-- Con **todas las sedes**, el gráfico principal muestra pedidos por sede.
-- Con **una sede**, el gráfico muestra pedidos por estado (pendiente, en proceso, finalizado).
-- Pedidos totales, kg promedio y cortes más solicitados respetan sede y periodo seleccionados.
+- **Todas las sedes:** gráfico de pedidos por sede en el periodo elegido.
+- **Una sede específica:** gráfico por estado (pendiente, en proceso, finalizado).
+- **Varias sedes:** gráfico comparando pedidos entre las sedes seleccionadas.
 
-API de estadísticas (parámetros opcionales `sede_id`, `date_from`, `date_to` en formato `YYYY-MM-DD`):
+API de estadísticas (parámetros opcionales `date_from`, `date_to` en `YYYY-MM-DD`; `sede_ids` repetible o `sede_id` para una sede):
 
 - `GET /stats/orders-by-sede`
 - `GET /stats/top-cuts`
-- `GET /stats/orders-by-estado?sede_id=…` (requiere sede)
+- `GET /stats/orders-by-estado?sede_id=…` (solo con una sede)
 
 En **Admin → Respaldo** se descarga un ZIP de la base de datos y archivos estáticos (ver [docs/BACKUP.md](docs/BACKUP.md)).
 

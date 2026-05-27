@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -289,16 +289,28 @@ def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
 def read_users(db: Session = Depends(get_db)):
     return crud.get_users(db)
 
+def _resolve_sede_ids(
+    sede_id: Optional[int],
+    sede_ids: Optional[List[int]],
+) -> Optional[List[int]]:
+    if sede_ids:
+        return sede_ids
+    if sede_id is not None:
+        return [sede_id]
+    return None
+
+
 @app.get("/stats/orders-by-sede")
 def get_stats_orders(
     sede_id: Optional[int] = None,
+    sede_ids: Optional[List[int]] = Query(None),
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     result = crud.get_stats_orders_by_sede(
         db,
-        sede_id=sede_id,
+        sede_ids=_resolve_sede_ids(sede_id, sede_ids),
         date_from=_parse_stats_date(date_from),
         date_to=_parse_stats_date(date_to),
     )
@@ -332,13 +344,14 @@ def get_stats_orders_by_estado(
 @app.get("/stats/top-cuts")
 def get_stats_cuts(
     sede_id: Optional[int] = None,
+    sede_ids: Optional[List[int]] = Query(None),
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     result = crud.get_stats_top_cuts(
         db,
-        sede_id=sede_id,
+        sede_ids=_resolve_sede_ids(sede_id, sede_ids),
         date_from=_parse_stats_date(date_from),
         date_to=_parse_stats_date(date_to),
     )
