@@ -10,7 +10,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -454,6 +454,45 @@ def admin_backup_download(_admin: models.User = Depends(auth.require_admin)):
     return Response(
         content=content,
         media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/admin/report/excel")
+def admin_report_excel(
+    sede_ids: Optional[List[int]] = Query(None),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    period_label: Optional[str] = None,
+    sede_label: Optional[str] = None,
+    _admin: models.User = Depends(auth.require_admin),
+    db: Session = Depends(get_db),
+):
+    """Genera reporte Excel del dashboard con los filtros aplicados."""
+    parsed_from = _parse_stats_date(date_from)
+    parsed_to = _parse_stats_date(date_to)
+    if date_from and date_to and parsed_from and parsed_to and parsed_from > parsed_to:
+        raise HTTPException(status_code=400, detail="La fecha Desde debe ser anterior o igual a Hasta.")
+
+    resolved_ids = _resolve_sede_ids(None, sede_ids)
+    if sede_ids is not None and len(sede_ids) == 0:
+        raise HTTPException(status_code=400, detail="Seleccione al menos una sede para el reporte.")
+
+    try:
+        content, filename = report_excel.build_dashboard_report(
+            db,
+            sede_ids=resolved_ids,
+            date_from=parsed_from,
+            date_to=parsed_to,
+            period_label=period_label or "Todo el tiempo",
+            sede_label=sede_label or "Todas las sedes",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al generar reporte: {exc}")
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

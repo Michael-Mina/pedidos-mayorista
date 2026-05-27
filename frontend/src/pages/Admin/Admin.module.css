@@ -135,18 +135,20 @@
 }
 
 .dateFilterInput {
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--glass-border);
-    background: rgba(0, 0, 0, 0.25);
-    color: var(--text-light);
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background-color: #1e293b;
+    color: #f8fafc;
     font-size: 0.9rem;
+    font-weight: 500;
     color-scheme: dark;
 }
 
 .dateFilterInput:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.25);
 }
 
 .sedeComparePanel {
@@ -225,18 +227,39 @@
 
 .sedeFilterSelect {
     min-width: 180px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--glass-border);
-    background: rgba(0, 0, 0, 0.25);
-    color: var(--text-light);
+    padding: 10px 40px 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background-color: #1e293b;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23f8fafc'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    color: #f8fafc;
     font-size: 0.9rem;
+    font-weight: 500;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    color-scheme: dark;
+}
+
+.sedeFilterSelect option {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 10px 12px;
+}
+
+.sedeFilterSelect option:checked {
+    background-color: #2ecc71;
+    color: #020617;
+    font-weight: 600;
 }
 
 .sedeFilterSelect:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.25);
 }
 
 .filterBadges {
@@ -264,6 +287,20 @@
     gap: 8px;
     background: rgba(46, 204, 113, 0.15) !important;
     border: 1px solid var(--primary-color);
+}
+
+.reportBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(52, 152, 219, 0.2) !important;
+    border: 1px solid #3498db;
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.25);
+}
+
+.reportBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .filtersModal {
@@ -577,6 +614,24 @@
     display: flex;
     flex-direction: column;
     gap: 15px;
+}
+
+.filtersModalActions {
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.filtersModalActionsRight {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filtersModalActions .linkButton {
+    font-size: 0.95rem;
+    padding: 8px 0;
 }
 
 .modalActions {

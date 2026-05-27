@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Admin.module.css';
-import api, { downloadAdminBackup } from '../../services/api';
+import api, { downloadAdminBackup, downloadAdminReport } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -76,6 +76,14 @@ const buildDashboardStatsParams = (period, dateFrom, dateTo, compareMode, select
     return params;
 };
 
+const DEFAULT_DASHBOARD_FILTERS = {
+    period: 'all',
+    dateFrom: '',
+    dateTo: '',
+    compareMode: 'all',
+    selectedSedes: [],
+};
+
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -124,6 +132,7 @@ const Admin = () => {
     const [userSedeFilter, setUserSedeFilter] = useState('');
     const [menuOpen, setMenuOpen] = useState(false);
     const [backupLoading, setBackupLoading] = useState(false);
+    const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
 
     const navTabs = [
@@ -396,6 +405,18 @@ const Admin = () => {
         setDashboardDateTo(filterDraft.dateTo);
         setDashboardCompareMode(filterDraft.compareMode);
         setDashboardSelectedSedes([...filterDraft.selectedSedes]);
+        setDashboardFilterError('');
+        setShowDashboardFiltersModal(false);
+    };
+
+    const clearDashboardFilters = () => {
+        setFilterDraft({ ...DEFAULT_DASHBOARD_FILTERS });
+        setDashboardPeriodFilter(DEFAULT_DASHBOARD_FILTERS.period);
+        setDashboardDateFrom(DEFAULT_DASHBOARD_FILTERS.dateFrom);
+        setDashboardDateTo(DEFAULT_DASHBOARD_FILTERS.dateTo);
+        setDashboardCompareMode(DEFAULT_DASHBOARD_FILTERS.compareMode);
+        setDashboardSelectedSedes([]);
+        setDashboardFilterError('');
         setShowDashboardFiltersModal(false);
     };
 
@@ -463,6 +484,47 @@ const Admin = () => {
         : isSingleSedeView
             ? selectedSedesInView[0]?.nombre
             : `${dashboardSelectedSedes.length} sedes`;
+
+    const buildReportDownloadParams = () => {
+        if (dashboardCompareMode === 'specific' && dashboardSelectedSedes.length === 0) {
+            return null;
+        }
+        const range = getDashboardDateRange(
+            dashboardPeriodFilter,
+            dashboardDateFrom,
+            dashboardDateTo
+        );
+        if (range.invalid) return null;
+        const params = {
+            ...range,
+            period_label: periodBadgeLabel || 'Todo el tiempo',
+            sede_label: isAllSedesCompare
+                ? 'Todas las sedes'
+                : isSingleSedeView
+                    ? selectedSedesInView[0]?.nombre || 'Sede'
+                    : `${dashboardSelectedSedes.length} sedes seleccionadas`,
+        };
+        if (dashboardCompareMode === 'specific' && dashboardSelectedSedes.length > 0) {
+            params.sede_ids = dashboardSelectedSedes.map((id) => parseInt(id, 10));
+        }
+        return params;
+    };
+
+    const handleDownloadReport = async () => {
+        const params = buildReportDownloadParams();
+        if (!params) {
+            alert(dashboardFilterError || 'Configure filtros válidos antes de descargar el reporte.');
+            return;
+        }
+        setReportLoading(true);
+        try {
+            await downloadAdminReport(params);
+        } catch (error) {
+            alert(error.message || 'Error al descargar el reporte');
+        } finally {
+            setReportLoading(false);
+        }
+    };
 
     const barData = {
         labels: mainChartLabels,
@@ -601,6 +663,16 @@ const Admin = () => {
                                 >
                                     <Filter size={18} /> Filtros
                                 </button>
+                                <button
+                                    type="button"
+                                    className={`premium-button ${styles.reportBtn}`}
+                                    onClick={handleDownloadReport}
+                                    disabled={reportLoading || !!dashboardFilterError}
+                                    title="Descargar reporte Excel con los filtros aplicados"
+                                >
+                                    <FileSpreadsheet size={18} />
+                                    {reportLoading ? 'Generando…' : 'Excel'}
+                                </button>
                                 <button type="button" className="premium-button" onClick={fetchData} aria-label="Actualizar datos">
                                     <RefreshCw size={18} />
                                 </button>
@@ -711,18 +783,27 @@ const Admin = () => {
                                         )}
                                     </div>
 
-                                    <div className={styles.modalActions}>
+                                    <div className={`${styles.modalActions} ${styles.filtersModalActions}`}>
                                         <button
                                             type="button"
-                                            className="premium-button"
-                                            style={{ background: 'var(--bg-card)' }}
-                                            onClick={() => setShowDashboardFiltersModal(false)}
+                                            className={styles.linkButton}
+                                            onClick={clearDashboardFilters}
                                         >
-                                            Cancelar
+                                            Limpiar filtros
                                         </button>
-                                        <button type="button" className="premium-button" onClick={applyDashboardFilters}>
-                                            Aplicar filtros
-                                        </button>
+                                        <div className={styles.filtersModalActionsRight}>
+                                            <button
+                                                type="button"
+                                                className="premium-button"
+                                                style={{ background: 'var(--bg-card)' }}
+                                                onClick={() => setShowDashboardFiltersModal(false)}
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button type="button" className="premium-button" onClick={applyDashboardFilters}>
+                                                Aplicar filtros
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

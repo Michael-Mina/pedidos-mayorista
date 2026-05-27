@@ -241,6 +241,89 @@ def get_stats_top_cuts(
         .all()
     )
 
+
+def get_pedidos_for_report(
+    db: Session,
+    sede_ids: list[int] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = 500,
+):
+    q = (
+        db.query(models.Pedido)
+        .options(
+            joinedload(models.Pedido.sede),
+            joinedload(models.Pedido.mayorista),
+            joinedload(models.Pedido.detalles),
+        )
+    )
+    if sede_ids:
+        q = q.filter(models.Pedido.sede_id.in_(sede_ids))
+    q = _apply_pedido_date_filter(q, date_from, date_to)
+    return q.order_by(models.Pedido.timestamp.desc()).limit(limit).all()
+
+
+_ESTADO_LABELS = {
+    "pendiente": "Pendiente",
+    "en_proceso": "En proceso",
+    "finalizado": "Finalizado",
+}
+
+
+def gather_dashboard_report_data(
+    db: Session,
+    sede_ids: list[int] | None,
+    date_from: date | None,
+    date_to: date | None,
+):
+    """Agrega datos del dashboard para reporte Excel."""
+    sede_rows = get_stats_orders_by_sede(db, sede_ids=sede_ids, date_from=date_from, date_to=date_to)
+    top_cuts = get_stats_top_cuts(db, sede_ids=sede_ids, date_from=date_from, date_to=date_to, limit=10)
+    orders_by_estado = []
+    if sede_ids and len(sede_ids) == 1:
+        raw = get_stats_orders_by_estado(db, sede_id=sede_ids[0], date_from=date_from, date_to=date_to)
+        for estado, count in raw:
+            key = estado.value if hasattr(estado, "value") else str(estado)
+            orders_by_estado.append({"name": _ESTADO_LABELS.get(key, key), "count": count})
+
+    sede_orders = [{"name": r[0], "count": r[1]} for r in sede_rows]
+    cuts = [{"name": r[0], "total_kg": float(r[1] or 0)} for r in top_cuts]
+    total_pedidos = sum(s["count"] for s in sede_orders)
+
+    all_sedes = get_sedes(db)
+    users = get_users(db)
+    sede_names = (
+        [s.nombre for s in all_sedes if s.id in sede_ids]
+        if sede_ids
+        else [s.nombre for s in all_sedes]
+    )
+    mayoristas = [
+        u for u in users
+        if u.role == models.UserRole.MAYORISTA
+        and (not sede_ids or u.sede_id in sede_ids)
+    ]
+    ciudades = list({s.ciudad for s in all_sedes if s.ciudad and (not sede_ids or s.id in sede_ids)})
+
+    pedidos = get_pedidos_for_report(db, sede_ids=sede_ids, date_from=date_from, date_to=date_to)
+    total_kg_all = sum(
+        sum(d.cantidad_kg or 0 for d in (p.detalles or []))
+        for p in pedidos
+    )
+
+    return {
+        "sede_orders": sede_orders,
+        "orders_by_estado": orders_by_estado,
+        "top_cuts": cuts,
+        "total_pedidos": total_pedidos,
+        "total_kg": total_kg_all,
+        "avg_kg": round(total_kg_all / total_pedidos, 2) if total_pedidos else 0,
+        "mayoristas_count": len(mayoristas),
+        "ciudades_count": len(ciudades),
+        "ciudades": ciudades,
+        "sede_names": sede_names,
+        "pedidos": pedidos,
+    }
+
 # User Management
 def get_users(db: Session):
     return db.query(models.User).filter(

@@ -8,3 +8,4 @@ passlib[bcrypt]
 python-multipart
 fastapi-socketio
 Pillow
+openpyxl

@@ -79,4 +79,45 @@ export const downloadAdminBackup = async () => {
     URL.revokeObjectURL(url);
 };
 
+/** Descarga reporte Excel del dashboard (solo admin). */
+export const downloadAdminReport = async (params = {}) => {
+    const token = localStorage.getItem('token');
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        if (Array.isArray(value)) {
+            value.forEach((v) => qs.append(key, String(v)));
+        } else {
+            qs.append(key, String(value));
+        }
+    });
+    const query = qs.toString();
+    const url = `${API_URL}/admin/report/excel${query ? `?${query}` : ''}`;
+    const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+        let detail = 'No se pudo generar el reporte';
+        try {
+            const body = await response.json();
+            detail = body.detail || detail;
+        } catch {
+            /* respuesta no JSON */
+        }
+        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^";\n]+)"?/i);
+    const filename = match ? match[1].trim() : `reporte_pedidos_mayorista_${Date.now()}.xlsx`;
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+};
+
 export default api;

@@ -247,6 +247,10 @@ API de estadísticas (parámetros opcionales `date_from`, `date_to` en `YYYY-MM-
 
 En **Admin → Respaldo** se descarga un ZIP de la base de datos y archivos estáticos (ver [docs/BACKUP.md](docs/BACKUP.md)).
 
+En **Admin → Panel → Excel** se descarga un reporte profesional (`.xlsx`) con los mismos filtros del dashboard: hoja *Dashboard* (KPIs, gráficos de barras y torta), *Detalle pedidos* (tabla) y *Filtros* (metadatos).
+
+Endpoint: `GET /admin/report/excel` (solo admin; parámetros `date_from`, `date_to`, `sede_ids`, `period_label`, `sede_label`).
+
 ---
 
 ## Seguridad
@@ -260,6 +264,7 @@ En **Admin → Respaldo** se descarga un ZIP de la base de datos y archivos est�
 ### Respaldo de datos
 
 - **Admin → Respaldo:** descarga un ZIP (estructura BD + datos + imágenes).
+- **Admin → Panel → Excel:** reporte `.xlsx` con KPIs, tablas, gráficos y detalle de pedidos según filtros activos.
 - **Terminal:** `python backup_db.py` / `python restore_db.py` (ver [docs/BACKUP.md](docs/BACKUP.md)).
 
 ---
