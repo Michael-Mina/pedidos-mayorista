@@ -402,8 +402,8 @@ async def report_pedido_problema_endpoint(
 @app.put("/pedidos/{pedido_id}/problema/respuesta", response_model=schemas.Pedido)
 async def respond_pedido_problema_endpoint(
     pedido_id: int,
-    db: Session = Depends(get_db),
     body: schemas.PedidoProblemaRespuesta,
+    db: Session = Depends(get_db),
 ):
     respuesta = (body.respuesta or "").strip()
     if not respuesta:
