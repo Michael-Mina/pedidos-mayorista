@@ -4,7 +4,7 @@ import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
-import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
+import { formatPedidoNumero, getPedidoTrackingNumber, upsertPedidoInList } from '../../utils/pedidos';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
@@ -72,6 +72,7 @@ const Mayorista = () => {
     const [tempObs, setTempObs] = useState('');
     const [editingIndex, setEditingIndex] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const toastDismissRef = useRef(null);
@@ -214,10 +215,7 @@ const Mayorista = () => {
             fetchInitialData();
 
             socketService.onNewOrder((newOrder) => {
-                setPedidosHistory((prev) => {
-                    if (prev.some((p) => p.id === newOrder.id)) return prev;
-                    return [newOrder, ...prev];
-                });
+                setPedidosHistory((prev) => upsertPedidoInList(prev, newOrder));
             });
 
             socketService.onOrderUpdate((updatedOrder) => {
@@ -236,13 +234,7 @@ const Mayorista = () => {
                     }
                 }
 
-                setPedidosHistory((prevList) => {
-                    const i = prevList.findIndex((p) => p.id === updatedOrder.id);
-                    if (i === -1) return [updatedOrder, ...prevList];
-                    const next = [...prevList];
-                    next[i] = updatedOrder;
-                    return next;
-                });
+                setPedidosHistory((prevList) => upsertPedidoInList(prevList, updatedOrder));
                 setViewingOrder((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
                 setReportingPedido((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
             });
@@ -350,6 +342,8 @@ const Mayorista = () => {
     };
 
     const confirmSendOrder = async () => {
+        if (isSubmittingOrder) return;
+        setIsSubmittingOrder(true);
         try {
             const payload = {
                 mayorista_id: user.id,
@@ -365,13 +359,15 @@ const Mayorista = () => {
             };
             const newOrder = await pedidoService.create(payload);
 
-            setPedidosHistory(prev => [newOrder, ...prev]);
+            setPedidosHistory((prev) => upsertPedidoInList(prev, newOrder));
             setCurrentOrder({ cliente: '', items: [] });
             setStep(1);
             setShowConfirmModal(false);
         } catch (error) {
             console.error("Error creating order detailed:", error.response?.data);
             alert("Error al enviar pedido: " + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message));
+        } finally {
+            setIsSubmittingOrder(false);
         }
     };
 
@@ -928,8 +924,9 @@ const Mayorista = () => {
                                 className="premium-button"
                                 style={{ flex: 2 }}
                                 onClick={confirmSendOrder}
+                                disabled={isSubmittingOrder}
                             >
-                                Confirmar y Enviar
+                                {isSubmittingOrder ? 'Enviando…' : 'Confirmar y Enviar'}
                             </button>
                         </div>
                     </div>

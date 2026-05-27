@@ -315,7 +315,12 @@ const JefeCarnes = () => {
         socketService.onNewOrder((order) => {
             if (user.sede_id && order.sede_id !== user.sede_id) return;
             setGlobalOrders((prev) => {
-                if (prev.some((o) => o.id === order.id)) return prev;
+                const ix = prev.findIndex((o) => o.id === order.id);
+                if (ix >= 0) {
+                    const next = [...prev];
+                    next[ix] = order;
+                    return next;
+                }
                 return [order, ...prev];
             });
         });

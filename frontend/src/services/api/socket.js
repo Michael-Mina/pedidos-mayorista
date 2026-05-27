@@ -6,6 +6,28 @@ const socket = io(WS_URL, {
     autoConnect: false,
 });
 
+const handlers = {
+    new_order: null,
+    order_update: null,
+    session_update: null,
+    approval_update: null,
+};
+
+function bindEvent(eventName, key, callback) {
+    if (handlers[key]) {
+        socket.off(eventName, handlers[key]);
+    }
+    handlers[key] = callback;
+    socket.on(eventName, callback);
+}
+
+function unbindEvent(eventName, key) {
+    if (handlers[key]) {
+        socket.off(eventName, handlers[key]);
+        handlers[key] = null;
+    }
+}
+
 export const socketService = {
     connect: (roomId) => {
         if (!socket.connected) {
@@ -21,29 +43,29 @@ export const socketService = {
         }
     },
     onNewOrder: (callback) => {
-        socket.on('new_order', callback);
+        bindEvent('new_order', 'new_order', callback);
     },
     onOrderUpdate: (callback) => {
-        socket.on('order_update', callback);
+        bindEvent('order_update', 'order_update', callback);
     },
     onSessionUpdate: (callback) => {
-        socket.on('session_update', callback);
+        bindEvent('session_update', 'session_update', callback);
     },
     offNewOrder: () => {
-        socket.off('new_order');
+        unbindEvent('new_order', 'new_order');
     },
     offOrderUpdate: () => {
-        socket.off('order_update');
+        unbindEvent('order_update', 'order_update');
     },
     offSessionUpdate: () => {
-        socket.off('session_update');
+        unbindEvent('session_update', 'session_update');
     },
     onApprovalUpdate: (callback) => {
-        socket.on('approval_update', callback);
+        bindEvent('approval_update', 'approval_update', callback);
     },
     offApprovalUpdate: () => {
-        socket.off('approval_update');
-    }
+        unbindEvent('approval_update', 'approval_update');
+    },
 };
 
 export default socket;

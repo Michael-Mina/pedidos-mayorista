@@ -4,10 +4,10 @@ import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import { 
     ClipboardList, LogOut, Play, CheckCircle, Users, 
-    Clock, Package, UserCheck, Bell, BellRing, Monitor, X
+    Clock, Package, UserCheck, Bell, BellRing, Monitor, X, ArrowDown
 } from 'lucide-react';
 import styles from './Sede.module.css';
-import { formatPedidoNumero } from '../../utils/pedidos';
+import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
 
 const Sede = () => {
     const { user, logout } = useAuth();
@@ -17,6 +17,7 @@ const Sede = () => {
     const [pendingCarniceroId, setPendingCarniceroId] = useState(null);
     const [assigningOrder, setAssigningOrder] = useState(false);
     const [newOrderIds, setNewOrderIds] = useState(new Set());
+    const [nowTick, setNowTick] = useState(() => Date.now());
     
     // Audio for notifications
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
@@ -31,8 +32,13 @@ const Sede = () => {
         fetchInitialData();
 
         socketService.onNewOrder((newOrder) => {
-            setPedidos(prev => {
-                if (prev.some(p => p.id === newOrder.id)) return prev;
+            setPedidos((prev) => {
+                const ix = prev.findIndex((p) => p.id === newOrder.id);
+                if (ix >= 0) {
+                    const next = [...prev];
+                    next[ix] = newOrder;
+                    return next;
+                }
                 return [newOrder, ...prev];
             });
             setNewOrderIds(prev => new Set(prev).add(newOrder.id));
@@ -117,6 +123,12 @@ const Sede = () => {
     const pedidosPendientes = pedidos.filter(p => p.estado === 'pendiente');
     const pedidosEnProceso = pedidos.filter(p => p.estado === 'en_proceso');
 
+    useEffect(() => {
+        if (pedidosPendientes.length === 0 && pedidosEnProceso.length === 0) return;
+        const id = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [pedidosPendientes.length, pedidosEnProceso.length]);
+
     const getButcherName = (id) => {
         const c = allCarniceros.find(c => c.id === id);
         return c ? `${c.nombre} ${c.apellido}` : 'Desconocido';
@@ -162,9 +174,21 @@ const Sede = () => {
                                 <div className={styles.orderCardTop}>
                                     <span className={styles.orderId}>{formatPedidoNumero(pedido)}</span>
                                     {newOrderIds.has(pedido.id) && <span className={styles.newTag}>NUEVO</span>}
-                                    <span className={styles.orderTime}>{new Date(pedido.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span
+                                        className={styles.orderElapsed}
+                                        title={`Recibido a las ${new Date(pedido.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`}
+                                    >
+                                        <Clock size={12} aria-hidden />
+                                        {formatElapsedSince(pedido.timestamp, nowTick)}
+                                    </span>
                                 </div>
-                                <div className={styles.clientName}>{pedido.cliente_nombre}</div>
+                                <div className={styles.orderCardMeta}>
+                                    <div className={styles.clientName}>{pedido.cliente_nombre}</div>
+                                    <span className={styles.orderItemCount} title="Cantidad de productos">
+                                        <Package size={12} aria-hidden />
+                                        {formatPedidoItemCount(pedido)}
+                                    </span>
+                                </div>
                             </div>
                         ))}
                         {pedidosPendientes.length === 0 && (
@@ -279,11 +303,29 @@ const Sede = () => {
                             >
                                 <div className={styles.orderCardTop}>
                                     <span className={styles.orderId}>{formatPedidoNumero(pedido)}</span>
-                                    <span className={styles.prepBy}>
-                                        <UserCheck size={12} /> {getButcherName(pedido.carnicero_id)}
+                                    <span
+                                        className={styles.orderElapsed}
+                                        title={
+                                            pedido.started_at
+                                                ? `En preparación desde las ${new Date(pedido.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                                                : 'Tiempo en preparación'
+                                        }
+                                    >
+                                        <Clock size={12} aria-hidden />
+                                        {formatElapsedSince(pedido.started_at || pedido.timestamp, nowTick)}
                                     </span>
                                 </div>
-                                <div className={styles.clientName}>{pedido.cliente_nombre}</div>
+                                <div className={styles.orderCardMeta}>
+                                    <div className={styles.clientName}>{pedido.cliente_nombre}</div>
+                                    <span className={styles.orderItemCount} title="Cantidad de productos">
+                                        <Package size={12} aria-hidden />
+                                        {formatPedidoItemCount(pedido)}
+                                    </span>
+                                </div>
+                                <span className={styles.prepBy}>
+                                    <UserCheck size={12} aria-hidden />
+                                    {getButcherName(pedido.carnicero_id)}
+                                </span>
                             </div>
                         ))}
                         {pedidosEnProceso.length === 0 && (
@@ -307,7 +349,12 @@ const Sede = () => {
                         aria-labelledby="assign-modal-title"
                     >
                         <div className={styles.assignModalHeader}>
-                            <h2 id="assign-modal-title">Confirmar asignación</h2>
+                            <div>
+                                <h2 id="assign-modal-title">Confirmar asignación</h2>
+                                <p className={styles.assignModalSubtitle}>
+                                    El pedido pasará a preparación con el carnicero seleccionado.
+                                </p>
+                            </div>
                             <button
                                 type="button"
                                 className={styles.assignModalClose}
@@ -318,15 +365,55 @@ const Sede = () => {
                                 <X size={22} />
                             </button>
                         </div>
-                        <p className={styles.assignConfirmText}>
-                            ¿Asignar el pedido <strong>{formatPedidoNumero(selectedPedido)}</strong>
-                            {' '}de <strong>{selectedPedido.cliente_nombre}</strong> al carnicero{' '}
-                            <strong>
-                                {pendingCarnicero.numero_carnicero} — {pendingCarnicero.nombre}{' '}
-                                {pendingCarnicero.apellido}
-                            </strong>
-                            ?
-                        </p>
+
+                        <div className={styles.assignSummaryCard}>
+                            <div className={styles.assignSummaryRow}>
+                                <span className={styles.assignSummaryLabel}>Pedido</span>
+                                <span className={styles.assignSummaryValueHighlight}>
+                                    {formatPedidoNumero(selectedPedido)}
+                                </span>
+                            </div>
+                            <div className={styles.assignSummaryRow}>
+                                <span className={styles.assignSummaryLabel}>Cliente</span>
+                                <span className={styles.assignSummaryValue}>
+                                    {selectedPedido.cliente_nombre}
+                                </span>
+                            </div>
+                            <div className={styles.assignSummaryRow}>
+                                <span className={styles.assignSummaryLabel}>Productos</span>
+                                <span className={styles.assignSummaryValue}>
+                                    <Package size={14} aria-hidden />
+                                    {formatPedidoItemCount(selectedPedido)}
+                                </span>
+                            </div>
+                            <div className={styles.assignSummaryRow}>
+                                <span className={styles.assignSummaryLabel}>En espera</span>
+                                <span className={styles.assignSummaryValue}>
+                                    <Clock size={14} aria-hidden />
+                                    {formatElapsedSince(selectedPedido.timestamp, nowTick)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className={styles.assignFlowDivider} aria-hidden>
+                            <ArrowDown size={18} />
+                        </div>
+
+                        <div className={styles.assignTargetBlock}>
+                            <span className={styles.assignSummaryLabel}>Asignar a</span>
+                            <div className={styles.assignTargetCard}>
+                                <span className={styles.assignTargetNum}>
+                                    {pendingCarnicero.numero_carnicero}
+                                </span>
+                                <div className={styles.assignTargetInfo}>
+                                    <span className={styles.assignTargetName}>
+                                        {pendingCarnicero.nombre} {pendingCarnicero.apellido}
+                                    </span>
+                                    <span className={styles.assignTargetRole}>Carnicero</span>
+                                </div>
+                                <UserCheck size={22} className={styles.assignTargetIcon} aria-hidden />
+                            </div>
+                        </div>
                         <div className={styles.assignConfirmActions}>
                             <button
                                 type="button"
