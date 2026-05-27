@@ -21,7 +21,6 @@ import {
 } from '../../utils/reporteMensajes';
 import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
 import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
-import ReportChatThread from '../../components/ReportChatModal/ReportChatThread';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
 function todayLocalIsoDate() {
@@ -70,7 +69,6 @@ const Mayorista = () => {
     const [reportingPedido, setReportingPedido] = useState(null);
     const [reportModalSeenCount, setReportModalSeenCount] = useState(0);
     const reportingPedidoRef = useRef(null);
-    const [viewingOrderSeenCount, setViewingOrderSeenCount] = useState(0);
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [viewingOrder, setViewingOrder] = useState(null);
@@ -142,18 +140,12 @@ const Mayorista = () => {
     }, []);
 
     const openOrderDetails = useCallback((pedido) => {
-        setViewingOrderSeenCount(getStoredSeenMessageCount(pedido, seenReportCounts));
         setViewingOrder(pedido);
-    }, [seenReportCounts]);
+    }, []);
 
     const closeOrderDetails = useCallback(() => {
-        if (viewingOrder && tieneReporte(viewingOrder)) {
-            const latest =
-                pedidosHistoryRef.current.find((p) => p.id === viewingOrder.id) ?? viewingOrder;
-            markReportThreadSeen(latest);
-        }
         setViewingOrder(null);
-    }, [viewingOrder, markReportThreadSeen]);
+    }, []);
 
     const showToast = useCallback((message, type = 'success') => {
         if (toastDismissRef.current) {
@@ -358,7 +350,6 @@ const Mayorista = () => {
                 mayorista_id: user.id,
                 cliente_nombre: currentOrder.cliente.trim(),
                 sede_id: user.sede_id,
-                observaciones: "Pedido desde App",
                 detalles: currentOrder.items.map(item => ({
                     corte_id: item.corte_id,
                     tipo_corte_id: item.tipo_corte_id,
@@ -889,19 +880,6 @@ const Mayorista = () => {
                                 </tbody>
                             </table>
                         </div>
-
-                        {tieneReporte(viewingOrder) && (
-                            <div className={styles.detailReportSection}>
-                                <h3>Conversación del reporte</h3>
-                                <ReportChatThread
-                                    order={viewingOrder}
-                                    perspective="mayorista"
-                                    seenMessageCount={viewingOrderSeenCount}
-                                    scrollKey={viewingOrder.id}
-                                    className={styles.chatThread}
-                                />
-                            </div>
-                        )}
 
                         <div className={styles.modalActions}>
                             <button type="button" className="premium-button" style={{ width: '100%' }} onClick={closeOrderDetails}>Cerrar</button>

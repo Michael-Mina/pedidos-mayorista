@@ -448,6 +448,13 @@
     font-size: 0.9rem;
 }
 
+.timeCell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #cbd5e1;
+    white-space: nowrap;
+}
+
 .statusBadge {
     padding: 4px 12px;
     border-radius: 20px;

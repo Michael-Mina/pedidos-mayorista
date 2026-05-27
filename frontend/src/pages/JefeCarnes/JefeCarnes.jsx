@@ -27,7 +27,14 @@ import {
     Search
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
-import { formatPedidoNumero, formatMayoristaLabel, formatCarniceroLabel } from '../../utils/pedidos';
+import {
+    formatPedidoNumero,
+    formatMayoristaLabel,
+    formatCarniceroLabel,
+    getPedidoTiemposMonitor,
+    pedidoVisibleEnMonitorGlobal,
+    todayLocalIsoDate,
+} from '../../utils/pedidos';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
@@ -71,7 +78,6 @@ const JefeCarnes = () => {
 
     // Filters & Pagination
     const [filterText, setFilterText] = useState('');
-    const [filterDate, setFilterDate] = useState('');
     const [historialFilterText, setHistorialFilterText] = useState('');
     const [historialFilterDate, setHistorialFilterDate] = useState('');
     const [reportesFilterText, setReportesFilterText] = useState('');
@@ -91,6 +97,7 @@ const JefeCarnes = () => {
     const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
     const [menuOpen, setMenuOpen] = useState(false);
     const [seenReportCounts, setSeenReportCounts] = useState(() => loadSeenReportCounts());
+    const [nowTick, setNowTick] = useState(() => Date.now());
 
     const markReportThreadSeen = useCallback((pedido) => {
         const orderId = pedidoReporteId(pedido);
@@ -247,7 +254,6 @@ const JefeCarnes = () => {
 
     const resetMonitorFilters = () => {
         setFilterText('');
-        setFilterDate('');
         setCurrentPage(1);
     };
 
@@ -301,32 +307,46 @@ const JefeCarnes = () => {
     };
 
 
-    const filteredOrders = globalOrders.filter(order => {
-        // 1. Sede Scope
-        if (user.sede_id && order.sede_id !== user.sede_id) return false;
+    const monitorTodayKey = todayLocalIsoDate();
 
-        // 2. Text Search (Client or ID)
-        if (filterText) {
-            const search = filterText.toLowerCase();
-            const matchesId = order.id.toString().includes(search) ||
-                (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search));
-            const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
-            if (!matchesId && !matchesClient) return false;
-        }
+    const filteredOrders = globalOrders
+        .filter((order) => {
+            if (user.sede_id && order.sede_id !== user.sede_id) return false;
+            if (!pedidoVisibleEnMonitorGlobal(order, monitorTodayKey)) return false;
 
-        // 3. Date Filter
-        if (filterDate) {
-            const orderDate = new Date(order.timestamp).toISOString().split('T')[0];
-            if (orderDate !== filterDate) return false;
-        }
+            if (filterText) {
+                const search = filterText.toLowerCase();
+                const matchesId =
+                    order.id.toString().includes(search) ||
+                    (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search)) ||
+                    formatPedidoNumero(order).toLowerCase().includes(search);
+                const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
+                if (!matchesId && !matchesClient) return false;
+            }
 
-        return true;
-    });
+            return true;
+        })
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     const paginatedOrders = filteredOrders.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
+
+    const monitorNeedsLiveTick = useMemo(
+        () =>
+            globalOrders.some((o) => {
+                if (user?.sede_id && o.sede_id !== user.sede_id) return false;
+                return o.estado === 'pendiente' || o.estado === 'en_proceso';
+            }),
+        [globalOrders, user?.sede_id]
+    );
+
+    useEffect(() => {
+        if (activeTab !== 'monitor' || !monitorNeedsLiveTick) return;
+        const id = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [activeTab, monitorNeedsLiveTick]);
 
     useEffect(() => {
         requestNotificationPermission();
@@ -613,14 +633,8 @@ const JefeCarnes = () => {
                                     value={filterText}
                                     onChange={(e) => setFilterText(e.target.value)}
                                 />
-                                <input
-                                    type="date"
-                                    className={styles.filterInput}
-                                    value={filterDate}
-                                    onChange={(e) => setFilterDate(e.target.value)}
-                                />
-                                {(filterText || filterDate) && (
-                                    <button onClick={resetMonitorFilters} className={styles.clearBtn} title="Limpiar Filtros">
+                                {(filterText) && (
+                                    <button onClick={resetMonitorFilters} className={styles.clearBtn} title="Limpiar búsqueda">
                                         <Eraser size={20} />
                                     </button>
                                 )}
@@ -634,11 +648,15 @@ const JefeCarnes = () => {
                                         <th>Cliente</th>
                                         <th>Estado</th>
                                         <th>Carnicero</th>
-                                        <th>T. Espera</th>
+                                        <th>T. espera</th>
+                                        <th>T. prep.</th>
+                                        <th>T. total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedOrders.map(order => (
+                                    {paginatedOrders.map((order) => {
+                                        const tiempos = getPedidoTiemposMonitor(order, nowTick);
+                                        return (
                                         <tr
                                             key={order.id}
                                             className={styles.orderRow}
@@ -648,18 +666,16 @@ const JefeCarnes = () => {
                                             <td>{order.cliente_nombre}</td>
                                             <td>
                                                 <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
-                                                    {order.estado}
+                                                    {order.estado.replace('_', ' ')}
                                                 </span>
                                             </td>
                                             <td>{order.carnicero ? formatCarniceroLabel(order.carnicero) : '---'}</td>
-                                            <td>
-                                                {order.estado === 'pendiente' ?
-                                                    `${Math.floor((new Date() - new Date(order.timestamp)) / 60000)}m` :
-                                                    '--'
-                                                }
-                                            </td>
+                                            <td className={styles.timeCell}>{tiempos.espera}</td>
+                                            <td className={styles.timeCell}>{tiempos.preparacion}</td>
+                                            <td className={styles.timeCell}>{tiempos.total}</td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                             </div>
@@ -1261,12 +1277,6 @@ const JefeCarnes = () => {
                                         </table>
                                     </div>
                                 </div>
-
-                                {selectedOrder.observaciones && (
-                                    <div className={styles.orderNotes}>
-                                        <strong>Observaciones:</strong> {selectedOrder.observaciones}
-                                    </div>
-                                )}
 
                                 {tieneReporte(selectedOrder) && (
                                     <button
