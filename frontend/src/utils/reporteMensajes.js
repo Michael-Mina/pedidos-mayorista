@@ -73,6 +73,26 @@ export function ultimoRolMensaje(pedido) {
     return mensajes.length ? mensajes[mensajes.length - 1].rol : null;
 }
 
+/** Timestamp (ms) del último mensaje del reporte; para ordenar listas por actividad reciente. */
+export function getUltimoMensajeReporteAtMs(pedido) {
+    const mensajes = getReporteMensajes(pedido);
+    for (let i = mensajes.length - 1; i >= 0; i -= 1) {
+        const at = mensajes[i]?.at;
+        if (at == null || at === '') continue;
+        const t = new Date(at).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    if (pedido?.updated_at) {
+        const u = new Date(pedido.updated_at).getTime();
+        if (!Number.isNaN(u)) return u;
+    }
+    if (pedido?.timestamp) {
+        const t = new Date(pedido.timestamp).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    return 0;
+}
+
 /** Hora local del mensaje en formato 12 horas con AM/PM (ej: 02:35 PM). */
 export function formatReporteMensajeHora(at) {
     if (at == null || at === '') return null;

@@ -206,6 +206,21 @@
     margin: 0;
 }
 
+.sectionHint {
+    margin: -8px 0 0;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.lastReportMsg {
+    color: var(--warning);
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .sessionList {
     display: flex;
     flex-direction: column;

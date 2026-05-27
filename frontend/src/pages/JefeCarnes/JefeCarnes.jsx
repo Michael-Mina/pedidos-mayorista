@@ -32,6 +32,7 @@ import {
     getReporteMensajes,
     getReporteThreadSeenKey,
     getStoredSeenMessageCount,
+    getUltimoMensajeReporteAtMs,
     pedidoReporteId,
     tieneReporte,
     ultimoRolMensaje,
@@ -56,7 +57,7 @@ const JefeCarnes = () => {
     const { user, logout } = useAuth();
     const [globalOrders, setGlobalOrders] = useState([]);
     const globalOrdersRef = useRef([]);
-    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'history', 'personal'
+    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'historial', 'reportes', 'personal'
     const [loading, setLoading] = useState(false);
 
     // Personal / Carniceros State
@@ -71,8 +72,12 @@ const JefeCarnes = () => {
     // Filters & Pagination
     const [filterText, setFilterText] = useState('');
     const [filterDate, setFilterDate] = useState('');
-    const [historyFilterText, setHistoryFilterText] = useState('');
-    const [historyFilterDate, setHistoryFilterDate] = useState('');
+    const [historialFilterText, setHistorialFilterText] = useState('');
+    const [historialFilterDate, setHistorialFilterDate] = useState('');
+    const [reportesFilterText, setReportesFilterText] = useState('');
+    const [reportesFilterDate, setReportesFilterDate] = useState('');
+    const [historialPage, setHistorialPage] = useState(1);
+    const [reportesPage, setReportesPage] = useState(1);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [reportModalOrder, setReportModalOrder] = useState(null);
     const [reportModalSeenCount, setReportModalSeenCount] = useState(0);
@@ -189,24 +194,56 @@ const JefeCarnes = () => {
         [globalOrders, user?.sede_id]
     );
 
+    const matchesPedidoFiltro = useCallback((order, searchText, filterDate) => {
+        if (user?.sede_id && order.sede_id !== user.sede_id) return false;
+        if (searchText) {
+            const search = searchText.toLowerCase();
+            const matchesId =
+                order.id.toString().includes(search) ||
+                (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search)) ||
+                formatPedidoNumero(order).toLowerCase().includes(search);
+            const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
+            const mayoristaText = order.mayorista
+                ? [
+                      formatMayoristaLabel(order.mayorista),
+                      order.mayorista.username,
+                      order.mayorista.nombre,
+                      order.mayorista.apellido,
+                  ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .toLowerCase()
+                : '';
+            if (!matchesId && !matchesClient && !mayoristaText.includes(search)) return false;
+        }
+        if (filterDate) {
+            const orderDate = new Date(order.timestamp).toISOString().split('T')[0];
+            if (orderDate !== filterDate) return false;
+        }
+        return true;
+    }, [user?.sede_id]);
+
+    const historialFiltrado = useMemo(() => {
+        return globalOrders
+            .filter((order) => matchesPedidoFiltro(order, historialFilterText, historialFilterDate))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }, [globalOrders, historialFilterText, historialFilterDate, matchesPedidoFiltro]);
+
+    const historialPaginado = historialFiltrado.slice(
+        (historialPage - 1) * itemsPerPage,
+        historialPage * itemsPerPage
+    );
+
     const reportesFiltrados = useMemo(() => {
-        return reportesConReporte.filter((order) => {
-            if (historyFilterText) {
-                const search = historyFilterText.toLowerCase();
-                const matchesId =
-                    order.id.toString().includes(search) ||
-                    (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search)) ||
-                    formatPedidoNumero(order).toLowerCase().includes(search);
-                const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
-                if (!matchesId && !matchesClient) return false;
-            }
-            if (historyFilterDate) {
-                const orderDate = new Date(order.timestamp).toISOString().split('T')[0];
-                if (orderDate !== historyFilterDate) return false;
-            }
-            return true;
-        });
-    }, [reportesConReporte, historyFilterText, historyFilterDate]);
+        return reportesConReporte
+            .filter((order) => matchesPedidoFiltro(order, reportesFilterText, reportesFilterDate))
+            .sort((a, b) => getUltimoMensajeReporteAtMs(b) - getUltimoMensajeReporteAtMs(a));
+    }, [reportesConReporte, reportesFilterText, reportesFilterDate, matchesPedidoFiltro]);
+
+    const reportesPaginados = reportesFiltrados.slice(
+        (reportesPage - 1) * itemsPerPage,
+        reportesPage * itemsPerPage
+    );
 
     const resetMonitorFilters = () => {
         setFilterText('');
@@ -214,20 +251,31 @@ const JefeCarnes = () => {
         setCurrentPage(1);
     };
 
-    const resetHistoryFilters = () => {
-        setHistoryFilterText('');
-        setHistoryFilterDate('');
+    const resetHistorialFilters = () => {
+        setHistorialFilterText('');
+        setHistorialFilterDate('');
+        setHistorialPage(1);
+    };
+
+    const resetReportesFilters = () => {
+        setReportesFilterText('');
+        setReportesFilterDate('');
+        setReportesPage(1);
     };
 
     const navTabs = [
         { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
+        { id: 'historial', label: 'Historial', icon: History },
+        { id: 'reportes', label: 'Reportes', icon: MessageSquare },
         { id: 'personal', label: 'Personal', icon: Users },
-        { id: 'history', label: 'Historial & Reportes', icon: History },
     ];
 
     const goToTab = (tabId) => {
         setActiveTab(tabId);
         setMenuOpen(false);
+        setHistorialPage(1);
+        setReportesPage(1);
+        setCurrentPage(1);
     };
 
     useEffect(() => {
@@ -495,7 +543,7 @@ const JefeCarnes = () => {
                         >
                             <Icon size={20} />
                             {label}
-                            {id === 'history' && pendingReportsCount > 0 && (
+                            {id === 'reportes' && pendingReportsCount > 0 && (
                                 <span className={styles.badge}>{pendingReportsCount}</span>
                             )}
                         </button>
@@ -519,6 +567,7 @@ const JefeCarnes = () => {
                     <h1>{
                         activeTab === 'monitor' ? 'Monitor Global' :
                         activeTab === 'personal' ? 'Gestión de Personal' :
+                        activeTab === 'reportes' ? 'Reportes' :
                         'Historial'
                     }</h1>
                     {activeTab === 'monitor' && (
@@ -635,12 +684,12 @@ const JefeCarnes = () => {
                         </div>
                     )}
 
-                    {activeTab === 'history' && (
+                    {activeTab === 'historial' && (
                         <div className={styles.historyView}>
                             <section className={styles.section}>
                                 <div className={styles.sectionHeader}>
-                                    <AlertTriangle size={20} color="var(--warning)" />
-                                    <h2>Reportes de Problemas</h2>
+                                    <History size={20} color="var(--primary-color)" />
+                                    <h2>Pedidos recibidos</h2>
                                 </div>
 
                                 <div className={styles.historyFilterSection}>
@@ -651,23 +700,158 @@ const JefeCarnes = () => {
                                         <input
                                             type="date"
                                             className={styles.historyDateInput}
-                                            value={historyFilterDate}
-                                            onChange={(e) => setHistoryFilterDate(e.target.value)}
+                                            value={historialFilterDate}
+                                            onChange={(e) => {
+                                                setHistorialFilterDate(e.target.value);
+                                                setHistorialPage(1);
+                                            }}
                                         />
                                     </div>
                                     <div className={styles.historySearchWrapper}>
                                         <Search size={16} />
                                         <input
                                             type="text"
-                                            placeholder="Buscar por cliente, ID o número (#12)..."
-                                            value={historyFilterText}
-                                            onChange={(e) => setHistoryFilterText(e.target.value)}
+                                            placeholder="Buscar por cliente, mayorista, ID o número (#12)..."
+                                            value={historialFilterText}
+                                            onChange={(e) => {
+                                                setHistorialFilterText(e.target.value);
+                                                setHistorialPage(1);
+                                            }}
                                         />
                                     </div>
-                                    {(historyFilterText || historyFilterDate) && (
+                                    {(historialFilterText || historialFilterDate) && (
                                         <button
                                             type="button"
-                                            onClick={resetHistoryFilters}
+                                            onClick={resetHistorialFilters}
+                                            className={styles.clearBtn}
+                                            title="Limpiar filtros"
+                                        >
+                                            <Eraser size={20} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {historialFiltrado.length === 0 ? (
+                                    <p className={styles.emptyMsg}>No hay pedidos que coincidan con los filtros.</p>
+                                ) : (
+                                    <>
+                                        <div className={styles.tableScrollWrap}>
+                                            <table className={styles.mainTable}>
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Fecha</th>
+                                                        <th>Hora</th>
+                                                        <th>Cliente</th>
+                                                        <th>Mayorista</th>
+                                                        <th>Estado</th>
+                                                        <th>Carnicero</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {historialPaginado.map((order) => (
+                                                        <tr key={order.id} className={styles.orderRow}>
+                                                            <td>{formatPedidoNumero(order)}</td>
+                                                            <td>{new Date(order.timestamp).toLocaleDateString()}</td>
+                                                            <td>
+                                                                {new Date(order.timestamp).toLocaleTimeString([], {
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit',
+                                                                })}
+                                                            </td>
+                                                            <td>{order.cliente_nombre}</td>
+                                                            <td>{formatMayoristaLabel(order.mayorista)}</td>
+                                                            <td>
+                                                                <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
+                                                                    {order.estado.replace('_', ' ')}
+                                                                </span>
+                                                            </td>
+                                                            <td>{order.carnicero ? formatCarniceroLabel(order.carnicero) : '---'}</td>
+                                                            <td>
+                                                                <button
+                                                                    type="button"
+                                                                    className={styles.revokeBtn}
+                                                                    style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
+                                                                    onClick={() => openOrderDetails(order)}
+                                                                >
+                                                                    Detalles
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className={styles.pagination}>
+                                            <button
+                                                type="button"
+                                                className={styles.pageBtn}
+                                                disabled={historialPage === 1}
+                                                onClick={() => setHistorialPage((p) => Math.max(p - 1, 1))}
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span>
+                                                Página {historialPage} de {Math.max(1, Math.ceil(historialFiltrado.length / itemsPerPage))}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className={styles.pageBtn}
+                                                disabled={historialPage >= Math.ceil(historialFiltrado.length / itemsPerPage)}
+                                                onClick={() => setHistorialPage((p) => p + 1)}
+                                            >
+                                                Siguiente
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'reportes' && (
+                        <div className={styles.historyView}>
+                            <section className={styles.section}>
+                                <div className={styles.sectionHeader}>
+                                    <AlertTriangle size={20} color="var(--warning)" />
+                                    <h2>Reportes de problemas</h2>
+                                </div>
+                                <p className={styles.sectionHint}>
+                                    Ordenados por actividad reciente: los pedidos con mensajes nuevos aparecen primero.
+                                </p>
+
+                                <div className={styles.historyFilterSection}>
+                                    <div className={styles.historyDateGroup}>
+                                        <label>
+                                            <Calendar size={16} /> Filtrar por día:
+                                        </label>
+                                        <input
+                                            type="date"
+                                            className={styles.historyDateInput}
+                                            value={reportesFilterDate}
+                                            onChange={(e) => {
+                                                setReportesFilterDate(e.target.value);
+                                                setReportesPage(1);
+                                            }}
+                                        />
+                                    </div>
+                                    <div className={styles.historySearchWrapper}>
+                                        <Search size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por cliente, mayorista, ID o número (#12)..."
+                                            value={reportesFilterText}
+                                            onChange={(e) => {
+                                                setReportesFilterText(e.target.value);
+                                                setReportesPage(1);
+                                            }}
+                                        />
+                                    </div>
+                                    {(reportesFilterText || reportesFilterDate) && (
+                                        <button
+                                            type="button"
+                                            onClick={resetReportesFilters}
                                             className={styles.clearBtn}
                                             title="Limpiar filtros"
                                         >
@@ -677,63 +861,92 @@ const JefeCarnes = () => {
                                 </div>
 
                                 {reportesConReporte.length === 0 ? (
-                                    <p className={styles.emptyMsg}>No hay problemas reportados en el historial reciente.</p>
+                                    <p className={styles.emptyMsg}>No hay problemas reportados.</p>
                                 ) : reportesFiltrados.length === 0 ? (
                                     <p className={styles.emptyMsg}>No hay reportes que coincidan con los filtros.</p>
                                 ) : (
-                                    <table className={styles.mainTable}>
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Fecha</th>
-                                                <th>Cliente</th>
-                                                <th>Último mensaje</th>
-                                                <th>Estado</th>
-                                                <th>Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {reportesFiltrados.map(order => {
-                                                const ultimoMsg = getReporteMensajes(order).at(-1);
-                                                const unreadFromMayorista = isUnreadReportFromMayorista(order);
-                                                return (
-                                                <tr key={order.id} className={styles.orderRow}>
-                                                    <td>{formatPedidoNumero(order)}</td>
-                                                    <td>{new Date(order.timestamp).toLocaleDateString()}</td>
-                                                    <td>{order.cliente_nombre}</td>
-                                                    <td style={{ color: 'var(--warning)', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {ultimoMsg?.texto || order.problema_reportado}
-                                                    </td>
-                                                    <td>
-                                                        <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
-                                                            {order.estado}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className={styles.tableActionGroup}>
-                                                            <button
-                                                                type="button"
-                                                                className={styles.revokeBtn}
-                                                                style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
-                                                                onClick={() => openOrderDetails(order)}
-                                                            >
-                                                                Detalles
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                className={`${styles.revokeBtn} ${styles.reportActionBtn} ${unreadFromMayorista ? styles.reportActionPending : ''}`}
-                                                                onClick={() => openReportModal(order)}
-                                                            >
-                                                                <MessageSquare size={14} />
-                                                                {unreadFromMayorista ? 'Responder' : 'Ver reporte'}
-                                                                {unreadFromMayorista && <span className={styles.rowNotifDot} aria-hidden />}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );})}
-                                        </tbody>
-                                    </table>
+                                    <>
+                                        <div className={styles.tableScrollWrap}>
+                                            <table className={styles.mainTable}>
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Fecha</th>
+                                                        <th>Cliente</th>
+                                                        <th>Último mensaje</th>
+                                                        <th>Estado</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {reportesPaginados.map((order) => {
+                                                        const ultimoMsg = getReporteMensajes(order).at(-1);
+                                                        const unreadFromMayorista = isUnreadReportFromMayorista(order);
+                                                        return (
+                                                            <tr key={order.id} className={styles.orderRow}>
+                                                                <td>{formatPedidoNumero(order)}</td>
+                                                                <td>{new Date(order.timestamp).toLocaleDateString()}</td>
+                                                                <td>{order.cliente_nombre}</td>
+                                                                <td
+                                                                    className={styles.lastReportMsg}
+                                                                    title={ultimoMsg?.texto || order.problema_reportado}
+                                                                >
+                                                                    {ultimoMsg?.texto || order.problema_reportado}
+                                                                </td>
+                                                                <td>
+                                                                    <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
+                                                                        {order.estado.replace('_', ' ')}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    <div className={styles.tableActionGroup}>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={styles.revokeBtn}
+                                                                            style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
+                                                                            onClick={() => openOrderDetails(order)}
+                                                                        >
+                                                                            Detalles
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={`${styles.revokeBtn} ${styles.reportActionBtn} ${unreadFromMayorista ? styles.reportActionPending : ''}`}
+                                                                            onClick={() => openReportModal(order)}
+                                                                        >
+                                                                            <MessageSquare size={14} />
+                                                                            {unreadFromMayorista ? 'Responder' : 'Ver reporte'}
+                                                                            {unreadFromMayorista && <span className={styles.rowNotifDot} aria-hidden />}
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className={styles.pagination}>
+                                            <button
+                                                type="button"
+                                                className={styles.pageBtn}
+                                                disabled={reportesPage === 1}
+                                                onClick={() => setReportesPage((p) => Math.max(p - 1, 1))}
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span>
+                                                Página {reportesPage} de {Math.max(1, Math.ceil(reportesFiltrados.length / itemsPerPage))}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className={styles.pageBtn}
+                                                disabled={reportesPage >= Math.ceil(reportesFiltrados.length / itemsPerPage)}
+                                                onClick={() => setReportesPage((p) => p + 1)}
+                                            >
+                                                Siguiente
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
                             </section>
                         </div>
