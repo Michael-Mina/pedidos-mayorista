@@ -22,7 +22,8 @@ import {
     Edit2,
     Trash2,
     Info,
-    Menu
+    Menu,
+    MessageSquare
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { formatPedidoNumero } from '../../utils/pedidos';
@@ -47,6 +48,7 @@ const JefeCarnes = () => {
     const [filterText, setFilterText] = useState('');
     const [filterDate, setFilterDate] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [reportModalOrder, setReportModalOrder] = useState(null);
     const [reportProblem, setReportProblem] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
@@ -62,19 +64,40 @@ const JefeCarnes = () => {
         return !user?.sede_id || o.sede_id === user.sede_id;
     }).length;
 
+    const openOrderDetails = (order) => {
+        setReportModalOrder(null);
+        setSelectedOrder(order);
+    };
+
+    const closeOrderDetails = () => setSelectedOrder(null);
+
+    const openReportModal = (order) => {
+        setSelectedOrder(null);
+        setReportModalOrder(order);
+        setReportProblem('');
+    };
+
+    const closeReportModal = () => {
+        setReportModalOrder(null);
+        setReportProblem('');
+    };
+
     const handleReportSubmit = async () => {
-        if (!selectedOrder) return;
+        if (!reportModalOrder) return;
         const respuesta = reportProblem.trim();
         if (!respuesta) return;
 
         try {
             const { data: updated } = await api.put(
-                `/pedidos/${selectedOrder.id}/problema/respuesta`,
+                `/pedidos/${reportModalOrder.id}/problema/respuesta`,
                 { respuesta }
             );
 
             setGlobalOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-            setSelectedOrder(updated);
+            setReportModalOrder(updated);
+            if (selectedOrder?.id === updated.id) {
+                setSelectedOrder(updated);
+            }
             setReportProblem('');
             showNotify('Mensaje enviado con éxito.', 'success');
         } catch (error) {
@@ -83,6 +106,11 @@ const JefeCarnes = () => {
             showNotify(typeof detail === 'string' ? detail : 'No se pudo enviar la respuesta del reporte.', 'error');
         }
     };
+
+    const reportesFiltrados = globalOrders.filter((o) => {
+        if (!tieneReporte(o)) return false;
+        return !user?.sede_id || o.sede_id === user.sede_id;
+    });
 
     const navTabs = [
         { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
@@ -156,7 +184,9 @@ const JefeCarnes = () => {
             });
 
             socketService.onOrderUpdate((updated) => {
-                setGlobalOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+                setGlobalOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+                setSelectedOrder((prev) => (prev?.id === updated.id ? updated : prev));
+                setReportModalOrder((prev) => (prev?.id === updated.id ? updated : prev));
             });
 
             return () => {
@@ -403,10 +433,7 @@ const JefeCarnes = () => {
                                         <tr
                                             key={order.id}
                                             className={styles.orderRow}
-                                            onClick={() => {
-                                                setSelectedOrder(order);
-                                                setReportProblem('');
-                                            }}
+                                            onClick={() => openOrderDetails(order)}
                                         >
                                             <td>{formatPedidoNumero(order)}</td>
                                             <td>{order.cliente_nombre}</td>
@@ -456,7 +483,7 @@ const JefeCarnes = () => {
                                     <h2>Reportes de Problemas</h2>
                                 </div>
 
-                                {globalOrders.filter(o => tieneReporte(o)).length === 0 ? (
+                                {reportesFiltrados.length === 0 ? (
                                     <p className={styles.emptyMsg}>No hay problemas reportados en el historial reciente.</p>
                                 ) : (
                                     <table className={styles.mainTable}>
@@ -465,26 +492,22 @@ const JefeCarnes = () => {
                                                 <th>ID</th>
                                                 <th>Fecha</th>
                                                 <th>Cliente</th>
-                                                <th>Problema Reportado</th>
+                                                <th>Último mensaje</th>
                                                 <th>Estado</th>
-                                                <th>Acción</th>
+                                                <th>Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {globalOrders.filter(o => tieneReporte(o)).map(order => (
-                                                <tr
-                                                    key={order.id}
-                                                    className={styles.orderRow}
-                                                    onClick={() => {
-                                                        setSelectedOrder(order);
-                                                        setReportProblem('');
-                                                    }}
-                                                >
+                                            {reportesFiltrados.map(order => {
+                                                const ultimoMsg = getReporteMensajes(order).at(-1);
+                                                const pendienteMayorista = ultimoRolMensaje(order) === 'mayorista';
+                                                return (
+                                                <tr key={order.id} className={styles.orderRow}>
                                                     <td>{formatPedidoNumero(order)}</td>
                                                     <td>{new Date(order.timestamp).toLocaleDateString()}</td>
                                                     <td>{order.cliente_nombre}</td>
-                                                    <td style={{ color: 'var(--warning)', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {order.problema_reportado}
+                                                    <td style={{ color: 'var(--warning)', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {ultimoMsg?.texto || order.problema_reportado}
                                                     </td>
                                                     <td>
                                                         <span className={`${styles.statusBadge} ${styles[order.estado]}`}>
@@ -492,20 +515,28 @@ const JefeCarnes = () => {
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <button
-                                                            className={styles.revokeBtn}
-                                                            style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedOrder(order);
-                                                                setReportProblem('');
-                                                            }}
-                                                        >
-                                                            Ver Detalles
-                                                        </button>
+                                                        <div className={styles.tableActionGroup}>
+                                                            <button
+                                                                type="button"
+                                                                className={styles.revokeBtn}
+                                                                style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
+                                                                onClick={() => openOrderDetails(order)}
+                                                            >
+                                                                Detalles
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className={`${styles.revokeBtn} ${styles.reportActionBtn} ${pendienteMayorista ? styles.reportActionPending : ''}`}
+                                                                onClick={() => openReportModal(order)}
+                                                            >
+                                                                <MessageSquare size={14} />
+                                                                {pendienteMayorista ? 'Responder' : 'Ver reporte'}
+                                                                {pendienteMayorista && <span className={styles.rowNotifDot} aria-hidden />}
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                            );})}
                                         </tbody>
                                     </table>
                                 )}
@@ -722,16 +753,16 @@ const JefeCarnes = () => {
                     </div>
                 )}
 
-                {/* MODAL ORDER DETAILS */}
+                {/* MODAL DETALLES DEL PEDIDO */}
                 {selectedOrder && (
-                    <div className={styles.modalOverlay} onClick={() => setSelectedOrder(null)}>
+                    <div className={styles.modalOverlay} onClick={closeOrderDetails}>
                         <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                             <div className={styles.modalHeader}>
                                 <h2 className={styles.modalTitle}>
                                     <Package size={28} color="var(--primary-color)" />
                                     Detalles del Pedido {formatPedidoNumero(selectedOrder)}
                                 </h2>
-                                <button className={styles.closeIconBtn} onClick={() => setSelectedOrder(null)}>
+                                <button type="button" className={styles.closeIconBtn} onClick={closeOrderDetails}>
                                     <X size={24} />
                                 </button>
                             </div>
@@ -829,53 +860,92 @@ const JefeCarnes = () => {
                                     </div>
                                 )}
 
-                                {tieneReporte(selectedOrder) ? (
-                                    <div className={styles.reportSection}>
-                                        <div className={styles.reportHeader}>
-                                            <AlertTriangle size={16} />
-                                            <span>Conversación del reporte</span>
-                                        </div>
-
-                                        <div className={styles.chatThread}>
-                                            {getReporteMensajes(selectedOrder).map((msg, idx) => (
-                                                <div
-                                                    key={`${idx}-${msg.at || ''}`}
-                                                    className={msg.rol === 'carniceria' ? styles.chatBubbleSelf : styles.chatBubbleOther}
-                                                >
-                                                    <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol, 'jefe')}</span>
-                                                    <p className={styles.chatBubbleText}>{msg.texto}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <textarea
-                                            id="reportInput"
-                                            className={styles.reportInput}
-                                            placeholder="Escriba un mensaje para el mayorista..."
-                                            value={reportProblem}
-                                            onChange={(e) => setReportProblem(e.target.value)}
-                                        />
-                                        <button
-                                            className={styles.submitReportBtn}
-                                            onClick={handleReportSubmit}
-                                            disabled={!reportProblem.trim()}
-                                            style={{ opacity: !reportProblem.trim() ? 0.6 : 1 }}
-                                        >
-                                            <Send size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                            Enviar mensaje
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className={styles.reportSection}>
-                                        <div className={styles.reportHeader}>
-                                            <AlertTriangle size={16} />
-                                            <span>Sin reporte para responder</span>
-                                        </div>
-                                    </div>
+                                {tieneReporte(selectedOrder) && (
+                                    <button
+                                        type="button"
+                                        className={styles.linkToReportBtn}
+                                        onClick={() => openReportModal(selectedOrder)}
+                                    >
+                                        <MessageSquare size={16} />
+                                        Abrir conversación del reporte
+                                    </button>
                                 )}
 
-                                <button className={styles.closeBtnPrimary} onClick={() => setSelectedOrder(null)}>
+                                <button type="button" className={styles.closeBtnPrimary} onClick={closeOrderDetails}>
                                     Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL REPORTE (conversación) */}
+                {reportModalOrder && (
+                    <div className={styles.modalOverlay} style={{ zIndex: 1100 }} onClick={closeReportModal}>
+                        <div className={`${styles.modalContent} ${styles.reportModalContent}`} onClick={e => e.stopPropagation()}>
+                            <div className={styles.modalHeader}>
+                                <h2 className={styles.modalTitle}>
+                                    <AlertTriangle size={24} color="var(--warning)" />
+                                    Reporte · Pedido {formatPedidoNumero(reportModalOrder)}
+                                </h2>
+                                <button type="button" className={styles.closeIconBtn} onClick={closeReportModal}>
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className={styles.modalBody}>
+                                <p className={styles.reportModalHint}>
+                                    Cliente: <strong>{reportModalOrder.cliente_nombre}</strong>
+                                    {' · '}
+                                    Estado: <span className={`${styles.statusBadge} ${styles[reportModalOrder.estado]}`}>{reportModalOrder.estado}</span>
+                                </p>
+
+                                <div className={styles.chatThread}>
+                                    {getReporteMensajes(reportModalOrder).map((msg, idx) => (
+                                        <div
+                                            key={`${idx}-${msg.at || ''}`}
+                                            className={msg.rol === 'carniceria' ? styles.chatBubbleSelf : styles.chatBubbleOther}
+                                        >
+                                            <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol, 'jefe')}</span>
+                                            <p className={styles.chatBubbleText}>{msg.texto}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <textarea
+                                    className={styles.reportInput}
+                                    placeholder="Escriba un mensaje para el mayorista..."
+                                    value={reportProblem}
+                                    onChange={(e) => setReportProblem(e.target.value)}
+                                    rows={3}
+                                />
+
+                                <div className={styles.reportModalActions}>
+                                    <button type="button" className={styles.reportModalSecondaryBtn} onClick={closeReportModal}>
+                                        Cerrar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.reportModalSendBtn}
+                                        onClick={handleReportSubmit}
+                                        disabled={!reportProblem.trim()}
+                                    >
+                                        <Send size={14} />
+                                        Enviar mensaje
+                                    </button>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className={styles.linkToReportBtn}
+                                    onClick={() => {
+                                        const order = reportModalOrder;
+                                        closeReportModal();
+                                        openOrderDetails(order);
+                                    }}
+                                >
+                                    <Package size={16} />
+                                    Ver detalles del pedido
                                 </button>
                             </div>
                         </div>
