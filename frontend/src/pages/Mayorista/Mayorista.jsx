@@ -6,6 +6,8 @@ import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
 import { getReporteMensajes, tieneReporte, ultimoRolMensaje, etiquetaRolMensaje } from '../../utils/reporteMensajes';
+import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
+import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
 function todayLocalIsoDate() {
@@ -47,10 +49,12 @@ const Mayorista = () => {
     const [cortes, setCortes] = useState([]);
     const [tiposCorte, setTiposCorte] = useState([]);
     const [pedidosHistory, setPedidosHistory] = useState([]);
+    const pedidosHistoryRef = useRef([]);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [filterDate, setFilterDate] = useState(todayLocalIsoDate);
     const [historyRefreshing, setHistoryRefreshing] = useState(false);
     const [reportingPedido, setReportingPedido] = useState(null);
+    const reportingPedidoRef = useRef(null);
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [viewingOrder, setViewingOrder] = useState(null);
@@ -97,6 +101,18 @@ const Mayorista = () => {
     const closeReportModal = useCallback(() => {
         setReportingPedido(null);
         setProblemText('');
+    }, []);
+
+    useEffect(() => {
+        reportingPedidoRef.current = reportingPedido;
+    }, [reportingPedido]);
+
+    useEffect(() => {
+        pedidosHistoryRef.current = pedidosHistory;
+    }, [pedidosHistory]);
+
+    useEffect(() => {
+        requestNotificationPermission();
     }, []);
 
     const openOrderDetails = useCallback((pedido) => {
@@ -179,26 +195,30 @@ const Mayorista = () => {
             });
 
             socketService.onOrderUpdate((updatedOrder) => {
-                setPedidosHistory((prev) => {
-                    const ix = prev.findIndex((p) => p.id === updatedOrder.id);
-                    if (ix === -1) return [updatedOrder, ...prev];
+                const prev = pedidosHistoryRef.current;
+                const ix = prev.findIndex((p) => p.id === updatedOrder.id);
+                if (ix >= 0) {
                     const prevOrder = prev[ix];
-
-                    // Notificar cuando el reporte pasa de "pendiente" -> "respondido"
                     const prevCount = getReporteMensajes(prevOrder).length;
                     const newCount = getReporteMensajes(updatedOrder).length;
                     const nuevoDeCarniceria =
                         newCount > prevCount && ultimoRolMensaje(updatedOrder) === 'carniceria';
-
-                    if (nuevoDeCarniceria) {
-                        showToast('Nuevo mensaje de la carnicería en su reporte.', 'success');
+                    if (nuevoDeCarniceria && reportingPedidoRef.current?.id !== updatedOrder.id) {
+                        const msg = `Nuevo mensaje de la carnicería · Pedido ${formatPedidoNumero(updatedOrder)}`;
+                        showToast(msg, 'success');
+                        notifyBrowserMessage('Pedidos Mayorista', msg);
                     }
+                }
 
-                    const next = [...prev];
-                    next[ix] = updatedOrder;
+                setPedidosHistory((prevList) => {
+                    const i = prevList.findIndex((p) => p.id === updatedOrder.id);
+                    if (i === -1) return [updatedOrder, ...prevList];
+                    const next = [...prevList];
+                    next[i] = updatedOrder;
                     return next;
                 });
                 setViewingOrder((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
+                setReportingPedido((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
             });
         }
 
@@ -734,61 +754,15 @@ const Mayorista = () => {
                 </div>
             )}
 
-            {/* Modal de Reporte de Problema */}
             {reportingPedido && (
-                <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
-                    <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '480px' }}>
-                        <h3>
-                            Reporte · Pedido {formatPedidoNumero(reportingPedido)}
-                        </h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                            {tieneReporte(reportingPedido)
-                                ? 'Puede seguir enviando mensajes y ver el historial con la carnicería.'
-                                : 'Describa el inconveniente para iniciar el reporte con la carnicería.'}
-                        </p>
-
-                        {tieneReporte(reportingPedido) && (
-                            <div className={styles.chatThread}>
-                                {getReporteMensajes(reportingPedido).map((msg, idx) => (
-                                    <div
-                                        key={`${idx}-${msg.at || ''}`}
-                                        className={msg.rol === 'mayorista' ? styles.chatBubbleSelf : styles.chatBubbleOther}
-                                    >
-                                        <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol)}</span>
-                                        <p className={styles.chatBubbleText}>{msg.texto}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <textarea
-                            className="input-field"
-                            rows="3"
-                            placeholder={tieneReporte(reportingPedido) ? 'Escriba un mensaje...' : 'Ej: Faltó un corte, peso incorrecto...'}
-                            value={problemText}
-                            onChange={(e) => setProblemText(e.target.value)}
-                        />
-
-                        <div className={styles.modalActions}>
-                            <button
-                                type="button"
-                                className="premium-button"
-                                style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
-                                onClick={closeReportModal}
-                            >
-                                Cerrar
-                            </button>
-                            <button
-                                type="button"
-                                className="premium-button"
-                                onClick={handleReportProblem}
-                                disabled={!problemText.trim()}
-                            >
-                                {tieneReporte(reportingPedido) ? 'Enviar mensaje' : 'Enviar reporte'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ReportChatModal
+                    order={reportingPedido}
+                    message={problemText}
+                    onMessageChange={setProblemText}
+                    onClose={closeReportModal}
+                    onSubmit={handleReportProblem}
+                    perspective="mayorista"
+                />
             )}
             {/* Modal de Detalles del Pedido */}
             {viewingOrder && (

@@ -94,6 +94,13 @@ async def join_room(sid, room_name):
     await sio.enter_room(sid, room_name)
     print(f"Client {sid} joined room: {room_name}")
 
+
+async def _emit_pedido_rooms(event: str, payload, sede_id: str):
+    """Notifica a la sede del pedido y a la sala del jefe de carnes (manager)."""
+    await sio.emit(event, payload, room=f"sede_{sede_id}")
+    await sio.emit(event, payload, room="manager")
+
+
 # --- API Routes ---
 
 def _parse_stats_date(value: Optional[str]) -> Optional[date]:
@@ -382,7 +389,8 @@ def read_pedidos(sede_id: str = None, db: Session = Depends(get_db)):
 async def create_pedido_endpoint(pedido: schemas.PedidoCreate, db: Session = Depends(get_db)):
     db_pedido = crud.create_pedido(db=db, pedido=pedido)
     # Notify Butcher in the same sede
-    await sio.emit("new_order", schemas.Pedido.model_validate(db_pedido).model_dump(mode='json'), room=f"sede_{db_pedido.sede_id}")
+    payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode='json')
+    await _emit_pedido_rooms("new_order", payload, db_pedido.sede_id)
     return db_pedido
 
 @app.put("/pedidos/{pedido_id}/estado", response_model=schemas.Pedido)
@@ -390,7 +398,8 @@ async def update_pedido_estado_endpoint(pedido_id: int, estado: str, carnicero_i
     db_pedido = crud.update_pedido_estado(db=db, pedido_id=pedido_id, estado=estado, carnicero_id=carnicero_id)
     if not db_pedido:
         raise HTTPException(status_code=404, detail="Pedido not found")
-    await sio.emit("order_update", schemas.Pedido.model_validate(db_pedido).model_dump(mode='json'), room=f"sede_{db_pedido.sede_id}")
+    payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode='json')
+    await _emit_pedido_rooms("order_update", payload, db_pedido.sede_id)
     return db_pedido
 
 @app.put("/pedidos/{pedido_id}/problema", response_model=schemas.Pedido)
@@ -408,8 +417,12 @@ async def report_pedido_problema_endpoint(
         raise HTTPException(status_code=404, detail="Pedido not found")
 
     payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode="json")
-    await sio.emit("order_update", payload, room=f"sede_{db_pedido.sede_id}")
-    await sio.emit("order_problem", {"pedido_id": pedido_id, "problema": str(texto).strip()}, room=f"sede_{db_pedido.sede_id}")
+    await _emit_pedido_rooms("order_update", payload, db_pedido.sede_id)
+    await _emit_pedido_rooms(
+        "order_problem",
+        {"pedido_id": pedido_id, "problema": str(texto).strip()},
+        db_pedido.sede_id,
+    )
 
     return db_pedido
 
@@ -429,8 +442,12 @@ async def respond_pedido_problema_endpoint(
         raise HTTPException(status_code=404, detail="Pedido not found")
 
     payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode="json")
-    await sio.emit("order_update", payload, room=f"sede_{db_pedido.sede_id}")
-    await sio.emit("order_problem", {"pedido_id": pedido_id, "problema_respuesta": respuesta}, room=f"sede_{db_pedido.sede_id}")
+    await _emit_pedido_rooms("order_update", payload, db_pedido.sede_id)
+    await _emit_pedido_rooms(
+        "order_problem",
+        {"pedido_id": pedido_id, "problema_respuesta": respuesta},
+        db_pedido.sede_id,
+    )
 
     return db_pedido
 
