@@ -73,16 +73,18 @@ export function ultimoRolMensaje(pedido) {
     return mensajes.length ? mensajes[mensajes.length - 1].rol : null;
 }
 
-/** Hora local del mensaje (HH:mm) o null si no hay timestamp. */
+/** Hora local del mensaje en formato 12 horas con AM/PM (ej: 02:35 PM). */
 export function formatReporteMensajeHora(at) {
     if (at == null || at === '') return null;
     const d = new Date(at);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleTimeString('es-AR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    });
+
+    const hours24 = d.getHours();
+    const minutes = d.getMinutes();
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hour12 = ((hours24 + 11) % 12) + 1;
+
+    return `${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
 /** viewer: 'mayorista' | 'jefe' */
