@@ -5,7 +5,7 @@ import api, { downloadAdminBackup } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2, Calendar
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -99,6 +99,14 @@ const Admin = () => {
     const [dashboardDateFrom, setDashboardDateFrom] = useState('');
     const [dashboardDateTo, setDashboardDateTo] = useState('');
     const [dashboardFilterError, setDashboardFilterError] = useState('');
+    const [showDashboardFiltersModal, setShowDashboardFiltersModal] = useState(false);
+    const [filterDraft, setFilterDraft] = useState({
+        period: 'all',
+        dateFrom: '',
+        dateTo: '',
+        compareMode: 'all',
+        selectedSedes: [],
+    });
     const [usersList, setUsersList] = useState([]);
     const [sedesList, setSedesList] = useState([]);
     const [products, setProducts] = useState({ categories: [], cuts: [], tiposCorte: [] });
@@ -371,19 +379,45 @@ const Admin = () => {
         }
     };
 
-    const toggleDashboardSede = (sedeId) => {
-        setDashboardSelectedSedes((prev) => {
-            const id = String(sedeId);
-            return prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id];
+    const openDashboardFiltersModal = () => {
+        setFilterDraft({
+            period: dashboardPeriodFilter,
+            dateFrom: dashboardDateFrom,
+            dateTo: dashboardDateTo,
+            compareMode: dashboardCompareMode,
+            selectedSedes: [...dashboardSelectedSedes],
         });
+        setShowDashboardFiltersModal(true);
     };
 
-    const selectAllDashboardSedes = () => {
-        setDashboardSelectedSedes(sedesList.map((s) => String(s.id)));
+    const applyDashboardFilters = () => {
+        setDashboardPeriodFilter(filterDraft.period);
+        setDashboardDateFrom(filterDraft.dateFrom);
+        setDashboardDateTo(filterDraft.dateTo);
+        setDashboardCompareMode(filterDraft.compareMode);
+        setDashboardSelectedSedes([...filterDraft.selectedSedes]);
+        setShowDashboardFiltersModal(false);
     };
 
-    const clearDashboardSedes = () => {
-        setDashboardSelectedSedes([]);
+    const toggleDraftSede = (sedeId) => {
+        const id = String(sedeId);
+        setFilterDraft((prev) => ({
+            ...prev,
+            selectedSedes: prev.selectedSedes.includes(id)
+                ? prev.selectedSedes.filter((s) => s !== id)
+                : [...prev.selectedSedes, id],
+        }));
+    };
+
+    const selectAllDraftSedes = () => {
+        setFilterDraft((prev) => ({
+            ...prev,
+            selectedSedes: sedesList.map((s) => String(s.id)),
+        }));
+    };
+
+    const clearDraftSedes = () => {
+        setFilterDraft((prev) => ({ ...prev, selectedSedes: [] }));
     };
 
     const selectedPeriod = DASHBOARD_PERIODS.find((p) => p.value === dashboardPeriodFilter);
@@ -541,117 +575,158 @@ const Admin = () => {
             <main className={styles.mainContent}>
                 {activeTab === 'dashboard' && (
                     <div className={styles.dashboardWrapper}>
-                        <div className={styles.dashboardFilters}>
-                            <div className={styles.filterHeaderRow}>
-                                <div className={styles.topBannerLeft}>
-                                    <h1>RESUMEN DE OPERACIONES</h1>
-                                    <div className={styles.filterBadges}>
-                                        {periodBadgeLabel && (
-                                            <span className={styles.sedeFilterBadge}>{periodBadgeLabel}</span>
-                                        )}
-                                        {sedeBadgeLabel && (
-                                            <span className={styles.sedeFilterBadge}>{sedeBadgeLabel}</span>
-                                        )}
-                                    </div>
+                        <div className={styles.topBanner}>
+                            <div className={styles.topBannerLeft}>
+                                <h1>RESUMEN DE OPERACIONES</h1>
+                                <div className={styles.filterBadges}>
+                                    {periodBadgeLabel && (
+                                        <span className={styles.sedeFilterBadge}>{periodBadgeLabel}</span>
+                                    )}
+                                    {sedeBadgeLabel && (
+                                        <span className={styles.sedeFilterBadge}>{sedeBadgeLabel}</span>
+                                    )}
+                                    {!periodBadgeLabel && !sedeBadgeLabel && (
+                                        <span className={styles.sedeFilterBadgeMuted}>Sin filtros activos</span>
+                                    )}
                                 </div>
+                                {dashboardFilterError && (
+                                    <p className={styles.filterError} role="alert">{dashboardFilterError}</p>
+                                )}
+                            </div>
+                            <div className={styles.topBannerActions}>
+                                <button
+                                    type="button"
+                                    className={`premium-button ${styles.filtersOpenBtn}`}
+                                    onClick={openDashboardFiltersModal}
+                                >
+                                    <Filter size={18} /> Filtros
+                                </button>
                                 <button type="button" className="premium-button" onClick={fetchData} aria-label="Actualizar datos">
                                     <RefreshCw size={18} />
                                 </button>
                             </div>
+                        </div>
 
-                            {dashboardFilterError && (
-                                <p className={styles.filterError} role="alert">{dashboardFilterError}</p>
-                            )}
+                        {showDashboardFiltersModal && (
+                            <div
+                                className={styles.modalOverlay}
+                                onClick={() => setShowDashboardFiltersModal(false)}
+                                role="presentation"
+                            >
+                                <div
+                                    className={`${styles.modal} ${styles.filtersModal} glass-card`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="dashboard-filters-title"
+                                >
+                                    <h3 id="dashboard-filters-title">Filtros del resumen</h3>
 
-                            <div className={styles.filterControlsRow}>
-                                <label className={styles.sedeFilterLabel}>
-                                    <Calendar size={16} aria-hidden="true" />
-                                    <span>Periodo</span>
-                                    <select
-                                        className={styles.sedeFilterSelect}
-                                        value={dashboardPeriodFilter}
-                                        onChange={(e) => setDashboardPeriodFilter(e.target.value)}
-                                        aria-label="Filtrar por periodo"
-                                    >
-                                        {DASHBOARD_PERIODS.map((period) => (
-                                            <option key={period.value} value={period.value}>
-                                                {period.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                {dashboardPeriodFilter === 'custom' && (
-                                    <>
+                                    <div className={styles.filtersModalBody}>
                                         <label className={styles.sedeFilterLabel}>
-                                            <span>Desde</span>
-                                            <input
-                                                type="date"
-                                                className={styles.dateFilterInput}
-                                                value={dashboardDateFrom}
-                                                onChange={(e) => setDashboardDateFrom(e.target.value)}
-                                                aria-label="Fecha desde"
-                                            />
+                                            <Calendar size={16} aria-hidden="true" />
+                                            <span>Periodo</span>
+                                            <select
+                                                className={styles.sedeFilterSelect}
+                                                value={filterDraft.period}
+                                                onChange={(e) => setFilterDraft((p) => ({ ...p, period: e.target.value }))}
+                                            >
+                                                {DASHBOARD_PERIODS.map((period) => (
+                                                    <option key={period.value} value={period.value}>
+                                                        {period.label}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </label>
+
+                                        {filterDraft.period === 'custom' && (
+                                            <div className={styles.filterDateRow}>
+                                                <label className={styles.sedeFilterLabel}>
+                                                    <span>Desde</span>
+                                                    <input
+                                                        type="date"
+                                                        className={styles.dateFilterInput}
+                                                        value={filterDraft.dateFrom}
+                                                        onChange={(e) => setFilterDraft((p) => ({ ...p, dateFrom: e.target.value }))}
+                                                    />
+                                                </label>
+                                                <label className={styles.sedeFilterLabel}>
+                                                    <span>Hasta</span>
+                                                    <input
+                                                        type="date"
+                                                        className={styles.dateFilterInput}
+                                                        value={filterDraft.dateTo}
+                                                        onChange={(e) => setFilterDraft((p) => ({ ...p, dateTo: e.target.value }))}
+                                                    />
+                                                </label>
+                                            </div>
+                                        )}
+
                                         <label className={styles.sedeFilterLabel}>
-                                            <span>Hasta</span>
-                                            <input
-                                                type="date"
-                                                className={styles.dateFilterInput}
-                                                value={dashboardDateTo}
-                                                onChange={(e) => setDashboardDateTo(e.target.value)}
-                                                aria-label="Fecha hasta"
-                                            />
+                                            <MapPin size={16} aria-hidden="true" />
+                                            <span>Comparar</span>
+                                            <select
+                                                className={styles.sedeFilterSelect}
+                                                value={filterDraft.compareMode}
+                                                onChange={(e) => {
+                                                    const mode = e.target.value;
+                                                    setFilterDraft((p) => ({
+                                                        ...p,
+                                                        compareMode: mode,
+                                                        selectedSedes: mode === 'all' ? [] : p.selectedSedes,
+                                                    }));
+                                                }}
+                                            >
+                                                <option value="all">Todas las sedes</option>
+                                                <option value="specific">Sedes específicas</option>
+                                            </select>
                                         </label>
-                                    </>
-                                )}
 
-                                <label className={styles.sedeFilterLabel}>
-                                    <MapPin size={16} aria-hidden="true" />
-                                    <span>Comparar</span>
-                                    <select
-                                        className={styles.sedeFilterSelect}
-                                        value={dashboardCompareMode}
-                                        onChange={(e) => {
-                                            setDashboardCompareMode(e.target.value);
-                                            if (e.target.value === 'all') {
-                                                setDashboardSelectedSedes([]);
-                                            }
-                                        }}
-                                        aria-label="Modo de comparación de sedes"
-                                    >
-                                        <option value="all">Todas las sedes</option>
-                                        <option value="specific">Sedes específicas</option>
-                                    </select>
-                                </label>
-                            </div>
-
-                            {dashboardCompareMode === 'specific' && (
-                                <div className={styles.sedeComparePanel}>
-                                    <div className={styles.sedeCompareActions}>
-                                        <span className={styles.sedeCompareHint}>Seleccione una o más sedes para comparar</span>
-                                        <button type="button" className={styles.linkButton} onClick={selectAllDashboardSedes}>
-                                            Todas
-                                        </button>
-                                        <button type="button" className={styles.linkButton} onClick={clearDashboardSedes}>
-                                            Ninguna
-                                        </button>
+                                        {filterDraft.compareMode === 'specific' && (
+                                            <div className={styles.sedeComparePanel}>
+                                                <div className={styles.sedeCompareActions}>
+                                                    <span className={styles.sedeCompareHint}>
+                                                        Seleccione una o más sedes para comparar
+                                                    </span>
+                                                    <button type="button" className={styles.linkButton} onClick={selectAllDraftSedes}>
+                                                        Todas
+                                                    </button>
+                                                    <button type="button" className={styles.linkButton} onClick={clearDraftSedes}>
+                                                        Ninguna
+                                                    </button>
+                                                </div>
+                                                <div className={styles.sedeCheckboxGrid}>
+                                                    {sedesList.map((sede) => (
+                                                        <label key={sede.id} className={styles.sedeCheckboxItem}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={filterDraft.selectedSedes.includes(String(sede.id))}
+                                                                onChange={() => toggleDraftSede(sede.id)}
+                                                            />
+                                                            <span>{sede.nombre}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className={styles.sedeCheckboxGrid}>
-                                        {sedesList.map((sede) => (
-                                            <label key={sede.id} className={styles.sedeCheckboxItem}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={dashboardSelectedSedes.includes(String(sede.id))}
-                                                    onChange={() => toggleDashboardSede(sede.id)}
-                                                />
-                                                <span>{sede.nombre}</span>
-                                            </label>
-                                        ))}
+
+                                    <div className={styles.modalActions}>
+                                        <button
+                                            type="button"
+                                            className="premium-button"
+                                            style={{ background: 'var(--bg-card)' }}
+                                            onClick={() => setShowDashboardFiltersModal(false)}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button type="button" className="premium-button" onClick={applyDashboardFilters}>
+                                            Aplicar filtros
+                                        </button>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         <div className={styles.dashboardGrid}>
                             {/* Left Column - Small KPIs */}
