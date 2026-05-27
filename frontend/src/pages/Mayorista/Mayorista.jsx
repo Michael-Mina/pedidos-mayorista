@@ -789,6 +789,27 @@ const Mayorista = () => {
                     onClose={closeReportModal}
                     onSubmit={handleReportProblem}
                     perspective="mayorista"
+                    hintExtra={
+                        <>
+                            Cliente: <strong>{reportingPedido.cliente_nombre}</strong>
+                            {' · '}
+                            Estado:{' '}
+                            <span
+                                className={`${styles.statusBadge} ${styles[reportingPedido.estado]}`}
+                            >
+                                {reportingPedido.estado.replace('_', ' ')}
+                            </span>
+                        </>
+                    }
+                    footerLink={{
+                        label: 'Ver detalles del pedido',
+                        icon: 'package',
+                        onClick: () => {
+                            const order = reportingPedido;
+                            closeReportModal();
+                            openOrderDetails(order);
+                        },
+                    }}
                 />
             )}
             {/* Modal de Detalles del Pedido */}
