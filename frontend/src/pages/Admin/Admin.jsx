@@ -131,6 +131,7 @@ const Admin = () => {
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userSedeFilter, setUserSedeFilter] = useState('');
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isNarrowLayout, setIsNarrowLayout] = useState(() => window.innerWidth <= 768);
     const [backupLoading, setBackupLoading] = useState(false);
     const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
@@ -159,6 +160,7 @@ const Admin = () => {
 
     useEffect(() => {
         const onResize = () => {
+            setIsNarrowLayout(window.innerWidth <= 768);
             if (window.innerWidth > 1024) setMenuOpen(false);
         };
         window.addEventListener('resize', onResize);
@@ -942,8 +944,20 @@ const Admin = () => {
 
                             <div className={`${styles.pieCard} glass-card`}>
                                 <h3>CORTES MÁS SOLICITADOS</h3>
-                                <div style={{ height: '200px' }}>
-                                    <Pie data={pieData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#888', font: { size: 10 } } } } }} />
+                                <div className={styles.pieChartWrap}>
+                                    <Pie
+                                        data={pieData}
+                                        options={{
+                                            maintainAspectRatio: false,
+                                            responsive: true,
+                                            plugins: {
+                                                legend: {
+                                                    position: isNarrowLayout ? 'bottom' : 'right',
+                                                    labels: { color: '#888', font: { size: 10 }, boxWidth: 12 },
+                                                },
+                                            },
+                                        }}
+                                    />
                                 </div>
                             </div>
                         </div>
