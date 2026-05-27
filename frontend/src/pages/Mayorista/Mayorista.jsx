@@ -8,14 +8,14 @@ import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
+    getStoredSeenMessageCount,
     pedidoReporteId,
     tieneReporte,
     ultimoRolMensaje,
-    etiquetaRolMensaje,
 } from '../../utils/reporteMensajes';
 import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
 import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
-import { useScrollToBottom } from '../../hooks/useScrollToBottom';
+import ReportChatThread from '../../components/ReportChatModal/ReportChatThread';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
 function todayLocalIsoDate() {
@@ -62,7 +62,9 @@ const Mayorista = () => {
     const [filterDate, setFilterDate] = useState(todayLocalIsoDate);
     const [historyRefreshing, setHistoryRefreshing] = useState(false);
     const [reportingPedido, setReportingPedido] = useState(null);
+    const [reportModalSeenCount, setReportModalSeenCount] = useState(0);
     const reportingPedidoRef = useRef(null);
+    const [viewingOrderSeenCount, setViewingOrderSeenCount] = useState(0);
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [viewingOrder, setViewingOrder] = useState(null);
@@ -104,23 +106,11 @@ const Mayorista = () => {
         [pedidosHistory, isUnreadReportResponse]
     );
 
-    const viewingReportMensajes = useMemo(
-        () => (viewingOrder && tieneReporte(viewingOrder) ? getReporteMensajes(viewingOrder) : []),
-        [viewingOrder]
-    );
-    const viewingUltimoMsg = viewingReportMensajes.at(-1);
-    const detailChatRef = useScrollToBottom([
-        viewingOrder?.id,
-        viewingReportMensajes.length,
-        viewingUltimoMsg?.at,
-        viewingUltimoMsg?.texto,
-    ]);
-
     const openReportModal = useCallback((pedido) => {
+        setReportModalSeenCount(getStoredSeenMessageCount(pedido, seenReportCounts));
         setReportingPedido(pedido);
         setProblemText('');
-        markReportThreadSeen(pedido);
-    }, [markReportThreadSeen]);
+    }, [seenReportCounts]);
 
     const closeReportModal = useCallback(() => {
         if (reportingPedido) {
@@ -145,11 +135,18 @@ const Mayorista = () => {
     }, []);
 
     const openOrderDetails = useCallback((pedido) => {
+        setViewingOrderSeenCount(getStoredSeenMessageCount(pedido, seenReportCounts));
         setViewingOrder(pedido);
-        if (tieneReporte(pedido)) {
-            markReportThreadSeen(pedido);
+    }, [seenReportCounts]);
+
+    const closeOrderDetails = useCallback(() => {
+        if (viewingOrder && tieneReporte(viewingOrder)) {
+            const latest =
+                pedidosHistoryRef.current.find((p) => p.id === viewingOrder.id) ?? viewingOrder;
+            markReportThreadSeen(latest);
         }
-    }, [markReportThreadSeen]);
+        setViewingOrder(null);
+    }, [viewingOrder, markReportThreadSeen]);
 
     const showToast = useCallback((message, type = 'success') => {
         if (toastDismissRef.current) {
@@ -786,6 +783,7 @@ const Mayorista = () => {
             {reportingPedido && (
                 <ReportChatModal
                     order={reportingPedido}
+                    seenMessageCount={reportModalSeenCount}
                     message={problemText}
                     onMessageChange={setProblemText}
                     onClose={closeReportModal}
@@ -799,7 +797,7 @@ const Mayorista = () => {
                     <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '600px' }}>
                         <div className={styles.modalHeader}>
                             <h2><Package size={22} /> Detalles del Pedido {formatPedidoNumero(viewingOrder)}</h2>
-                            <button onClick={() => setViewingOrder(null)} className={styles.closeBtn}><X size={24} /></button>
+                            <button type="button" onClick={closeOrderDetails} className={styles.closeBtn}><X size={24} /></button>
                         </div>
 
                         <div className={styles.detailGrid}>
@@ -846,22 +844,18 @@ const Mayorista = () => {
                         {tieneReporte(viewingOrder) && (
                             <div className={styles.detailReportSection}>
                                 <h3>Conversación del reporte</h3>
-                                <div ref={detailChatRef} className={styles.chatThread}>
-                                    {viewingReportMensajes.map((msg, idx) => (
-                                        <div
-                                            key={`${idx}-${msg.at || ''}`}
-                                            className={msg.rol === 'mayorista' ? styles.chatBubbleSelf : styles.chatBubbleOther}
-                                        >
-                                            <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol)}</span>
-                                            <p className={styles.chatBubbleText}>{msg.texto}</p>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ReportChatThread
+                                    order={viewingOrder}
+                                    perspective="mayorista"
+                                    seenMessageCount={viewingOrderSeenCount}
+                                    scrollKey={viewingOrder.id}
+                                    className={styles.chatThread}
+                                />
                             </div>
                         )}
 
                         <div className={styles.modalActions}>
-                            <button className="premium-button" style={{ width: '100%' }} onClick={() => setViewingOrder(null)}>Cerrar</button>
+                            <button type="button" className="premium-button" style={{ width: '100%' }} onClick={closeOrderDetails}>Cerrar</button>
                         </div>
                     </div>
                 </div>

@@ -44,6 +44,26 @@ export function pedidoReporteId(pedido) {
     return pedido?.id != null ? String(pedido.id) : '';
 }
 
+/** Cuántos mensajes del hilo ya se habían visto (según localStorage). */
+export function getStoredSeenMessageCount(pedido, seenMap) {
+    if (!pedido) return 0;
+    const total = getReporteMensajes(pedido).length;
+    const stored = seenMap?.[pedidoReporteId(pedido)];
+    if (stored == null || stored === '') return 0;
+
+    if (typeof stored === 'number' && Number.isFinite(stored)) {
+        return Math.min(Math.max(0, stored), total);
+    }
+
+    if (typeof stored === 'string') {
+        const head = stored.split(':')[0];
+        const n = parseInt(head, 10);
+        if (Number.isFinite(n)) return Math.min(Math.max(0, n), total);
+    }
+
+    return 0;
+}
+
 export function tieneReporte(pedido) {
     return getReporteMensajes(pedido).length > 0;
 }
@@ -51,6 +71,18 @@ export function tieneReporte(pedido) {
 export function ultimoRolMensaje(pedido) {
     const mensajes = getReporteMensajes(pedido);
     return mensajes.length ? mensajes[mensajes.length - 1].rol : null;
+}
+
+/** Hora local del mensaje (HH:mm) o null si no hay timestamp. */
+export function formatReporteMensajeHora(at) {
+    if (at == null || at === '') return null;
+    const d = new Date(at);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
 }
 
 /** viewer: 'mayorista' | 'jefe' */

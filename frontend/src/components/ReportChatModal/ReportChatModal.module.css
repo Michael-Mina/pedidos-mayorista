@@ -148,6 +148,19 @@
     font-size: 0.88rem;
 }
 
+.chatBubbleTime {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-align: right;
+    line-height: 1;
+}
+
+.chatBubbleOther .chatBubbleTime {
+    text-align: left;
+}
+
 .textarea {
     flex-shrink: 0;
     width: 100%;

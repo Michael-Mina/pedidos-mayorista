@@ -31,6 +31,7 @@ import { formatPedidoNumero } from '../../utils/pedidos';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
+    getStoredSeenMessageCount,
     pedidoReporteId,
     tieneReporte,
     ultimoRolMensaje,
@@ -74,6 +75,7 @@ const JefeCarnes = () => {
     const [historyFilterDate, setHistoryFilterDate] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [reportModalOrder, setReportModalOrder] = useState(null);
+    const [reportModalSeenCount, setReportModalSeenCount] = useState(0);
     const reportModalOrderRef = useRef(null);
     const [reportProblem, setReportProblem] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -129,9 +131,9 @@ const JefeCarnes = () => {
 
     const openReportModal = (order) => {
         setSelectedOrder(null);
+        setReportModalSeenCount(getStoredSeenMessageCount(order, seenReportCounts));
         setReportModalOrder(order);
         setReportProblem('');
-        markReportThreadSeen(order);
     };
 
     const closeReportModal = () => {
@@ -147,19 +149,6 @@ const JefeCarnes = () => {
     useEffect(() => {
         reportModalOrderRef.current = reportModalOrder;
     }, [reportModalOrder]);
-
-    useEffect(() => {
-        if (!reportModalOrder) return;
-        const latest =
-            globalOrdersRef.current.find((o) => o.id === reportModalOrder.id) ?? reportModalOrder;
-        markReportThreadSeen(latest);
-    }, [
-        reportModalOrder?.id,
-        reportModalOrder?.reporte_mensajes,
-        reportModalOrder?.problema_reportado,
-        reportModalOrder?.problema_respuesta,
-        markReportThreadSeen,
-    ]);
 
     useEffect(() => {
         globalOrdersRef.current = globalOrders;
@@ -1083,6 +1072,7 @@ const JefeCarnes = () => {
                 {reportModalOrder && (
                     <ReportChatModal
                         order={reportModalOrder}
+                        seenMessageCount={reportModalSeenCount}
                         message={reportProblem}
                         onMessageChange={setReportProblem}
                         onClose={closeReportModal}

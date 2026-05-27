@@ -14,6 +14,8 @@ const Sede = () => {
     const [pedidos, setPedidos] = useState([]);
     const [allCarniceros, setAllCarniceros] = useState([]);
     const [selectedPedidoId, setSelectedPedidoId] = useState(null);
+    const [pendingCarniceroId, setPendingCarniceroId] = useState(null);
+    const [assigningOrder, setAssigningOrder] = useState(false);
     const [newOrderIds, setNewOrderIds] = useState(new Set());
     
     // Audio for notifications
@@ -72,6 +74,7 @@ const Sede = () => {
 
     const handleSelectPedido = (id) => {
         setSelectedPedidoId(id);
+        setPendingCarniceroId(null);
         if (newOrderIds.has(id)) {
             const next = new Set(newOrderIds);
             next.delete(id);
@@ -81,15 +84,24 @@ const Sede = () => {
 
     const handleTakeOrder = async (pedidoId, carniceroId) => {
         if (!carniceroId) return;
+        setAssigningOrder(true);
         try {
             await pedidoService.updateEstado(pedidoId, 'en_proceso', carniceroId);
             setPedidos(prev => prev.map(p =>
                 p.id === pedidoId ? { ...p, estado: 'en_proceso', carnicero_id: carniceroId } : p
             ));
             setSelectedPedidoId(pedidoId);
+            setPendingCarniceroId(null);
         } catch (error) {
             console.error("Error taking order:", error);
+        } finally {
+            setAssigningOrder(false);
         }
+    };
+
+    const handleConfirmAssign = () => {
+        if (!selectedPedido || !pendingCarniceroId) return;
+        handleTakeOrder(selectedPedido.id, pendingCarniceroId);
     };
 
     const handleCompleteOrder = async (pedidoId) => {
@@ -178,7 +190,7 @@ const Sede = () => {
                                         <Users size={22} />
                                         <div>
                                             <h2>Asignar a carnicero</h2>
-                                            <p>Seleccione al personal disponible para iniciar la preparación.</p>
+                                            <p>Seleccione un carnicero y confirme la asignación del pedido.</p>
                                         </div>
                                     </div>
                                     <div className={styles.butcherPanel}>
@@ -189,14 +201,43 @@ const Sede = () => {
                                                 .map(carnicero => (
                                                     <button
                                                         key={carnicero.id}
-                                                        className={styles.butcherBtn}
-                                                        onClick={() => handleTakeOrder(selectedPedido.id, carnicero.id)}
+                                                        type="button"
+                                                        className={`${styles.butcherBtn} ${pendingCarniceroId === carnicero.id ? styles.butcherBtnSelected : ''}`}
+                                                        onClick={() => setPendingCarniceroId(carnicero.id)}
                                                     >
                                                         <span className={styles.butcherNum}>{carnicero.numero_carnicero}</span>
                                                         <span className={styles.butcherText}>{carnicero.nombre} {carnicero.apellido}</span>
                                                     </button>
                                                 ))}
                                         </div>
+                                        {pendingCarniceroId && (
+                                            <div className={styles.assignConfirmBar}>
+                                                <p className={styles.assignConfirmText}>
+                                                    ¿Asignar pedido <strong>{formatPedidoNumero(selectedPedido)}</strong>
+                                                    {' '}({selectedPedido.cliente_nombre}) a{' '}
+                                                    <strong>{getButcherName(pendingCarniceroId)}</strong>?
+                                                </p>
+                                                <div className={styles.assignConfirmActions}>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.assignCancelBtn}
+                                                        onClick={() => setPendingCarniceroId(null)}
+                                                        disabled={assigningOrder}
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.assignConfirmBtn}
+                                                        onClick={handleConfirmAssign}
+                                                        disabled={assigningOrder}
+                                                    >
+                                                        <UserCheck size={18} />
+                                                        {assigningOrder ? 'Asignando…' : 'Confirmar asignación'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (

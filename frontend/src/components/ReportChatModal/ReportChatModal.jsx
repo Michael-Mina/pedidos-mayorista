@@ -1,8 +1,8 @@
 import React from 'react';
 import { AlertTriangle, Package, Send, X } from 'lucide-react';
 import { formatPedidoNumero } from '../../utils/pedidos';
-import { getReporteMensajes, tieneReporte, etiquetaRolMensaje } from '../../utils/reporteMensajes';
-import { useScrollToBottom } from '../../hooks/useScrollToBottom';
+import { tieneReporte } from '../../utils/reporteMensajes';
+import ReportChatThread from './ReportChatThread';
 import styles from './ReportChatModal.module.css';
 
 /**
@@ -19,20 +19,11 @@ export default function ReportChatModal({
     hintExtra = null,
     footerLink = null,
     zIndex,
+    seenMessageCount = 0,
 }) {
     if (!order) return null;
 
     const hasThread = tieneReporte(order);
-    const mensajes = getReporteMensajes(order);
-    const ultimoMensaje = mensajes.at(-1);
-    const chatThreadRef = useScrollToBottom([
-        order?.id,
-        mensajes.length,
-        ultimoMensaje?.at,
-        ultimoMensaje?.texto,
-    ]);
-    const selfRol = perspective === 'jefe' ? 'carniceria' : 'mayorista';
-    const labelCtx = perspective === 'jefe' ? 'jefe' : undefined;
     const submitLabel = hasThread ? 'Enviar mensaje' : 'Enviar reporte';
     const placeholder = hasThread
         ? (perspective === 'jefe' ? 'Escriba un mensaje para el mayorista...' : 'Escriba un mensaje...')
@@ -66,19 +57,12 @@ export default function ReportChatModal({
                     )}
 
                     {hasThread && (
-                        <div ref={chatThreadRef} className={styles.chatThread}>
-                            {mensajes.map((msg, idx) => (
-                                <div
-                                    key={`${idx}-${msg.at || ''}`}
-                                    className={msg.rol === selfRol ? styles.chatBubbleSelf : styles.chatBubbleOther}
-                                >
-                                    <span className={styles.chatBubbleLabel}>
-                                        {etiquetaRolMensaje(msg.rol, labelCtx)}
-                                    </span>
-                                    <p className={styles.chatBubbleText}>{msg.texto}</p>
-                                </div>
-                            ))}
-                        </div>
+                        <ReportChatThread
+                            order={order}
+                            perspective={perspective}
+                            seenMessageCount={seenMessageCount}
+                            scrollKey={order.id}
+                        />
                     )}
 
                     <textarea

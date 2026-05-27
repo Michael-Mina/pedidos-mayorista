@@ -310,6 +310,79 @@
     color: white;
 }
 
+.butcherBtnSelected {
+    background: rgba(46, 204, 113, 0.2);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.25);
+}
+
+.butcherBtnSelected .butcherNum {
+    color: var(--primary-color);
+}
+
+.assignConfirmBar {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(46, 204, 113, 0.35);
+    background: rgba(46, 204, 113, 0.08);
+}
+
+.assignConfirmText {
+    margin: 0 0 14px;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    color: #e2e8f0;
+}
+
+.assignConfirmText strong {
+    color: var(--primary-color);
+}
+
+.assignConfirmActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.assignCancelBtn,
+.assignConfirmBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.assignCancelBtn {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.assignConfirmBtn {
+    background: var(--primary-color);
+    color: #020617;
+}
+
+.assignCancelBtn:hover:not(:disabled),
+.assignConfirmBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.assignCancelBtn:disabled,
+.assignConfirmBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .butcherNum {
     font-size: 1.35rem;
     font-weight: 900;
