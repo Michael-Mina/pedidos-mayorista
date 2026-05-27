@@ -74,6 +74,19 @@ body {
   transform: translateY(0);
 }
 
+.premium-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  filter: grayscale(0.35);
+}
+
+.premium-button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .input-field {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.2);

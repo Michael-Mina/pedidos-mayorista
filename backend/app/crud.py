@@ -429,17 +429,41 @@ def update_carnicero(db: Session, user_id: int, carnicero_data: schemas.Carnicer
     return db_user
 
 # Pedido CRUD
+_PEDIDO_LOAD_OPTIONS = (
+    joinedload(models.Pedido.carnicero),
+    joinedload(models.Pedido.mayorista),
+    joinedload(models.Pedido.sede),
+    joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
+    joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte),
+)
+
+
+def _get_pedido_loaded(db: Session, pedido_id: int):
+    return (
+        db.query(models.Pedido)
+        .options(*_PEDIDO_LOAD_OPTIONS)
+        .filter(models.Pedido.id == pedido_id)
+        .first()
+    )
+
+
 def get_pedidos_by_sede(db: Session, sede_id: str):
-    return db.query(models.Pedido)\
-        .options(
-            joinedload(models.Pedido.carnicero),
-            joinedload(models.Pedido.mayorista),
-            joinedload(models.Pedido.sede),
-            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
-            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte)
-        )\
-        .filter(models.Pedido.sede_id == sede_id)\
-        .order_by(models.Pedido.updated_at.desc()).all()
+    return (
+        db.query(models.Pedido)
+        .options(*_PEDIDO_LOAD_OPTIONS)
+        .filter(models.Pedido.sede_id == sede_id)
+        .order_by(models.Pedido.updated_at.desc())
+        .all()
+    )
+
+
+def get_all_pedidos(db: Session):
+    return (
+        db.query(models.Pedido)
+        .options(*_PEDIDO_LOAD_OPTIONS)
+        .order_by(models.Pedido.updated_at.desc())
+        .all()
+    )
 
 def _parse_numero_pedido(value: str | None) -> int | None:
     if value is None:
@@ -499,19 +523,10 @@ def create_pedido(db: Session, pedido: schemas.PedidoCreate):
         db.add(db_detalle)
     
     db.commit()
-    db.refresh(db_pedido)
-    return db_pedido
+    return _get_pedido_loaded(db, db_pedido.id)
 
 def update_pedido_estado(db: Session, pedido_id: int, estado: str, carnicero_id: int = None):
-    # Load with relationships to ensure returning full object
-    db_pedido = db.query(models.Pedido)\
-        .options(
-            joinedload(models.Pedido.carnicero),
-            joinedload(models.Pedido.sede),
-            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
-            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte)
-        )\
-        .filter(models.Pedido.id == pedido_id).first()
+    db_pedido = _get_pedido_loaded(db, pedido_id)
         
     if db_pedido:
         db_pedido.estado = estado
@@ -526,8 +541,8 @@ def update_pedido_estado(db: Session, pedido_id: int, estado: str, carnicero_id:
             db_pedido.finished_at = now
             
         db.commit()
-        db.refresh(db_pedido)
-    return db_pedido
+        return _get_pedido_loaded(db, pedido_id)
+    return None
 
 def report_pedido_problema(db: Session, pedido_id: int, problema: str):
     db_pedido = db.query(models.Pedido).filter(models.Pedido.id == pedido_id).first()

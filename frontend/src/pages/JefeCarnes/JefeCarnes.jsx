@@ -27,7 +27,7 @@ import {
     Search
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
-import { formatPedidoNumero } from '../../utils/pedidos';
+import { formatPedidoNumero, formatMayoristaLabel, formatCarniceroLabel } from '../../utils/pedidos';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
@@ -602,7 +602,7 @@ const JefeCarnes = () => {
                                                     {order.estado}
                                                 </span>
                                             </td>
-                                            <td>{order.carnicero?.username || '---'}</td>
+                                            <td>{order.carnicero ? formatCarniceroLabel(order.carnicero) : '---'}</td>
                                             <td>
                                                 {order.estado === 'pendiente' ?
                                                     `${Math.floor((new Date() - new Date(order.timestamp)) / 60000)}m` :
@@ -971,8 +971,8 @@ const JefeCarnes = () => {
                                             <span className={styles.value}>{selectedOrder.cliente_nombre}</span>
                                         </div>
                                         <div className={styles.infoRow}>
-                                            <span className={styles.label}>Usuario Sistema:</span>
-                                            <span className={styles.value}>{selectedOrder.mayorista?.username || '--'}</span>
+                                            <span className={styles.label}>Mayorista:</span>
+                                            <span className={styles.value}>{formatMayoristaLabel(selectedOrder.mayorista)}</span>
                                         </div>
                                         <div className={styles.infoRow}>
                                             <span className={styles.label}>Fecha:</span>
@@ -994,7 +994,7 @@ const JefeCarnes = () => {
                                         <h3 className={styles.infoCardTitle}>Carnicería</h3>
                                         <div className={styles.infoRow}>
                                             <span className={styles.label}>Responsable:</span>
-                                            <span className={styles.value}>{selectedOrder.carnicero?.username || 'Sin asignar'}</span>
+                                            <span className={styles.value}>{formatCarniceroLabel(selectedOrder.carnicero)}</span>
                                         </div>
                                         <div className={styles.infoRow}>
                                             <span className={styles.label}>Tiempo de espera:</span>

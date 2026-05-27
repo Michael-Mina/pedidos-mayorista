@@ -108,6 +108,7 @@
     gap: 10px;
     flex: 1;
     min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -126,7 +127,7 @@
 
 .orderCard:hover {
     background: rgba(255, 255, 255, 0.06);
-    transform: translateX(5px);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .orderCard.active {

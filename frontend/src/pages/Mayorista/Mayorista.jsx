@@ -4,7 +4,13 @@ import api, { pedidoService, productService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
-import { formatPedidoNumero, getPedidoTrackingNumber, upsertPedidoInList } from '../../utils/pedidos';
+import {
+    formatPedidoNumero,
+    getPedidoTrackingNumber,
+    upsertPedidoInList,
+    formatMayoristaLabel,
+    formatCarniceroLabel,
+} from '../../utils/pedidos';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
@@ -336,18 +342,21 @@ const Mayorista = () => {
         // We set step 4 directly to modify qty/obs
     };
 
+    const clienteNombreValido = Boolean(currentOrder.cliente?.trim());
+    const puedeEnviarPedido = clienteNombreValido && currentOrder.items.length > 0;
+
     const handleOpenConfirmModal = () => {
-        if (!currentOrder.cliente || currentOrder.items.length === 0) return;
+        if (!puedeEnviarPedido) return;
         setShowConfirmModal(true);
     };
 
     const confirmSendOrder = async () => {
-        if (isSubmittingOrder) return;
+        if (isSubmittingOrder || !puedeEnviarPedido) return;
         setIsSubmittingOrder(true);
         try {
             const payload = {
                 mayorista_id: user.id,
-                cliente_nombre: currentOrder.cliente,
+                cliente_nombre: currentOrder.cliente.trim(),
                 sede_id: user.sede_id,
                 observaciones: "Pedido desde App",
                 detalles: currentOrder.items.map(item => ({
@@ -400,9 +409,21 @@ const Mayorista = () => {
             const raw = searchTerm.trim().toLowerCase();
             const idPart = raw.startsWith('#') ? raw.slice(1).trim() : raw;
             const tracking = getPedidoTrackingNumber(p);
+            const mayoristaText = p.mayorista
+                ? [
+                      formatMayoristaLabel(p.mayorista),
+                      p.mayorista.username,
+                      p.mayorista.nombre,
+                      p.mayorista.apellido,
+                  ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .toLowerCase()
+                : '';
             const matchesSearch =
                 !raw ||
                 (p.cliente_nombre || '').toLowerCase().includes(raw) ||
+                mayoristaText.includes(raw) ||
                 p.id.toString().includes(idPart) ||
                 (p.numero_pedido && String(p.numero_pedido).toLowerCase().includes(raw)) ||
                 (tracking && idPart && tracking.includes(idPart));
@@ -532,10 +553,18 @@ const Mayorista = () => {
                         )}
                     </div>
                     <button
+                        type="button"
                         className="premium-button"
                         style={{ width: '100%', marginTop: 'auto' }}
-                        disabled={currentOrder.items.length === 0 || !currentOrder.cliente}
+                        disabled={!puedeEnviarPedido}
                         onClick={handleOpenConfirmModal}
+                        title={
+                            !clienteNombreValido
+                                ? 'Ingresá el nombre del cliente para enviar el pedido'
+                                : currentOrder.items.length === 0
+                                  ? 'Agregá al menos un producto al pedido'
+                                  : undefined
+                        }
                     >
                         Enviar a Carnicería
                     </button>
@@ -701,7 +730,7 @@ const Mayorista = () => {
                                 <input
                                     type="text"
                                     className="input-field"
-                                    placeholder="Buscar por cliente, ID o número (#12)..."
+                                    placeholder="Buscar por cliente, mayorista, ID o número (#12)..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -724,6 +753,7 @@ const Mayorista = () => {
                                         <th>ID</th>
                                         <th>Hora</th>
                                         <th>Cliente</th>
+                                        <th>Mayorista</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -734,6 +764,7 @@ const Mayorista = () => {
                                             <td><strong>{formatPedidoNumero(p)}</strong></td>
                                             <td>{new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                             <td>{p.cliente_nombre}</td>
+                                            <td>{formatMayoristaLabel(p.mayorista)}</td>
                                             <td>
                                                 <span className={`${styles.statusBadge} ${styles[p.estado]}`}>
                                                     {p.estado.replace('_', ' ')}
@@ -821,13 +852,14 @@ const Mayorista = () => {
                             <div className={styles.detailSection}>
                                 <h3>Información General</h3>
                                 <p><strong>Cliente:</strong> {viewingOrder.cliente_nombre}</p>
+                                <p><strong>Mayorista:</strong> {formatMayoristaLabel(viewingOrder.mayorista)}</p>
                                 <p><strong>Estado:</strong> <span className={`${styles.statusBadge} ${styles[viewingOrder.estado]}`}>{viewingOrder.estado}</span></p>
                                 <p><strong>Sede:</strong> {viewingOrder.sede?.nombre || 'General'}</p>
                             </div>
 
                             <div className={styles.detailSection}>
                                 <h3>Carnicería</h3>
-                                <p><strong>Responsable:</strong> {viewingOrder.carnicero?.username || 'Sin asignar'}</p>
+                                <p><strong>Responsable:</strong> {formatCarniceroLabel(viewingOrder.carnicero)}</p>
                                 <p><strong>Tiempo de espera:</strong> {formatDuration(viewingOrder.timestamp, viewingOrder.started_at)}</p>
                                 <p><strong>Tiempo preparación:</strong> {formatDuration(viewingOrder.started_at, viewingOrder.finished_at)}</p>
                                 <p><strong>Proceso total:</strong> {formatDuration(viewingOrder.timestamp, viewingOrder.finished_at)}</p>
@@ -924,7 +956,7 @@ const Mayorista = () => {
                                 className="premium-button"
                                 style={{ flex: 2 }}
                                 onClick={confirmSendOrder}
-                                disabled={isSubmittingOrder}
+                                disabled={isSubmittingOrder || !puedeEnviarPedido}
                             >
                                 {isSubmittingOrder ? 'Enviando…' : 'Confirmar y Enviar'}
                             </button>

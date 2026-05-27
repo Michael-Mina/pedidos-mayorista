@@ -10,6 +10,28 @@ export const getPedidoTrackingNumber = (pedido) => {
     return /^\d+$/.test(lastPart) ? lastPart : null;
 };
 
+/** Nombre legible de un usuario (mayorista o carnicero). */
+export function formatUserDisplayName(user) {
+    if (!user) return null;
+    const name = [user.nombre, user.apellido].filter(Boolean).join(' ').trim();
+    return name || user.username || null;
+}
+
+/** Etiqueta del mayorista que creó el pedido. */
+export function formatMayoristaLabel(mayorista) {
+    if (!mayorista) return '—';
+    return formatUserDisplayName(mayorista) || '—';
+}
+
+/** Carnicero: número + nombre (ej. "001 — Sebastian Chaux"). */
+export function formatCarniceroLabel(carnicero) {
+    if (!carnicero) return 'Sin asignar';
+    const num = carnicero.numero_carnicero || carnicero.username;
+    const name = formatUserDisplayName(carnicero);
+    if (num && name && name !== num) return `${num} — ${name}`;
+    return name || num || 'Sin asignar';
+}
+
 /** Cantidad de líneas / productos del pedido. */
 export function getPedidoDetalleCount(pedido) {
     if (!Array.isArray(pedido?.detalles)) return 0;

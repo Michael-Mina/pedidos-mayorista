@@ -383,7 +383,7 @@ def get_stats_cuts(
 def read_pedidos(sede_id: str = None, db: Session = Depends(get_db)):
     if sede_id:
         return crud.get_pedidos_by_sede(db, sede_id)
-    return db.query(models.Pedido).all()
+    return crud.get_all_pedidos(db)
 
 @app.post("/pedidos", response_model=schemas.Pedido)
 async def create_pedido_endpoint(pedido: schemas.PedidoCreate, db: Session = Depends(get_db)):
