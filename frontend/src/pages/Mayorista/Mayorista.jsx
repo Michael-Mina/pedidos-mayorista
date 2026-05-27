@@ -124,6 +124,18 @@ const Mayorista = () => {
                 setPedidosHistory((prev) => {
                     const ix = prev.findIndex((p) => p.id === updatedOrder.id);
                     if (ix === -1) return [updatedOrder, ...prev];
+                    const prevOrder = prev[ix];
+
+                    // Notificar cuando el reporte pasa de "pendiente" -> "respondido"
+                    const wasPending =
+                        !!prevOrder?.problema_reportado?.trim() && !prevOrder?.problema_respuesta?.trim();
+                    const isNowResponded =
+                        !!updatedOrder?.problema_reportado?.trim() && !!updatedOrder?.problema_respuesta?.trim();
+
+                    if (wasPending && isNowResponded) {
+                        showToast('El reporte fue respondido por la carnicería.', 'success');
+                    }
+
                     const next = [...prev];
                     next[ix] = updatedOrder;
                     return next;
@@ -625,13 +637,14 @@ const Mayorista = () => {
                                                     <button
                                                         type="button"
                                                         className={styles.reportBtn}
-                                                        title={p.problema_reportado?.trim() ? 'Editar texto del reporte enviado a la carnicería' : 'Informar un problema en este pedido'}
+                                                        disabled={!!p.problema_respuesta?.trim()}
+                                                        title={p.problema_respuesta?.trim() ? 'Reporte respondido por la carnicería' : (p.problema_reportado?.trim() ? 'Editar texto del reporte enviado a la carnicería' : 'Informar un problema en este pedido')}
                                                         onClick={() => {
                                                             setReportingPedido(p);
                                                             setProblemText(p.problema_reportado ? String(p.problema_reportado) : '');
                                                         }}
                                                     >
-                                                        <AlertCircle size={14} /> {p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar'}
+                                                        <AlertCircle size={14} /> {p.problema_respuesta?.trim() ? 'Respondido' : (p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar')}
                                                     </button>
                                                 </div>
                                             </td>
@@ -655,18 +668,29 @@ const Mayorista = () => {
                 <div className={styles.modalOverlay} style={{ zIndex: 1100 }}>
                     <div className={`${styles.modalContent} glass-card`} style={{ maxWidth: '400px' }}>
                         <h3>
-                            {(reportingPedido.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar problema')} · Pedido {formatPedidoNumero(reportingPedido)}
+                            {!!reportingPedido.problema_respuesta?.trim()
+                                ? `Reporte respondido · Pedido ${formatPedidoNumero(reportingPedido)}`
+                                : `${(reportingPedido.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar problema')} · Pedido ${formatPedidoNumero(reportingPedido)}`}
                         </h3>
                         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                            Describe brevemente el inconveniente para que la carnicería lo revise. Puede modificar el texto si ya envió un reporte.
+                            {reportingPedido.problema_respuesta?.trim()
+                                ? 'La carnicería ya respondió este reporte.'
+                                : 'Describe brevemente el inconveniente para que la carnicería lo revise. Puede modificar el texto si ya envió un reporte.'}
                         </p>
-                        <textarea
-                            className="input-field"
-                            rows="4"
-                            placeholder="Ej: Faltó un corte, peso incorrecto..."
-                            value={problemText}
-                            onChange={(e) => setProblemText(e.target.value)}
-                        ></textarea>
+                        {reportingPedido.problema_respuesta?.trim() ? (
+                            <div style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                                <div style={{ color: 'var(--primary-color)', fontWeight: 700, marginBottom: 6 }}>Respuesta</div>
+                                <div style={{ color: 'white', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{reportingPedido.problema_respuesta}</div>
+                            </div>
+                        ) : (
+                            <textarea
+                                className="input-field"
+                                rows="4"
+                                placeholder="Ej: Faltó un corte, peso incorrecto..."
+                                value={problemText}
+                                onChange={(e) => setProblemText(e.target.value)}
+                            ></textarea>
+                        )}
                         <div className={styles.modalActions}>
                             <button
                                 type="button"
@@ -676,7 +700,16 @@ const Mayorista = () => {
                             >
                                 Cancelar
                             </button>
-                            <button type="button" className="premium-button" onClick={handleReportProblem} disabled={!problemText.trim()}>Enviar reporte</button>
+                            {!reportingPedido.problema_respuesta?.trim() && (
+                                <button
+                                    type="button"
+                                    className="premium-button"
+                                    onClick={handleReportProblem}
+                                    disabled={!problemText.trim()}
+                                >
+                                    Enviar reporte
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

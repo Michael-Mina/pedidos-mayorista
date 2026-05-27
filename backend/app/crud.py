@@ -548,6 +548,28 @@ def report_pedido_problema(db: Session, pedido_id: int, problema: str):
         .first()
     )
 
+def respond_pedido_problema(db: Session, pedido_id: int, respuesta: str):
+    db_pedido = db.query(models.Pedido).filter(models.Pedido.id == pedido_id).first()
+    if not db_pedido:
+        return None
+
+    texto = respuesta.strip() if respuesta else None
+    db_pedido.problema_respuesta = texto
+    db.commit()
+
+    return (
+        db.query(models.Pedido)
+        .options(
+            joinedload(models.Pedido.carnicero),
+            joinedload(models.Pedido.mayorista),
+            joinedload(models.Pedido.sede),
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte),
+        )
+        .filter(models.Pedido.id == pedido_id)
+        .first()
+    )
+
 # Butcher Availability CRUD
 def get_butchers_by_sede(db: Session, sede_id: str):
     """Get all butchers (carniceros) for a specific sede"""

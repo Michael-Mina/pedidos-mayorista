@@ -133,6 +133,7 @@ class Pedido(PedidoBase):
     finished_at: Optional[datetime] = None
     updated_at: datetime
     problema_reportado: Optional[str] = None
+    problema_respuesta: Optional[str] = None
     detalles: List[DetallePedido]
     model_config = ConfigDict(from_attributes=True)
 
@@ -140,6 +141,11 @@ class PedidoProblemaReport(BaseModel):
     """Cuerpo JSON para PUT /pedidos/{id}/problema (evita límites de URL del query param)."""
 
     problema: str
+
+class PedidoProblemaRespuesta(BaseModel):
+    """Cuerpo JSON para PUT /pedidos/{id}/problema/respuesta."""
+
+    respuesta: str
 
 class ButcherAvailabilityBase(BaseModel):
     butcher_id: int

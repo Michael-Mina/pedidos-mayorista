@@ -398,6 +398,27 @@ async def report_pedido_problema_endpoint(
 
     return db_pedido
 
+
+@app.put("/pedidos/{pedido_id}/problema/respuesta", response_model=schemas.Pedido)
+async def respond_pedido_problema_endpoint(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    body: schemas.PedidoProblemaRespuesta,
+):
+    respuesta = (body.respuesta or "").strip()
+    if not respuesta:
+        raise HTTPException(status_code=400, detail="La respuesta del reporte es obligatoria")
+
+    db_pedido = crud.respond_pedido_problema(db=db, pedido_id=pedido_id, respuesta=respuesta)
+    if not db_pedido:
+        raise HTTPException(status_code=404, detail="Pedido not found")
+
+    payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode="json")
+    await sio.emit("order_update", payload, room=f"sede_{db_pedido.sede_id}")
+    await sio.emit("order_problem", {"pedido_id": pedido_id, "problema_respuesta": respuesta}, room=f"sede_{db_pedido.sede_id}")
+
+    return db_pedido
+
 # Butcher Availability Endpoints
 @app.get("/butchers/sede/{sede_id}", response_model=List[schemas.User])
 def get_butchers_for_sede(sede_id: str, db: Session = Depends(get_db)):

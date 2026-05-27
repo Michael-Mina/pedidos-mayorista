@@ -26,6 +26,12 @@ def migrate():
             ALTER TABLE pedidos 
             ADD COLUMN IF NOT EXISTS problema_reportado TEXT;
         """)
+
+        # Add problema_respuesta column if it does not exist
+        cur.execute("""
+            ALTER TABLE pedidos
+            ADD COLUMN IF NOT EXISTS problema_respuesta TEXT;
+        """)
         
         conn.commit()
         cur.close()

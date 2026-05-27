@@ -55,6 +55,34 @@ const JefeCarnes = () => {
     const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
     const [menuOpen, setMenuOpen] = useState(false);
 
+    const pendingReportsCount = globalOrders.filter((o) => {
+        const isPending = !!o.problema_reportado?.trim() && !o.problema_respuesta?.trim();
+        if (!isPending) return false;
+        return !user?.sede_id || o.sede_id === user.sede_id;
+    }).length;
+
+    const handleReportSubmit = async () => {
+        if (!selectedOrder) return;
+        const respuesta = reportProblem.trim();
+        if (!respuesta) return;
+
+        try {
+            const { data: updated } = await api.put(
+                `/pedidos/${selectedOrder.id}/problema/respuesta`,
+                { respuesta }
+            );
+
+            setGlobalOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+            setSelectedOrder(updated);
+            setReportProblem('');
+            showNotify('Respuesta enviada con éxito.', 'success');
+        } catch (error) {
+            console.error('Error sending report response:', error);
+            const detail = error.response?.data?.detail;
+            showNotify(typeof detail === 'string' ? detail : 'No se pudo enviar la respuesta del reporte.', 'error');
+        }
+    };
+
     const navTabs = [
         { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
         { id: 'personal', label: 'Personal', icon: Users },
@@ -278,6 +306,9 @@ const JefeCarnes = () => {
                         >
                             <Icon size={20} />
                             {label}
+                            {id === 'history' && pendingReportsCount > 0 && (
+                                <span className={styles.badge}>{pendingReportsCount}</span>
+                            )}
                         </button>
                     ))}
                 </nav>
@@ -371,7 +402,10 @@ const JefeCarnes = () => {
                                         <tr
                                             key={order.id}
                                             className={styles.orderRow}
-                                            onClick={() => setSelectedOrder(order)}
+                                            onClick={() => {
+                                                setSelectedOrder(order);
+                                                setReportProblem(order?.problema_respuesta || '');
+                                            }}
                                         >
                                             <td>{formatPedidoNumero(order)}</td>
                                             <td>{order.cliente_nombre}</td>
@@ -437,7 +471,14 @@ const JefeCarnes = () => {
                                         </thead>
                                         <tbody>
                                             {globalOrders.filter(o => o.problema_reportado).map(order => (
-                                                <tr key={order.id} className={styles.orderRow} onClick={() => setSelectedOrder(order)}>
+                                                <tr
+                                                    key={order.id}
+                                                    className={styles.orderRow}
+                                                    onClick={() => {
+                                                        setSelectedOrder(order);
+                                                        setReportProblem(order?.problema_respuesta || '');
+                                                    }}
+                                                >
                                                     <td>{formatPedidoNumero(order)}</td>
                                                     <td>{new Date(order.timestamp).toLocaleDateString()}</td>
                                                     <td>{order.cliente_nombre}</td>
@@ -456,6 +497,7 @@ const JefeCarnes = () => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setSelectedOrder(order);
+                                                                setReportProblem(order?.problema_respuesta || '');
                                                             }}
                                                         >
                                                             Ver Detalles
@@ -786,23 +828,50 @@ const JefeCarnes = () => {
                                     </div>
                                 )}
 
-                                <div className={styles.reportSection}>
-                                    <div className={styles.reportHeader} onClick={() => document.getElementById('reportInput').focus()}>
-                                        <AlertTriangle size={16} />
-                                        <span>Reportar Problema</span>
+                                {selectedOrder.problema_reportado ? (
+                                    <div className={styles.reportSection}>
+                                        <div className={styles.reportHeader}>
+                                            <AlertTriangle size={16} />
+                                            <span>{selectedOrder.problema_respuesta?.trim() ? 'Respuesta del reporte' : 'Responder reporte'}</span>
+                                        </div>
+
+                                        <div style={{ color: 'var(--text-muted)', marginBottom: '10px', fontSize: '0.9rem' }}>
+                                            <strong style={{ color: 'var(--warning)' }}>Problema:</strong> {selectedOrder.problema_reportado}
+                                        </div>
+
+                                        {selectedOrder.problema_respuesta?.trim() ? (
+                                            <div style={{ color: 'white', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                                                <strong style={{ color: 'var(--primary-color)' }}>Respuesta:</strong> {selectedOrder.problema_respuesta}
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <textarea
+                                                    id="reportInput"
+                                                    className={styles.reportInput}
+                                                    placeholder="Escriba la respuesta para la carnicería..."
+                                                    value={reportProblem}
+                                                    onChange={(e) => setReportProblem(e.target.value)}
+                                                />
+                                                <button
+                                                    className={styles.submitReportBtn}
+                                                    onClick={handleReportSubmit}
+                                                    disabled={!reportProblem.trim()}
+                                                    style={{ opacity: !reportProblem.trim() ? 0.6 : 1 }}
+                                                >
+                                                    <Send size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                                                    Enviar respuesta
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
-                                    <textarea
-                                        id="reportInput"
-                                        className={styles.reportInput}
-                                        placeholder="Describa el problema aquí..."
-                                        value={reportProblem}
-                                        onChange={(e) => setReportProblem(e.target.value)}
-                                    />
-                                    <button className={styles.submitReportBtn} onClick={handleReportSubmit}>
-                                        <Send size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                        Enviar
-                                    </button>
-                                </div>
+                                ) : (
+                                    <div className={styles.reportSection}>
+                                        <div className={styles.reportHeader}>
+                                            <AlertTriangle size={16} />
+                                            <span>Sin reporte para responder</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button className={styles.closeBtnPrimary} onClick={() => setSelectedOrder(null)}>
                                     Cerrar

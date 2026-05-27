@@ -95,6 +95,7 @@ class Pedido(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     problema_reportado = Column(Text, nullable=True)
+    problema_respuesta = Column(Text, nullable=True)
 
     mayorista = relationship("User", foreign_keys=[mayorista_id], back_populates="pedidos_mayorista")
     carnicero = relationship("User", foreign_keys=[carnicero_id], back_populates="pedidos_carnicero")
