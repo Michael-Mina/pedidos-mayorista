@@ -96,6 +96,7 @@ class Pedido(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     problema_reportado = Column(Text, nullable=True)
     problema_respuesta = Column(Text, nullable=True)
+    reporte_mensajes = Column(Text, nullable=True)  # JSON: [{rol, texto, at}, ...]
 
     mayorista = relationship("User", foreign_keys=[mayorista_id], back_populates="pedidos_mayorista")
     carnicero = relationship("User", foreign_keys=[carnicero_id], back_populates="pedidos_carnicero")

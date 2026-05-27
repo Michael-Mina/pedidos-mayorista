@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { formatPedidoNumero } from '../../utils/pedidos';
+import { getReporteMensajes, tieneReporte, ultimoRolMensaje, etiquetaRolMensaje } from '../../utils/reporteMensajes';
 
 const JefeCarnes = () => {
     const { user, logout } = useAuth();
@@ -56,8 +57,8 @@ const JefeCarnes = () => {
     const [menuOpen, setMenuOpen] = useState(false);
 
     const pendingReportsCount = globalOrders.filter((o) => {
-        const isPending = !!o.problema_reportado?.trim() && !o.problema_respuesta?.trim();
-        if (!isPending) return false;
+        if (!tieneReporte(o)) return false;
+        if (ultimoRolMensaje(o) !== 'mayorista') return false;
         return !user?.sede_id || o.sede_id === user.sede_id;
     }).length;
 
@@ -75,7 +76,7 @@ const JefeCarnes = () => {
             setGlobalOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
             setSelectedOrder(updated);
             setReportProblem('');
-            showNotify('Respuesta enviada con éxito.', 'success');
+            showNotify('Mensaje enviado con éxito.', 'success');
         } catch (error) {
             console.error('Error sending report response:', error);
             const detail = error.response?.data?.detail;
@@ -404,7 +405,7 @@ const JefeCarnes = () => {
                                             className={styles.orderRow}
                                             onClick={() => {
                                                 setSelectedOrder(order);
-                                                setReportProblem(order?.problema_respuesta || '');
+                                                setReportProblem('');
                                             }}
                                         >
                                             <td>{formatPedidoNumero(order)}</td>
@@ -455,7 +456,7 @@ const JefeCarnes = () => {
                                     <h2>Reportes de Problemas</h2>
                                 </div>
 
-                                {globalOrders.filter(o => o.problema_reportado).length === 0 ? (
+                                {globalOrders.filter(o => tieneReporte(o)).length === 0 ? (
                                     <p className={styles.emptyMsg}>No hay problemas reportados en el historial reciente.</p>
                                 ) : (
                                     <table className={styles.mainTable}>
@@ -470,13 +471,13 @@ const JefeCarnes = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {globalOrders.filter(o => o.problema_reportado).map(order => (
+                                            {globalOrders.filter(o => tieneReporte(o)).map(order => (
                                                 <tr
                                                     key={order.id}
                                                     className={styles.orderRow}
                                                     onClick={() => {
                                                         setSelectedOrder(order);
-                                                        setReportProblem(order?.problema_respuesta || '');
+                                                        setReportProblem('');
                                                     }}
                                                 >
                                                     <td>{formatPedidoNumero(order)}</td>
@@ -497,7 +498,7 @@ const JefeCarnes = () => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setSelectedOrder(order);
-                                                                setReportProblem(order?.problema_respuesta || '');
+                                                                setReportProblem('');
                                                             }}
                                                         >
                                                             Ver Detalles
@@ -828,41 +829,41 @@ const JefeCarnes = () => {
                                     </div>
                                 )}
 
-                                {selectedOrder.problema_reportado ? (
+                                {tieneReporte(selectedOrder) ? (
                                     <div className={styles.reportSection}>
                                         <div className={styles.reportHeader}>
                                             <AlertTriangle size={16} />
-                                            <span>{selectedOrder.problema_respuesta?.trim() ? 'Respuesta del reporte' : 'Responder reporte'}</span>
+                                            <span>Conversación del reporte</span>
                                         </div>
 
-                                        <div style={{ color: 'var(--text-muted)', marginBottom: '10px', fontSize: '0.9rem' }}>
-                                            <strong style={{ color: 'var(--warning)' }}>Problema:</strong> {selectedOrder.problema_reportado}
-                                        </div>
-
-                                        {selectedOrder.problema_respuesta?.trim() ? (
-                                            <div style={{ color: 'white', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-                                                <strong style={{ color: 'var(--primary-color)' }}>Respuesta:</strong> {selectedOrder.problema_respuesta}
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <textarea
-                                                    id="reportInput"
-                                                    className={styles.reportInput}
-                                                    placeholder="Escriba la respuesta para la carnicería..."
-                                                    value={reportProblem}
-                                                    onChange={(e) => setReportProblem(e.target.value)}
-                                                />
-                                                <button
-                                                    className={styles.submitReportBtn}
-                                                    onClick={handleReportSubmit}
-                                                    disabled={!reportProblem.trim()}
-                                                    style={{ opacity: !reportProblem.trim() ? 0.6 : 1 }}
+                                        <div className={styles.chatThread}>
+                                            {getReporteMensajes(selectedOrder).map((msg, idx) => (
+                                                <div
+                                                    key={`${idx}-${msg.at || ''}`}
+                                                    className={msg.rol === 'carniceria' ? styles.chatBubbleSelf : styles.chatBubbleOther}
                                                 >
-                                                    <Send size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                                    Enviar respuesta
-                                                </button>
-                                            </>
-                                        )}
+                                                    <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol, 'jefe')}</span>
+                                                    <p className={styles.chatBubbleText}>{msg.texto}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <textarea
+                                            id="reportInput"
+                                            className={styles.reportInput}
+                                            placeholder="Escriba un mensaje para el mayorista..."
+                                            value={reportProblem}
+                                            onChange={(e) => setReportProblem(e.target.value)}
+                                        />
+                                        <button
+                                            className={styles.submitReportBtn}
+                                            onClick={handleReportSubmit}
+                                            disabled={!reportProblem.trim()}
+                                            style={{ opacity: !reportProblem.trim() ? 0.6 : 1 }}
+                                        >
+                                            <Send size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                                            Enviar mensaje
+                                        </button>
                                     </div>
                                 ) : (
                                     <div className={styles.reportSection}>

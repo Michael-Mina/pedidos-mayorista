@@ -55,6 +55,7 @@ def _ensure_pedidos_columns():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS problema_reportado TEXT;"))
             conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS problema_respuesta TEXT;"))
+            conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS reporte_mensajes TEXT;"))
     except Exception as exc:
         # No abortar el arranque por un ALTER TABLE (p.ej. permisos / tabla no existe aún)
         print(f"[migrations] Aviso al asegurar columnas pedidos: {exc}")

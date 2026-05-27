@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
-from . import models, schemas
+from . import models, schemas, reporte_mensajes
 from datetime import datetime, timezone, date, time
 
 # Sede CRUD
@@ -533,7 +533,7 @@ def report_pedido_problema(db: Session, pedido_id: int, problema: str):
     db_pedido = db.query(models.Pedido).filter(models.Pedido.id == pedido_id).first()
     if not db_pedido:
         return None
-    db_pedido.problema_reportado = problema.strip() if problema else None
+    reporte_mensajes.agregar_mensaje_reporte(db_pedido, "mayorista", problema)
     db.commit()
     return (
         db.query(models.Pedido)
@@ -553,8 +553,7 @@ def respond_pedido_problema(db: Session, pedido_id: int, respuesta: str):
     if not db_pedido:
         return None
 
-    texto = respuesta.strip() if respuesta else None
-    db_pedido.problema_respuesta = texto
+    reporte_mensajes.agregar_mensaje_reporte(db_pedido, "carniceria", respuesta)
     db.commit()
 
     return (

@@ -5,6 +5,7 @@ import { socketService } from '../../services/api/socket';
 import styles from './Mayorista.module.css';
 import { ShoppingCart, Package, History, LogOut, Plus, Trash2, Clock, Filter, Calendar, Search, X, AlertCircle, Minus, Edit2, Menu, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatPedidoNumero, getPedidoTrackingNumber } from '../../utils/pedidos';
+import { getReporteMensajes, tieneReporte, ultimoRolMensaje, etiquetaRolMensaje } from '../../utils/reporteMensajes';
 
 /** Fecha del calendario local como YYYY-MM-DD (evita desajustes con toLocaleDateString). */
 function todayLocalIsoDate() {
@@ -26,16 +27,16 @@ function pedidoLocalDateKey(ts) {
     return `${y}-${m}-${day}`;
 }
 
-const SEEN_REPORT_RESPONSES_KEY = 'mayorista_seen_report_responses';
+const SEEN_REPORT_COUNTS_KEY = 'mayorista_seen_report_msg_counts';
 
-function loadSeenReportResponseIds() {
+function loadSeenReportCounts() {
     try {
-        const raw = localStorage.getItem(SEEN_REPORT_RESPONSES_KEY);
-        if (!raw) return new Set();
+        const raw = localStorage.getItem(SEEN_REPORT_COUNTS_KEY);
+        if (!raw) return {};
         const parsed = JSON.parse(raw);
-        return new Set(Array.isArray(parsed) ? parsed : []);
+        return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
-        return new Set();
+        return {};
     }
 }
 
@@ -60,21 +61,26 @@ const Mayorista = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const toastDismissRef = useRef(null);
-    const [seenReportResponseIds, setSeenReportResponseIds] = useState(() => loadSeenReportResponseIds());
+    const [seenReportCounts, setSeenReportCounts] = useState(() => loadSeenReportCounts());
 
-    const markReportResponseSeen = useCallback((pedidoId) => {
-        setSeenReportResponseIds((prev) => {
-            if (prev.has(pedidoId)) return prev;
-            const next = new Set(prev);
-            next.add(pedidoId);
-            localStorage.setItem(SEEN_REPORT_RESPONSES_KEY, JSON.stringify([...next]));
+    const markReportThreadSeen = useCallback((pedido) => {
+        const count = getReporteMensajes(pedido).length;
+        setSeenReportCounts((prev) => {
+            if (prev[pedido.id] === count) return prev;
+            const next = { ...prev, [pedido.id]: count };
+            localStorage.setItem(SEEN_REPORT_COUNTS_KEY, JSON.stringify(next));
             return next;
         });
     }, []);
 
     const isUnreadReportResponse = useCallback(
-        (pedido) => !!pedido?.problema_respuesta?.trim() && !seenReportResponseIds.has(pedido.id),
-        [seenReportResponseIds]
+        (pedido) => {
+            const mensajes = getReporteMensajes(pedido);
+            if (!mensajes.length || ultimoRolMensaje(pedido) !== 'carniceria') return false;
+            const seen = seenReportCounts[pedido.id] ?? 0;
+            return mensajes.length > seen;
+        },
+        [seenReportCounts]
     );
 
     const unreadAnsweredReportsCount = useMemo(
@@ -84,16 +90,21 @@ const Mayorista = () => {
 
     const openReportModal = useCallback((pedido) => {
         setReportingPedido(pedido);
-        setProblemText(pedido.problema_reportado ? String(pedido.problema_reportado) : '');
-        if (pedido.problema_respuesta?.trim()) {
-            markReportResponseSeen(pedido.id);
-        }
-    }, [markReportResponseSeen]);
+        setProblemText('');
+        markReportThreadSeen(pedido);
+    }, [markReportThreadSeen]);
 
     const closeReportModal = useCallback(() => {
         setReportingPedido(null);
         setProblemText('');
     }, []);
+
+    const openOrderDetails = useCallback((pedido) => {
+        setViewingOrder(pedido);
+        if (tieneReporte(pedido)) {
+            markReportThreadSeen(pedido);
+        }
+    }, [markReportThreadSeen]);
 
     const showToast = useCallback((message, type = 'success') => {
         if (toastDismissRef.current) {
@@ -174,13 +185,13 @@ const Mayorista = () => {
                     const prevOrder = prev[ix];
 
                     // Notificar cuando el reporte pasa de "pendiente" -> "respondido"
-                    const wasPending =
-                        !!prevOrder?.problema_reportado?.trim() && !prevOrder?.problema_respuesta?.trim();
-                    const isNowResponded =
-                        !!updatedOrder?.problema_reportado?.trim() && !!updatedOrder?.problema_respuesta?.trim();
+                    const prevCount = getReporteMensajes(prevOrder).length;
+                    const newCount = getReporteMensajes(updatedOrder).length;
+                    const nuevoDeCarniceria =
+                        newCount > prevCount && ultimoRolMensaje(updatedOrder) === 'carniceria';
 
-                    if (wasPending && isNowResponded) {
-                        showToast('El reporte fue respondido por la carnicería.', 'success');
+                    if (nuevoDeCarniceria) {
+                        showToast('Nuevo mensaje de la carnicería en su reporte.', 'success');
                     }
 
                     const next = [...prev];
@@ -326,10 +337,11 @@ const Mayorista = () => {
             setPedidosHistory((prev) => prev.map((p) =>
                 p.id === reportingPedido.id ? { ...p, ...updated } : p
             ));
-            closeReportModal();
-            setViewingOrder(null);
+            setReportingPedido(updated);
+            setProblemText('');
             setShowHistoryModal(true);
-            showToast('Problema reportado con éxito', 'success');
+            markReportThreadSeen(updated);
+            showToast(tieneReporte(updated) && getReporteMensajes(updated).length > 1 ? 'Mensaje enviado' : 'Problema reportado con éxito', 'success');
         } catch (error) {
             console.error('Error reporting problem:', error);
             const detail = error.response?.data?.detail;
@@ -601,7 +613,7 @@ const Mayorista = () => {
                                 <div
                                     key={item.id}
                                     className={`${styles.historyCard} ${styles[item.estado]}`}
-                                    onClick={() => setViewingOrder(item)}
+                                    onClick={() => openOrderDetails(item)}
                                     style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -689,26 +701,18 @@ const Mayorista = () => {
                                                 <div className={styles.tableActions}>
                                                     <button
                                                         className={styles.detailBtn}
-                                                        onClick={() => setViewingOrder(p)}
+                                                        onClick={() => openOrderDetails(p)}
                                                     >
                                                         <Search size={14} /> Detalles
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        className={`${styles.reportBtn} ${styles.btnWithBadge} ${p.problema_respuesta?.trim() ? styles.reportBtnAnswered : ''}`}
-                                                        title={
-                                                            p.problema_respuesta?.trim()
-                                                                ? 'Ver reporte y respuesta de la carnicería'
-                                                                : (p.problema_reportado?.trim()
-                                                                    ? 'Editar texto del reporte enviado a la carnicería'
-                                                                    : 'Informar un problema en este pedido')
-                                                        }
+                                                        className={`${styles.reportBtn} ${styles.btnWithBadge} ${tieneReporte(p) ? styles.reportBtnAnswered : ''}`}
+                                                        title={tieneReporte(p) ? 'Ver conversación y enviar mensajes' : 'Informar un problema en este pedido'}
                                                         onClick={() => openReportModal(p)}
                                                     >
                                                         <AlertCircle size={14} />
-                                                        {p.problema_respuesta?.trim()
-                                                            ? 'Ver reporte'
-                                                            : (p.problema_reportado?.trim() ? 'Actualizar reporte' : 'Reportar')}
+                                                        {tieneReporte(p) ? 'Ver reporte' : 'Reportar'}
                                                         {isUnreadReportResponse(p) && (
                                                             <span className={styles.reportBtnDot} aria-hidden />
                                                         )}
@@ -737,53 +741,51 @@ const Mayorista = () => {
                         <h3>
                             Reporte · Pedido {formatPedidoNumero(reportingPedido)}
                         </h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                            {reportingPedido.problema_respuesta?.trim()
-                                ? 'Puede consultar su reporte y la respuesta de la carnicería en cualquier momento.'
-                                : 'Describe brevemente el inconveniente para que la carnicería lo revise. Puede modificar el texto si ya envió un reporte.'}
+                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                            {tieneReporte(reportingPedido)
+                                ? 'Puede seguir enviando mensajes y ver el historial con la carnicería.'
+                                : 'Describa el inconveniente para iniciar el reporte con la carnicería.'}
                         </p>
 
-                        {reportingPedido.problema_reportado?.trim() ? (
-                            <div className={styles.reportBlock}>
-                                <div className={`${styles.reportBlockLabel} ${styles.reportBlockWarning}`}>Su reporte</div>
-                                <div className={styles.reportBlockText}>{reportingPedido.problema_reportado}</div>
+                        {tieneReporte(reportingPedido) && (
+                            <div className={styles.chatThread}>
+                                {getReporteMensajes(reportingPedido).map((msg, idx) => (
+                                    <div
+                                        key={`${idx}-${msg.at || ''}`}
+                                        className={msg.rol === 'mayorista' ? styles.chatBubbleSelf : styles.chatBubbleOther}
+                                    >
+                                        <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol)}</span>
+                                        <p className={styles.chatBubbleText}>{msg.texto}</p>
+                                    </div>
+                                ))}
                             </div>
-                        ) : null}
-
-                        {reportingPedido.problema_respuesta?.trim() ? (
-                            <div className={styles.reportBlock}>
-                                <div className={`${styles.reportBlockLabel} ${styles.reportBlockSuccess}`}>Respuesta de la carnicería</div>
-                                <div className={styles.reportBlockText}>{reportingPedido.problema_respuesta}</div>
-                            </div>
-                        ) : (
-                            <textarea
-                                className="input-field"
-                                rows="4"
-                                placeholder="Ej: Faltó un corte, peso incorrecto..."
-                                value={problemText}
-                                onChange={(e) => setProblemText(e.target.value)}
-                            />
                         )}
+
+                        <textarea
+                            className="input-field"
+                            rows="3"
+                            placeholder={tieneReporte(reportingPedido) ? 'Escriba un mensaje...' : 'Ej: Faltó un corte, peso incorrecto...'}
+                            value={problemText}
+                            onChange={(e) => setProblemText(e.target.value)}
+                        />
 
                         <div className={styles.modalActions}>
                             <button
                                 type="button"
                                 className="premium-button"
-                                style={{ background: reportingPedido.problema_respuesta?.trim() ? 'var(--primary-color)' : 'var(--error)', color: reportingPedido.problema_respuesta?.trim() ? '#020617' : 'white' }}
+                                style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
                                 onClick={closeReportModal}
                             >
                                 Cerrar
                             </button>
-                            {!reportingPedido.problema_respuesta?.trim() && (
-                                <button
-                                    type="button"
-                                    className="premium-button"
-                                    onClick={handleReportProblem}
-                                    disabled={!problemText.trim()}
-                                >
-                                    Enviar reporte
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                className="premium-button"
+                                onClick={handleReportProblem}
+                                disabled={!problemText.trim()}
+                            >
+                                {tieneReporte(reportingPedido) ? 'Enviar mensaje' : 'Enviar reporte'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -838,31 +840,20 @@ const Mayorista = () => {
                             </table>
                         </div>
 
-                        {(viewingOrder.problema_reportado?.trim() || viewingOrder.problema_respuesta?.trim()) && (
+                        {tieneReporte(viewingOrder) && (
                             <div className={styles.detailReportSection}>
-                                <h3>Reporte</h3>
-                                {viewingOrder.problema_reportado?.trim() && (
-                                    <div className={styles.reportBlock}>
-                                        <div className={`${styles.reportBlockLabel} ${styles.reportBlockWarning}`}>Su reporte</div>
-                                        <div className={styles.reportBlockText}>{viewingOrder.problema_reportado}</div>
-                                    </div>
-                                )}
-                                {viewingOrder.problema_respuesta?.trim() ? (
-                                    <div className={styles.reportBlock}>
-                                        <div className={`${styles.reportBlockLabel} ${styles.reportBlockSuccess}`}>Respuesta de la carnicería</div>
-                                        <div className={styles.reportBlockText}>{viewingOrder.problema_respuesta}</div>
-                                    </div>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    className={`${styles.reportBtn} ${styles.reportBtnAnswered} ${styles.btnWithBadge}`}
-                                    onClick={() => openReportModal(viewingOrder)}
-                                >
-                                    <AlertCircle size={14} /> Ver reporte completo
-                                    {isUnreadReportResponse(viewingOrder) && (
-                                        <span className={styles.reportBtnDot} aria-hidden />
-                                    )}
-                                </button>
+                                <h3>Conversación del reporte</h3>
+                                <div className={styles.chatThread}>
+                                    {getReporteMensajes(viewingOrder).map((msg, idx) => (
+                                        <div
+                                            key={`${idx}-${msg.at || ''}`}
+                                            className={msg.rol === 'mayorista' ? styles.chatBubbleSelf : styles.chatBubbleOther}
+                                        >
+                                            <span className={styles.chatBubbleLabel}>{etiquetaRolMensaje(msg.rol)}</span>
+                                            <p className={styles.chatBubbleText}>{msg.texto}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

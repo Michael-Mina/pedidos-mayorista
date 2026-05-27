@@ -575,6 +575,58 @@
     color: var(--text-muted);
 }
 
+.chatThread {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    padding-right: 4px;
+}
+
+.chatBubbleSelf,
+.chatBubbleOther {
+    border-radius: 10px;
+    padding: 10px 12px;
+    max-width: 92%;
+}
+
+.chatBubbleSelf {
+    align-self: flex-end;
+    background: rgba(46, 204, 113, 0.15);
+    border: 1px solid rgba(46, 204, 113, 0.25);
+}
+
+.chatBubbleOther {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chatBubbleLabel {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+}
+
+.chatBubbleSelf .chatBubbleLabel {
+    color: var(--primary-color);
+}
+
+.chatBubbleText {
+    margin: 0;
+    color: #f8fafc;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.9rem;
+}
+
 .emptySearch {
     display: flex;
     flex-direction: column;

@@ -1,3 +1,4 @@
+import json
 from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime, date
 from typing import List, Optional
@@ -120,6 +121,12 @@ class PedidoCreate(PedidoBase):
     mayorista_id: int
     detalles: List[DetallePedidoCreate]
 
+class ReporteMensaje(BaseModel):
+    rol: str  # mayorista | carniceria
+    texto: str
+    at: Optional[str] = None
+
+
 class Pedido(PedidoBase):
     id: int
     numero_pedido: Optional[str] = None
@@ -134,8 +141,22 @@ class Pedido(PedidoBase):
     updated_at: datetime
     problema_reportado: Optional[str] = None
     problema_respuesta: Optional[str] = None
+    reporte_mensajes: Optional[List[ReporteMensaje]] = None
     detalles: List[DetallePedido]
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("reporte_mensajes", mode="before")
+    @classmethod
+    def parse_reporte_mensajes(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else None
+            except json.JSONDecodeError:
+                return None
+        return v
 
 class PedidoProblemaReport(BaseModel):
     """Cuerpo JSON para PUT /pedidos/{id}/problema (evita límites de URL del query param)."""
