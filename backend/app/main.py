@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from pathlib import Path
 from datetime import date
@@ -46,6 +47,19 @@ socket_app = socketio.ASGIApp(sio, app)
 
 # 4. Create database tables
 models.Base.metadata.create_all(bind=engine)
+
+# 4a. Pequeñas migraciones idempotentes (Render no corre Alembic)
+def _ensure_pedidos_columns():
+    """Asegura columnas nuevas sin romper despliegues."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS problema_reportado TEXT;"))
+            conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS problema_respuesta TEXT;"))
+    except Exception as exc:
+        # No abortar el arranque por un ALTER TABLE (p.ej. permisos / tabla no existe aún)
+        print(f"[migrations] Aviso al asegurar columnas pedidos: {exc}")
+
+_ensure_pedidos_columns()
 
 # 4b. Archivos estáticos (imágenes de cortes en el servidor)
 _STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
