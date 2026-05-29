@@ -29,6 +29,13 @@ export default function ReportChatModal({
         ? (perspective === 'jefe' ? 'Escriba un mensaje para el mayorista...' : 'Escriba un mensaje...')
         : 'Ej: Faltó un corte, peso incorrecto...';
 
+    const handleTextareaKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (message.trim()) onSubmit();
+        }
+    };
+
     return (
         <div
             className={styles.overlay}
@@ -71,6 +78,7 @@ export default function ReportChatModal({
                         placeholder={placeholder}
                         value={message}
                         onChange={(e) => onMessageChange(e.target.value)}
+                        onKeyDown={handleTextareaKeyDown}
                     />
 
                     <div className={styles.actions}>
