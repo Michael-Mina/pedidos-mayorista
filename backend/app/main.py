@@ -481,16 +481,17 @@ def master_update_role(
 @app.delete("/master/roles/{role_id}")
 def master_delete_role(
     role_id: int,
+    force: bool = Query(False),
     db: Session = Depends(get_db),
     _master: models.User = Depends(auth.require_master),
 ):
     try:
-        row = crud.delete_app_role(db, role_id)
+        row = crud.delete_app_role(db, role_id, force=force)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not row:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
-    return {"message": "Rol eliminado"}
+    return {"message": "Rol eliminado", "forced": force}
 
 
 @app.post("/master/database/reset")
@@ -507,10 +508,11 @@ def master_reset_database(
 
 @app.post("/master/roles/reset")
 def master_reset_roles(
+    force: bool = Query(False),
     db: Session = Depends(get_db),
     _master: models.User = Depends(auth.require_master),
 ):
-    return crud.reset_roles_catalog(db)
+    return crud.reset_roles_catalog(db, force=force)
 
 
 def _resolve_sede_ids(

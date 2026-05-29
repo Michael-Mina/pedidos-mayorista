@@ -539,6 +539,12 @@ const Admin = () => {
         }
     };
 
+    const deleteRoleRequest = async (roleId, force = false) => {
+        await api.delete(`/master/roles/${roleId}`, { params: force ? { force: true } : {} });
+        await loadRolesCatalog();
+        await loadAssignableRoles();
+    };
+
     const handleDeleteRole = async (role) => {
         if (role.code === 'master') {
             alert('El rol master no se puede eliminar.');
@@ -546,29 +552,57 @@ const Admin = () => {
         }
         if (!window.confirm(`¿Eliminar el rol "${role.label}" (${role.code})?`)) return;
         try {
-            await api.delete(`/master/roles/${role.id}`);
-            await loadRolesCatalog();
-            await loadAssignableRoles();
+            await deleteRoleRequest(role.id, false);
         } catch (err) {
             const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : 'No se pudo eliminar el rol');
+            const msg = typeof detail === 'string' ? detail : 'No se pudo eliminar el rol';
+            const usersMatch = msg.match(/Hay (\d+) usuario\(s\)/);
+            if (usersMatch) {
+                const n = usersMatch[1];
+                const isOps = role.code === 'carnicero' || role.code === 'sede_butcher';
+                const extra = isOps
+                    ? '\n\nSon carniceros o tablets de sede (no aparecen en Gestión de Usuarios).'
+                    : '';
+                if (window.confirm(
+                    `Hay ${n} usuario(s) con este rol.${extra}\n\n¿Eliminar el rol y también esas ${n} cuenta(s)?`
+                )) {
+                    try {
+                        await deleteRoleRequest(role.id, true);
+                        return;
+                    } catch (err2) {
+                        const d2 = err2.response?.data?.detail;
+                        alert(typeof d2 === 'string' ? d2 : 'No se pudo eliminar el rol');
+                        return;
+                    }
+                }
+            }
+            alert(msg);
         }
     };
 
     const handleResetRolesCatalog = async () => {
         if (!window.confirm(
-            '¿Vaciar el catálogo de roles?\n\nSe eliminarán todos excepto master. Los roles con usuarios asignados no se borrarán hasta que reasigne o elimine esos usuarios.'
+            '¿Vaciar el catálogo de roles?\n\nSe eliminarán todos excepto master.'
         )) return;
+        const forceAll = window.confirm(
+            '¿También eliminar los usuarios ligados a esos roles?\n\n(Sí = borra carniceros, tablets sede, etc. No = solo roles sin usuarios)'
+        );
         try {
-            const res = await api.post('/master/roles/reset');
+            const res = await api.post('/master/roles/reset', null, {
+                params: forceAll ? { force: true } : {},
+            });
             const { deleted = [], skipped = [] } = res.data || {};
             await loadRolesCatalog();
             await loadAssignableRoles();
             let msg = deleted.length
                 ? `Eliminados: ${deleted.join(', ')}`
                 : 'No se eliminó ningún rol.';
+            if (res.data?.users_removed > 0) {
+                msg += `\n\nUsuarios de operación eliminados: ${res.data.users_removed}`;
+            }
             if (skipped.length) {
                 msg += `\n\nNo se pudieron eliminar (tienen usuarios):\n${skipped.map((s) => `• ${s.label} (${s.code}): ${s.users} usuario(s)`).join('\n')}`;
+                msg += '\n\nVuelva a vaciar y elija Sí en eliminar usuarios ligados.';
             }
             alert(msg);
         } catch (err) {
@@ -1268,7 +1302,8 @@ const Admin = () => {
                             </button>
                         </div>
                         <p className={styles.rolesHint}>
-                            Defina roles personalizados (ej. supervisor de turno, pedidos zona norte). El <strong>panel</strong> define qué pantalla verá el usuario al iniciar sesión.
+                            Defina roles personalizados (ej. supervisor, mayorista regional). El <strong>panel</strong> define la pantalla al iniciar sesión.
+                            Los carniceros y tablets de sede no se listan aquí: se gestionan en <strong>Jefe de carnes</strong> y al crear sedes.
                         </p>
                         <form className={`glass-card ${styles.roleCreateForm}`} onSubmit={handleCreateRole}>
                             <h2>Nuevo rol</h2>

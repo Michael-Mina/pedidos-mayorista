@@ -131,8 +131,18 @@ def user_response_extra(db: Session, user: models.User) -> dict:
     }
 
 
+# Roles de operación en planta: no se gestionan en el catálogo master (carniceros → Jefe de carnes)
+OPERATIONAL_ROLE_CODES = frozenset(
+    {
+        models.UserRole.CARNICERO.value,
+        models.UserRole.SEDE_BUTCHER.value,
+    }
+)
+
+
 def list_roles_for_master(db: Session) -> list[models.AppRole]:
-    return db.query(models.AppRole).order_by(models.AppRole.is_system.desc(), models.AppRole.label).all()
+    rows = db.query(models.AppRole).order_by(models.AppRole.is_system.desc(), models.AppRole.label).all()
+    return [r for r in rows if normalize_role_code(r.code) not in OPERATIONAL_ROLE_CODES]
 
 
 def list_assignable_roles(db: Session) -> list[models.AppRole]:

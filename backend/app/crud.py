@@ -723,7 +723,24 @@ def update_app_role(
     return row
 
 
-def delete_app_role(db: Session, role_id: int):
+def delete_users_with_role(db: Session, role_code: str) -> int:
+    """Elimina usuarios con ese rol (p. ej. carniceros). Limpia referencias en pedidos."""
+    code = role_catalog.normalize_role_code(role_code)
+    users = db.query(models.User).filter(models.User.role == code).all()
+    if not users:
+        return 0
+    user_ids = [u.id for u in users]
+    db.query(models.ButcherAvailability).filter(
+        models.ButcherAvailability.butcher_id.in_(user_ids)
+    ).delete(synchronize_session=False)
+    db.query(models.Pedido).filter(models.Pedido.carnicero_id.in_(user_ids)).update(
+        {models.Pedido.carnicero_id: None},
+        synchronize_session=False,
+    )
+    return db.query(models.User).filter(models.User.id.in_(user_ids)).delete(synchronize_session=False)
+
+
+def delete_app_role(db: Session, role_id: int, *, force: bool = False):
     row = db.query(models.AppRole).filter(models.AppRole.id == role_id).first()
     if not row:
         return None
@@ -731,25 +748,35 @@ def delete_app_role(db: Session, role_id: int):
         raise ValueError("No se puede eliminar el rol master")
     in_use = db.query(models.User).filter(models.User.role == row.code).count()
     if in_use > 0:
-        raise ValueError(f"Hay {in_use} usuario(s) con este rol. Reasígnelos o elimínelos primero.")
+        if not force:
+            hint = ""
+            if role_catalog.normalize_role_code(row.code) in role_catalog.OPERATIONAL_ROLE_CODES:
+                hint = " Son cuentas de operación (carniceros/tablet); use eliminar forzado."
+            raise ValueError(
+                f"Hay {in_use} usuario(s) con este rol. Reasígnelos, elimínelos o use eliminación forzada.{hint}"
+            )
+        delete_users_with_role(db, row.code)
     db.delete(row)
     db.commit()
     return row
 
 
-def reset_roles_catalog(db: Session) -> dict:
-    """Elimina todos los roles excepto master. Omite los que tienen usuarios asignados."""
+def reset_roles_catalog(db: Session, *, force: bool = False) -> dict:
+    """Elimina todos los roles excepto master."""
     deleted: list[str] = []
     skipped: list[dict] = []
+    users_removed = 0
     for row in db.query(models.AppRole).filter(models.AppRole.code != models.UserRole.MASTER.value).all():
         in_use = db.query(models.User).filter(models.User.role == row.code).count()
-        if in_use > 0:
+        if in_use > 0 and not force:
             skipped.append({"code": row.code, "label": row.label, "users": in_use})
             continue
+        if in_use > 0:
+            users_removed += delete_users_with_role(db, row.code)
         deleted.append(row.code)
         db.delete(row)
     db.commit()
-    return {"deleted": deleted, "skipped": skipped}
+    return {"deleted": deleted, "skipped": skipped, "users_removed": users_removed}
 
 
 def validate_assignable_role(db: Session, role_code: str) -> models.AppRole:
