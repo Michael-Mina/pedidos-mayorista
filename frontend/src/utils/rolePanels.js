@@ -2,8 +2,8 @@
 export const PANEL_LABELS = {
     admin: 'Panel de administración',
     mayorista: 'Panel de pedidos',
-    jefe: 'Panel de proteínas',
-    sede: 'Panel de supervisor',
+    jefe: 'Panel de supervisor',
+    sede: 'Tablet sede',
 };
 
 export function panelLabel(panel) {

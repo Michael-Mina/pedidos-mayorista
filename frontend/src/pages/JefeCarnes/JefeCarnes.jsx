@@ -27,6 +27,7 @@ import {
     Search
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
+import { panelLabel } from '../../utils/rolePanels';
 import {
     formatPedidoNumero,
     formatMayoristaLabel,
@@ -537,7 +538,7 @@ const JefeCarnes = () => {
                 >
                     {menuOpen ? <X size={22} /> : <Menu size={22} />}
                 </button>
-                <div className={styles.mobileLogo}>Pedidos <span>Mayorista</span></div>
+                <div className={styles.mobileLogo}>Pedidos <span>Mayorista</span> <small>| {panelLabel('jefe')}</small></div>
                 <span className={styles.mobileTopSpacer} aria-hidden="true" />
             </header>
 
@@ -551,7 +552,7 @@ const JefeCarnes = () => {
             )}
 
             <aside className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
-                <div className={styles.logo}>Pedidos <span>Mayorista</span></div>
+                <div className={styles.logo}>Pedidos <span>Mayorista</span> <small>| {panelLabel('jefe')}</small></div>
 
                 <nav className={styles.nav}>
                     {navTabs.map(({ id, label, icon: Icon }) => (

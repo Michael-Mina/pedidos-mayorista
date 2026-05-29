@@ -33,7 +33,7 @@ BUILTIN_ROLES = [
     },
     {
         "code": "jefe_carnes",
-        "label": "Jefe de carnes",
+        "label": "Supervisor",
         "panel": "jefe",
         "is_system": True,
         "is_hidden": False,
@@ -67,8 +67,8 @@ PANEL_HOME = {
 PANEL_LABELS = {
     "admin": "Panel de administración",
     "mayorista": "Panel de pedidos",
-    "jefe": "Panel de proteínas",
-    "sede": "Panel de supervisor",
+    "jefe": "Panel de supervisor",
+    "sede": "Tablet sede",
 }
 
 
@@ -89,7 +89,17 @@ def seed_builtin_roles(db: Session) -> None:
             row.is_system = spec["is_system"]
             row.is_hidden = spec["is_hidden"]
             row.can_assign = spec["can_assign"]
+    _fix_supervisor_roles_panel(db)
     db.commit()
+
+
+def _fix_supervisor_roles_panel(db: Session) -> None:
+    """Roles de supervisor creados con panel sede por error → panel jefe."""
+    for row in db.query(models.AppRole).filter(models.AppRole.panel == "sede").all():
+        code = normalize_role_code(row.code)
+        label = (row.label or "").lower()
+        if code == "supervisor" or "supervisor" in label:
+            row.panel = "jefe"
 
 
 def get_role_row(db: Session, code: str) -> models.AppRole | None:
