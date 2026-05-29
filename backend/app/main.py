@@ -464,6 +464,14 @@ def master_delete_role(
     return {"message": "Rol eliminado"}
 
 
+@app.post("/master/roles/reset")
+def master_reset_roles(
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    return crud.reset_roles_catalog(db)
+
+
 def _resolve_sede_ids(
     sede_id: Optional[int],
     sede_ids: Optional[List[int]],

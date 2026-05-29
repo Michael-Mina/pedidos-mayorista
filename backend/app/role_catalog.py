@@ -79,29 +79,13 @@ def normalize_role_code(code: str) -> str:
 
 
 def seed_builtin_roles(db: Session) -> None:
-    for spec in BUILTIN_ROLES:
-        row = db.query(models.AppRole).filter(models.AppRole.code == spec["code"]).first()
-        if not row:
-            db.add(models.AppRole(**spec))
-        else:
-            row.label = spec["label"]
-            row.panel = spec["panel"]
-            row.is_system = spec["is_system"]
-            row.is_hidden = spec["is_hidden"]
-            row.can_assign = spec["can_assign"]
-            if getattr(row, "is_enabled", None) is None:
-                row.is_enabled = True
-    _fix_supervisor_roles_panel(db)
+    """Solo crea el rol master en instalaciones nuevas; no sobrescribe el catálogo existente."""
+    if db.query(models.AppRole).count() > 0:
+        return
+    master_spec = next((s for s in BUILTIN_ROLES if s["code"] == "master"), None)
+    if master_spec:
+        db.add(models.AppRole(**master_spec))
     db.commit()
-
-
-def _fix_supervisor_roles_panel(db: Session) -> None:
-    """Roles de supervisor creados con panel sede por error → panel jefe."""
-    for row in db.query(models.AppRole).filter(models.AppRole.panel == "sede").all():
-        code = normalize_role_code(row.code)
-        label = (row.label or "").lower()
-        if code == "supervisor" or "supervisor" in label:
-            row.panel = "jefe"
 
 
 def get_role_row(db: Session, code: str) -> models.AppRole | None:

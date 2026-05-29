@@ -539,11 +539,11 @@ const Admin = () => {
     };
 
     const handleDeleteRole = async (role) => {
-        if (role.is_system) {
-            alert('Los roles del sistema no se pueden eliminar.');
+        if (role.code === 'master') {
+            alert('El rol master no se puede eliminar.');
             return;
         }
-        if (!window.confirm(`¿Eliminar el rol "${role.label}"? Solo si ningún usuario lo usa.`)) return;
+        if (!window.confirm(`¿Eliminar el rol "${role.label}" (${role.code})?`)) return;
         try {
             await api.delete(`/master/roles/${role.id}`);
             await loadRolesCatalog();
@@ -551,6 +551,28 @@ const Admin = () => {
         } catch (err) {
             const detail = err.response?.data?.detail;
             alert(typeof detail === 'string' ? detail : 'No se pudo eliminar el rol');
+        }
+    };
+
+    const handleResetRolesCatalog = async () => {
+        if (!window.confirm(
+            '¿Vaciar el catálogo de roles?\n\nSe eliminarán todos excepto master. Los roles con usuarios asignados no se borrarán hasta que reasigne o elimine esos usuarios.'
+        )) return;
+        try {
+            const res = await api.post('/master/roles/reset');
+            const { deleted = [], skipped = [] } = res.data || {};
+            await loadRolesCatalog();
+            await loadAssignableRoles();
+            let msg = deleted.length
+                ? `Eliminados: ${deleted.join(', ')}`
+                : 'No se eliminó ningún rol.';
+            if (skipped.length) {
+                msg += `\n\nNo se pudieron eliminar (tienen usuarios):\n${skipped.map((s) => `• ${s.label} (${s.code}): ${s.users} usuario(s)`).join('\n')}`;
+            }
+            alert(msg);
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : 'No se pudo vaciar el catálogo');
         }
     };
 
@@ -1213,6 +1235,14 @@ const Admin = () => {
                     <>
                         <div className={styles.managementHeader}>
                             <h1>Catálogo de roles</h1>
+                            <button
+                                type="button"
+                                className="premium-button"
+                                style={{ background: 'var(--bg-card)' }}
+                                onClick={handleResetRolesCatalog}
+                            >
+                                <Trash2 size={18} /> Vaciar catálogo
+                            </button>
                         </div>
                         <p className={styles.rolesHint}>
                             Defina roles personalizados (ej. supervisor de turno, pedidos zona norte). El <strong>panel</strong> define qué pantalla verá el usuario al iniciar sesión.
@@ -1310,8 +1340,8 @@ const Admin = () => {
                                                         type="button"
                                                         className={styles.roleActionDelete}
                                                         onClick={() => handleDeleteRole(r)}
-                                                        disabled={r.is_system}
-                                                        title={r.is_system ? 'Los roles del sistema no se eliminan' : 'Eliminar rol'}
+                                                        disabled={r.code === 'master'}
+                                                        title={r.code === 'master' ? 'El rol master no se elimina' : 'Eliminar rol'}
                                                     >
                                                         <Trash2 size={15} /> Eliminar
                                                     </button>

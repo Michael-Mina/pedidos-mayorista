@@ -727,16 +727,29 @@ def delete_app_role(db: Session, role_id: int):
     row = db.query(models.AppRole).filter(models.AppRole.id == role_id).first()
     if not row:
         return None
-    if row.is_system:
-        raise ValueError("No se pueden eliminar roles del sistema")
     if row.code == models.UserRole.MASTER.value:
         raise ValueError("No se puede eliminar el rol master")
     in_use = db.query(models.User).filter(models.User.role == row.code).count()
     if in_use > 0:
-        raise ValueError(f"Hay {in_use} usuario(s) con este rol")
+        raise ValueError(f"Hay {in_use} usuario(s) con este rol. Reasígnelos o elimínelos primero.")
     db.delete(row)
     db.commit()
     return row
+
+
+def reset_roles_catalog(db: Session) -> dict:
+    """Elimina todos los roles excepto master. Omite los que tienen usuarios asignados."""
+    deleted: list[str] = []
+    skipped: list[dict] = []
+    for row in db.query(models.AppRole).filter(models.AppRole.code != models.UserRole.MASTER.value).all():
+        in_use = db.query(models.User).filter(models.User.role == row.code).count()
+        if in_use > 0:
+            skipped.append({"code": row.code, "label": row.label, "users": in_use})
+            continue
+        deleted.append(row.code)
+        db.delete(row)
+    db.commit()
+    return {"deleted": deleted, "skipped": skipped}
 
 
 def validate_assignable_role(db: Session, role_code: str) -> models.AppRole:
