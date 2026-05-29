@@ -60,6 +60,78 @@ class User(UserBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+
+MASTER_CREATABLE_ROLES = frozenset({
+    UserRole.ADMIN,
+    UserRole.MAYORISTA,
+    UserRole.JEFE_CARNES,
+})
+
+
+class ProfileCreate(BaseModel):
+    username: str
+    password: str
+    role: UserRole
+    sede_id: int
+
+    @field_validator("username")
+    @classmethod
+    def username_not_empty(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("El usuario es obligatorio")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def password_not_empty(cls, v: str) -> str:
+        if not v or not str(v).strip():
+            raise ValueError("La contraseña es obligatoria")
+        return str(v).strip()
+
+    @field_validator("role")
+    @classmethod
+    def role_allowed(cls, v: UserRole) -> UserRole:
+        if v not in MASTER_CREATABLE_ROLES:
+            raise ValueError("Rol no permitido para creación de perfiles")
+        return v
+
+    @field_validator("sede_id", mode="before")
+    @classmethod
+    def coerce_sede_id(cls, v):
+        if v is None or v == "":
+            raise ValueError("sede_id es obligatorio")
+        return int(v)
+
+
+class ProfileUpdate(BaseModel):
+    username: str
+    role: UserRole
+    sede_id: int
+    password: Optional[str] = None
+
+    @field_validator("username")
+    @classmethod
+    def username_not_empty(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("El usuario es obligatorio")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def role_allowed(cls, v: UserRole) -> UserRole:
+        if v not in MASTER_CREATABLE_ROLES:
+            raise ValueError("Rol no permitido")
+        return v
+
+    @field_validator("sede_id", mode="before")
+    @classmethod
+    def coerce_sede_id(cls, v):
+        if v is None or v == "":
+            raise ValueError("sede_id es obligatorio")
+        return int(v)
+
 class Token(BaseModel):
     access_token: str
     token_type: str

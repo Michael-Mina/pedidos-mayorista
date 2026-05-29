@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Admin.module.css';
 import api, { downloadAdminBackup, downloadAdminReport } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet,
+    UserPlus,
 } from 'lucide-react';
+
+const PROFILE_ROLE_OPTIONS = [
+    { value: 'mayorista', label: 'Mayorista' },
+    { value: 'jefe_carnes', label: 'Jefe de carnes (piso)' },
+    { value: 'admin', label: 'Administrador' },
+];
+
+const profileRoleLabel = (role) =>
+    PROFILE_ROLE_OPTIONS.find((o) => o.value === role)?.label || role;
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -98,7 +108,8 @@ ChartJS.register(
 );
 
 const Admin = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
+    const isMaster = user?.role === 'master';
     const [activeTab, setActiveTab] = useState('dashboard');
     const [stats, setStats] = useState({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
     const [dashboardCompareMode, setDashboardCompareMode] = useState('all');
@@ -135,14 +146,32 @@ const Admin = () => {
     const [backupLoading, setBackupLoading] = useState(false);
     const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
+    const [profilesList, setProfilesList] = useState([]);
+    const [profileForm, setProfileForm] = useState({
+        username: '',
+        password: '',
+        role: '',
+        sede_id: '',
+    });
+    const [profileSearch, setProfileSearch] = useState('');
+    const [profileSaving, setProfileSaving] = useState(false);
 
-    const navTabs = [
-        { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
-        { id: 'users', label: 'Usuarios', icon: Users },
-        { id: 'sedes', label: 'Sedes', icon: MapPin },
-        { id: 'products', label: 'Productos', icon: Package },
-        { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
-    ];
+    const navTabs = useMemo(() => {
+        const tabs = [
+            { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
+        ];
+        if (isMaster) {
+            tabs.push({ id: 'profiles', label: 'Creación de perfiles', icon: UserPlus });
+        } else {
+            tabs.push({ id: 'users', label: 'Usuarios', icon: Users });
+        }
+        tabs.push(
+            { id: 'sedes', label: 'Sedes', icon: MapPin },
+            { id: 'products', label: 'Productos', icon: Package },
+            { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
+        );
+        return tabs;
+    }, [isMaster]);
 
     const goToTab = (tabId) => {
         setActiveTab(tabId);
@@ -180,6 +209,9 @@ const Admin = () => {
             setUserSearch('');
             setUserRoleFilter('');
             setUserSedeFilter('');
+        }
+        if (activeTab !== 'profiles') {
+            setProfileSearch('');
         }
     }, [activeTab]);
 
@@ -254,6 +286,13 @@ const Admin = () => {
                 ]);
                 setUsersList(resUsers.data);
                 setSedesList(resSedes.data);
+            } else if (activeTab === 'profiles') {
+                const [resProfiles, resSedes] = await Promise.all([
+                    api.get('/master/profiles'),
+                    api.get('/sedes'),
+                ]);
+                setProfilesList(resProfiles.data);
+                setSedesList(resSedes.data);
             } else if (activeTab === 'sedes') {
                 const res = await api.get('/sedes');
                 setSedesList(res.data);
@@ -279,7 +318,7 @@ const Admin = () => {
         setEditItem(item);
         if (type === 'cut' && item) {
             setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map(t => t.id) || [] });
-        } else if (type === 'user' && item) {
+        } else if ((type === 'user' || type === 'profile') && item) {
             setFormData({
                 username: item.username,
                 role: item.role,
@@ -297,6 +336,28 @@ const Admin = () => {
         try {
             let endpoint = '';
             let dataToSend = {};
+
+            if (modalType === 'profile') {
+                const sedeId = parseInt(formData.sede_id, 10);
+                if (!formData.username?.trim() || !formData.role || Number.isNaN(sedeId)) {
+                    alert('Complete usuario, rol y sede.');
+                    return;
+                }
+                dataToSend = {
+                    username: formData.username.trim(),
+                    role: formData.role,
+                    sede_id: sedeId,
+                };
+                if (formData.password?.trim()) {
+                    dataToSend.password = formData.password;
+                }
+                if (editItem) {
+                    await api.put(`/master/profiles/${editItem.id}`, dataToSend);
+                }
+                setShowModal(false);
+                fetchData();
+                return;
+            }
 
             if (modalType === 'user') {
                 endpoint = '/users';
@@ -373,10 +434,36 @@ const Admin = () => {
         }
     };
 
+    const handleCreateProfile = async (e) => {
+        e.preventDefault();
+        const sedeId = parseInt(profileForm.sede_id, 10);
+        if (!profileForm.username?.trim() || !profileForm.password?.trim() || !profileForm.role || Number.isNaN(sedeId)) {
+            alert('Complete usuario, contraseña, rol y sede.');
+            return;
+        }
+        setProfileSaving(true);
+        try {
+            await api.post('/master/profiles', {
+                username: profileForm.username.trim(),
+                password: profileForm.password,
+                role: profileForm.role,
+                sede_id: sedeId,
+            });
+            setProfileForm({ username: '', password: '', role: '', sede_id: '' });
+            fetchData();
+        } catch (error) {
+            const detail = error.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : 'No se pudo crear el perfil.');
+        } finally {
+            setProfileSaving(false);
+        }
+    };
+
     const handleDelete = async (type, id) => {
         if (!window.confirm("¿Está seguro de eliminar este elemento?")) return;
         try {
             let endpoint = '';
+            if (type === 'profile') endpoint = '/master/profiles';
             if (type === 'user') endpoint = '/users';
             if (type === 'sede') endpoint = '/sedes';
             if (type === 'category') endpoint = '/categorias';
@@ -569,6 +656,18 @@ const Admin = () => {
     });
 
     const availableUserRoles = [...new Set(usersList.map((user) => user.role).filter(Boolean))].sort();
+
+    const filteredProfiles = profilesList.filter((profile) => {
+        const term = profileSearch.trim().toLowerCase();
+        const sedeName = sedesList.find((s) => s.id === profile.sede_id)?.nombre || '';
+        if (!term) return true;
+        return (
+            profile.username.toLowerCase().includes(term) ||
+            profileRoleLabel(profile.role).toLowerCase().includes(term) ||
+            profile.role.toLowerCase().includes(term) ||
+            sedeName.toLowerCase().includes(term)
+        );
+    });
 
     const filteredUsers = usersList.filter((user) => {
         const term = userSearch.trim().toLowerCase();
@@ -964,6 +1063,125 @@ const Admin = () => {
                     </div>
                 )}
 
+                {activeTab === 'profiles' && isMaster && (
+                    <>
+                        <div className={styles.managementHeader}>
+                            <h1>Creación de perfiles</h1>
+                        </div>
+                        <p className={styles.profilesHint}>
+                            Cree accesos para mayoristas, jefes de carnes, administradores y otros roles operativos.
+                            El usuario master no aparece en esta lista.
+                        </p>
+
+                        <div className={`glass-card ${styles.profileCreateCard}`}>
+                            <h2 className={styles.profileCreateTitle}>Nuevo perfil</h2>
+                            <form className={styles.profileCreateForm} onSubmit={handleCreateProfile}>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="Nombre de usuario"
+                                    value={profileForm.username}
+                                    onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                                    required
+                                />
+                                <input
+                                    type="password"
+                                    className="input-field"
+                                    placeholder="Contraseña"
+                                    value={profileForm.password}
+                                    onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                                    required
+                                />
+                                <select
+                                    className="input-field"
+                                    value={profileForm.role}
+                                    onChange={(e) => setProfileForm({ ...profileForm, role: e.target.value })}
+                                    required
+                                >
+                                    <option value="">Tipo de perfil</option>
+                                    {PROFILE_ROLE_OPTIONS.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    className="input-field"
+                                    value={profileForm.sede_id}
+                                    onChange={(e) => setProfileForm({ ...profileForm, sede_id: e.target.value })}
+                                    required
+                                >
+                                    <option value="">Sede asignada</option>
+                                    {sedesList.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                                    ))}
+                                </select>
+                                <button type="submit" className="premium-button" disabled={profileSaving}>
+                                    <UserPlus size={18} />
+                                    {profileSaving ? 'Creando…' : 'Crear perfil'}
+                                </button>
+                            </form>
+                        </div>
+
+                        <div className={styles.userFilters}>
+                            <div className={styles.searchBar}>
+                                <Search size={16} />
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="Buscar perfiles..."
+                                    value={profileSearch}
+                                    onChange={(e) => setProfileSearch(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className={`glass-card ${styles.managementScroll}`} style={{ padding: '0px' }}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Perfil</th>
+                                        <th>Sede</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredProfiles.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
+                                                {loading ? 'Cargando…' : 'No hay perfiles creados aún.'}
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredProfiles.map((p) => (
+                                            <tr key={p.id}>
+                                                <td>{p.username}</td>
+                                                <td><span className={styles.badge}>{profileRoleLabel(p.role)}</span></td>
+                                                <td>{sedesList.find((s) => s.id === p.sede_id)?.nombre || p.sede_id}</td>
+                                                <td>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenModal('profile', p)}
+                                                        style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '10px' }}
+                                                    >
+                                                        Editar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDelete('profile', p.id)}
+                                                        style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}
+                                                    >
+                                                        Eliminar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
+
                 {activeTab === 'users' && (
                     <>
                         <div className={styles.managementHeader}>
@@ -1227,6 +1445,7 @@ const Admin = () => {
                 <div className={styles.modalOverlay}>
                     <div className={`${styles.modal} glass-card`}>
                         <h3>{editItem ? 'Editar' : 'Crear'} {
+                            modalType === 'profile' ? 'Perfil' :
                             modalType === 'user' ? 'Usuario' :
                                 modalType === 'sede' ? 'Sede' :
                                     modalType === 'category' ? 'Categoría' :
@@ -1234,6 +1453,47 @@ const Admin = () => {
                                             modalType === 'tipoCorte' ? 'Corte' : modalType
                         }</h3>
                         <form onSubmit={handleSubmit}>
+                            {modalType === 'profile' && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <input
+                                        placeholder="Nombre de usuario"
+                                        className="input-field"
+                                        value={formData.username || ''}
+                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                        required
+                                    />
+                                    <input
+                                        placeholder={editItem ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+                                        type="password"
+                                        className="input-field"
+                                        value={formData.password || ''}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        required={!editItem}
+                                    />
+                                    <select
+                                        className="input-field"
+                                        value={formData.role || ''}
+                                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Tipo de perfil</option>
+                                        {PROFILE_ROLE_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        className="input-field"
+                                        value={formData.sede_id || ''}
+                                        onChange={(e) => setFormData({ ...formData, sede_id: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Sede asignada</option>
+                                        {sedesList.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             {modalType === 'user' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input placeholder="Nombre de usuario" className="input-field" value={formData.username || ''} onChange={e => setFormData({ ...formData, username: e.target.value })} required />

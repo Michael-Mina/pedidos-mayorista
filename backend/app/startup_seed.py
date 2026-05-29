@@ -1,13 +1,17 @@
 """Datos mínimos en Render (idempotente). Activa con SEED_ON_STARTUP=true."""
 import os
 
+from sqlalchemy import text
+
 from . import auth, models
-from .database import SessionLocal
+from .database import SessionLocal, engine
 
 DEMO_USER = "mayorista_test"
 DEMO_PASS = "test123"
 ADMIN_USER = "admin1"
 ADMIN_PASS = "12345678"
+MASTER_USER = os.getenv("MASTER_USERNAME", "master")
+MASTER_PASS = os.getenv("MASTER_PASSWORD", "Master@2026Pedidos")
 
 
 def _upsert_user(db, *, username: str, password: str, role, sede_id: int, **extra):
@@ -32,6 +36,42 @@ def _upsert_user(db, *, username: str, password: str, role, sede_id: int, **extr
             setattr(user, key, val)
         print(f"[startup_seed] Actualizado {username} / {password}")
     db.commit()
+
+
+def _ensure_master_role_enum() -> None:
+    """PostgreSQL: permite el valor 'master' en el enum de roles (idempotente)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'master'"))
+            conn.commit()
+    except Exception:
+        pass
+
+
+def ensure_master_user() -> None:
+    """Crea o actualiza el usuario master (misma vista que admin, oculto en listados)."""
+    _ensure_master_role_enum()
+    db = SessionLocal()
+    try:
+        sede = db.query(models.Sede).first()
+        if not sede:
+            sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
+            db.add(sede)
+            db.commit()
+            db.refresh(sede)
+        _upsert_user(
+            db,
+            username=MASTER_USER,
+            password=MASTER_PASS,
+            role=models.UserRole.MASTER,
+            sede_id=sede.id,
+            session_active=1,
+            session_approved=1,
+        )
+    except Exception as err:
+        print(f"[startup_seed] Error usuario master: {err}")
+    finally:
+        db.close()
 
 
 def run_if_enabled() -> None:
@@ -67,6 +107,7 @@ def run_if_enabled() -> None:
             session_active=1,
             session_approved=1,
         )
+        ensure_master_user()
     except Exception as err:
         print(f"[startup_seed] Error: {err}")
     finally:

@@ -61,10 +61,23 @@ def get_current_user(
     return user
 
 
+def is_admin_panel_user(user: models.User) -> bool:
+    return user.role in (models.UserRole.ADMIN, models.UserRole.MASTER)
+
+
 def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
-    if current_user.role != models.UserRole.ADMIN:
+    if not is_admin_panel_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden realizar esta acción",
+        )
+    return current_user
+
+
+def require_master(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role != models.UserRole.MASTER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el usuario master puede realizar esta acción",
         )
     return current_user

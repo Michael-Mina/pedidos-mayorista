@@ -11,6 +11,7 @@ corte_tipocorte_association = Table(
 )
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
+    MASTER = "master"  # Panel admin; no aparece en listados de usuarios
     MAYORISTA = "mayorista"
     CARNICERO = "carnicero"
     JEFE_CARNES = "jefe_carnes"
@@ -35,7 +36,12 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    role = Column(Enum(UserRole))
+    role = Column(
+        Enum(
+            UserRole,
+            values_callable=lambda roles: [r.value for r in roles],
+        )
+    )
     sede_id = Column(Integer, ForeignKey("sedes.id"))
     
     # Nuevos campos para Carnicero / Empleados

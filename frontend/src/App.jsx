@@ -25,7 +25,9 @@ const HomeRedirect = () => {
   if (!user) return <Navigate to="/login" />;
 
   switch (user.role) {
-    case 'admin': return <Navigate to="/admin" />;
+    case 'admin':
+    case 'master':
+      return <Navigate to="/admin" />;
     case 'mayorista': return <Navigate to="/mayorista" />;
     case 'jefe_carnes': return <Navigate to="/jefe" />;
     case 'sede_butcher': return <Navigate to="/sede" />;
@@ -42,7 +44,7 @@ const App = () => {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin', 'master']}>
                 <Admin />
               </ProtectedRoute>
             } />

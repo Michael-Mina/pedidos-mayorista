@@ -75,6 +75,7 @@ try:
 except Exception as _seed_err:
     print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
 
+startup_seed.ensure_master_user()
 startup_seed.run_if_enabled()
 
 # 5. Start background popularity task
@@ -121,7 +122,9 @@ def register_user(user: schemas.UserBase, password: Optional[str] = None, db: Se
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
-    
+    if user.role == models.UserRole.MASTER:
+        raise HTTPException(status_code=400, detail="No se puede registrar el rol master desde la API")
+
     # If no password is provided (e.g., for butchers), use a dummy password
     actual_password = password if password else "nopassword_carnicero_default"
     password_hash = auth.get_password_hash(actual_password)
@@ -488,6 +491,82 @@ async def set_availability_bulk(data: schemas.ButcherAvailabilityBulkUpdate, man
     }, room=f"sede_{sede_id}")
     
     return {"success": True, "updated": len(results)}
+
+
+@app.get("/master/profiles", response_model=List[schemas.User])
+def list_master_profiles(
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    return crud.get_manageable_profiles(db)
+
+
+@app.post("/master/profiles", response_model=schemas.User)
+def create_master_profile(
+    body: schemas.ProfileCreate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    try:
+        return crud.create_profile_user(
+            db,
+            username=body.username,
+            password_hash=auth.get_password_hash(body.password),
+            role=body.role,
+            sede_id=body.sede_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/master/profiles/{user_id}", response_model=schemas.User)
+def update_master_profile(
+    user_id: int,
+    body: schemas.ProfileUpdate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    db_user = crud.get_user(db, user_id)
+    if not db_user or db_user.role == models.UserRole.MASTER:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    if db_user.role not in schemas.MASTER_CREATABLE_ROLES:
+        raise HTTPException(status_code=400, detail="Este perfil no se puede editar")
+    password_hash = auth.get_password_hash(body.password) if body.password and body.password.strip() else None
+    try:
+        updated = crud.update_user(
+            db,
+            user_id,
+            schemas.UserBase(
+                username=body.username,
+                role=body.role,
+                sede_id=body.sede_id,
+                session_active=db_user.session_active,
+            ),
+            password_hash=password_hash,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    return updated
+
+
+@app.delete("/master/profiles/{user_id}")
+def delete_master_profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    db_user = crud.get_user(db, user_id)
+    if not db_user or db_user.role == models.UserRole.MASTER:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    if db_user.role not in schemas.MASTER_CREATABLE_ROLES:
+        raise HTTPException(status_code=400, detail="Este perfil no se puede eliminar")
+    try:
+        crud.delete_user(db, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Perfil eliminado correctamente"}
 
 
 @app.get("/admin/backup/status")

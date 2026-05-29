@@ -328,8 +328,44 @@ def gather_dashboard_report_data(
 def get_users(db: Session):
     return db.query(models.User).filter(
         models.User.role != models.UserRole.CARNICERO,
-        models.User.role != models.UserRole.SEDE_BUTCHER
+        models.User.role != models.UserRole.SEDE_BUTCHER,
+        models.User.role != models.UserRole.MASTER,
     ).all()
+
+
+def get_manageable_profiles(db: Session):
+    """Perfiles que el master puede listar y gestionar (misma vista que get_users)."""
+    return get_users(db)
+
+
+_MASTER_CREATABLE_ROLES = {
+    models.UserRole.ADMIN,
+    models.UserRole.MAYORISTA,
+    models.UserRole.JEFE_CARNES,
+}
+
+
+def create_profile_user(db: Session, *, username: str, password_hash: str, role, sede_id: int):
+    if role not in _MASTER_CREATABLE_ROLES:
+        raise ValueError("Rol no permitido para creación de perfiles")
+    if get_user_by_username(db, username):
+        raise ValueError("El nombre de usuario ya está registrado")
+    sede = db.query(models.Sede).filter(models.Sede.id == sede_id).first()
+    if not sede:
+        raise ValueError("La sede indicada no existe")
+
+    db_user = models.User(
+        username=username.strip(),
+        role=role,
+        sede_id=sede_id,
+        password_hash=password_hash,
+        session_active=1,
+        session_approved=1,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
@@ -343,6 +379,8 @@ def update_user(db: Session, user_id: int, user: schemas.UserBase, password_hash
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         return None
+    if db_user.role == models.UserRole.MASTER:
+        raise ValueError("El usuario master no puede modificarse desde el panel")
 
     duplicate = (
         db.query(models.User)
@@ -381,6 +419,8 @@ def get_carniceros_by_sede(db: Session, sede_id: str):
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
+        if db_user.role == models.UserRole.MASTER:
+            raise ValueError("El usuario master no puede eliminarse")
         db.delete(db_user)
         db.commit()
     return db_user
