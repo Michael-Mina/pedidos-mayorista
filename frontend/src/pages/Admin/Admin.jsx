@@ -163,15 +163,23 @@ const Admin = () => {
         const tabs = [
             { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
             { id: 'users', label: 'Usuarios', icon: Users },
-            { id: 'sedes', label: 'Sedes', icon: MapPin },
             { id: 'products', label: 'Productos', icon: Package },
             { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
         ];
         if (isMaster) {
-            tabs.splice(2, 0, { id: 'roles', label: 'Roles', icon: Shield });
+            tabs.splice(2, 0,
+                { id: 'roles', label: 'Roles', icon: Shield },
+                { id: 'sedes', label: 'Sedes', icon: MapPin },
+            );
         }
         return tabs;
     }, [isMaster]);
+
+    useEffect(() => {
+        if (!isMaster && (activeTab === 'sedes' || activeTab === 'roles')) {
+            setActiveTab('dashboard');
+        }
+    }, [isMaster, activeTab]);
 
     const loadAssignableRoles = useCallback(async () => {
         try {
@@ -1414,7 +1422,7 @@ const Admin = () => {
                     </>
                 )}
 
-                {activeTab === 'sedes' && (
+                {isMaster && activeTab === 'sedes' && (
                     <>
                         <div className={styles.managementHeader}>
                             <h1>Sedes / Sucursales</h1>

@@ -339,15 +339,28 @@ def read_sedes(db: Session = Depends(get_db)):
     return crud.get_sedes(db)
 
 @app.post("/sedes", response_model=schemas.Sede)
-def create_sede(sede: schemas.SedeCreate, db: Session = Depends(get_db)):
+def create_sede(
+    sede: schemas.SedeCreate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
     return crud.create_sede(db, sede)
 
 @app.put("/sedes/{sede_id}", response_model=schemas.Sede)
-def update_sede(sede_id: int, sede: schemas.SedeUpdate, db: Session = Depends(get_db)):
+def update_sede(
+    sede_id: int,
+    sede: schemas.SedeUpdate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
     return crud.update_sede(db, sede_id, sede)
 
 @app.delete("/sedes/{sede_id}")
-def delete_sede(sede_id: int, db: Session = Depends(get_db)):
+def delete_sede(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
     return crud.delete_sede(db, sede_id)
 
 @app.get("/categorias", response_model=List[schemas.Categoria])
