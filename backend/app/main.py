@@ -180,6 +180,13 @@ async def _emit_pedido_rooms(event: str, payload, sede_id: str):
     await sio.emit(event, payload, room="manager")
 
 
+async def _emit_carnicero_update(sede_id: int, action: str, carnicero: dict):
+    """Notifica cambios de carniceros a la tablet sede y al panel supervisor."""
+    payload = {"action": action, "sede_id": sede_id, "carnicero": carnicero}
+    await sio.emit("carnicero_update", payload, room=f"sede_{sede_id}")
+    await sio.emit("carnicero_update", payload, room="manager")
+
+
 # --- API Routes ---
 
 def _parse_stats_date(value: Optional[str]) -> Optional[date]:
@@ -396,7 +403,7 @@ def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
     return crud.get_carniceros_by_sede(db, sede_id)
 
 @app.post("/users/carniceros", response_model=schemas.User)
-def create_carnicero_endpoint(carnicero: schemas.CarniceroCreate, db: Session = Depends(get_db)):
+async def create_carnicero_endpoint(carnicero: schemas.CarniceroCreate, db: Session = Depends(get_db)):
     username = (carnicero.username or carnicero.numero_carnicero or "").strip()
     if not username:
         raise HTTPException(status_code=400, detail="El número de carnicero es obligatorio")
@@ -413,32 +420,55 @@ def create_carnicero_endpoint(carnicero: schemas.CarniceroCreate, db: Session = 
     try:
         password_hash = auth.get_password_hash(carnicero.password)
         created = crud.create_carnicero(db, carnicero, password_hash)
-        return _user_api(db, created)
+        user_out = _user_api(db, created)
+        await _emit_carnicero_update(
+            int(created.sede_id),
+            "created",
+            user_out.model_dump(mode="json"),
+        )
+        return user_out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/users/carniceros/{user_id}/availability", response_model=schemas.User)
-def update_carnicero_availability_endpoint(user_id: int, is_available: bool, db: Session = Depends(get_db)):
+async def update_carnicero_availability_endpoint(user_id: int, is_available: bool, db: Session = Depends(get_db)):
     db_user = crud.update_carnicero_availability(db, user_id, is_available)
     if not db_user:
         raise HTTPException(status_code=404, detail="Carnicero no encontrado")
-    return db_user
+    user_out = _user_api(db, db_user)
+    await _emit_carnicero_update(
+        int(db_user.sede_id),
+        "updated",
+        user_out.model_dump(mode="json"),
+    )
+    return user_out
 
 @app.put("/users/carniceros/{user_id}", response_model=schemas.User)
-def update_carnicero_endpoint(user_id: int, carnicero: schemas.CarniceroUpdate, db: Session = Depends(get_db)):
+async def update_carnicero_endpoint(user_id: int, carnicero: schemas.CarniceroUpdate, db: Session = Depends(get_db)):
     password_hash = None
     if carnicero.password:
         password_hash = auth.get_password_hash(carnicero.password)
     db_user = crud.update_carnicero(db, user_id, carnicero, password_hash)
     if not db_user:
         raise HTTPException(status_code=404, detail="Carnicero no encontrado")
-    return db_user
+    user_out = _user_api(db, db_user)
+    await _emit_carnicero_update(
+        int(db_user.sede_id),
+        "updated",
+        user_out.model_dump(mode="json"),
+    )
+    return user_out
 
 @app.delete("/users/carniceros/{user_id}")
-def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
+async def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
     db_user = crud.delete_user(db, user_id)
     if not db_user:
         raise HTTPException(status_code=404, detail="Carnicero no encontrado")
+    await _emit_carnicero_update(
+        int(db_user.sede_id),
+        "deleted",
+        {"id": db_user.id, "sede_id": db_user.sede_id},
+    )
     return {"message": "Carnicero eliminado correctamente"}
 
 @app.get("/users", response_model=List[schemas.User])

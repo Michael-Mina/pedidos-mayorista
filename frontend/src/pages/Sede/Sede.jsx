@@ -26,6 +26,24 @@ const Sede = () => {
     // Derive selected order
     const selectedPedido = pedidos.find(p => p.id === selectedPedidoId) || null;
 
+    const applyCarniceroUpdate = ({ action, sede_id, carnicero }) => {
+        if (String(sede_id) !== String(user?.sede_id)) return;
+        if (action === 'deleted') {
+            setAllCarniceros((prev) => prev.filter((c) => c.id !== carnicero.id));
+            setPendingCarniceroId((prev) => (prev === carnicero.id ? null : prev));
+            return;
+        }
+        setAllCarniceros((prev) => {
+            const ix = prev.findIndex((c) => c.id === carnicero.id);
+            if (ix >= 0) {
+                const next = [...prev];
+                next[ix] = carnicero;
+                return next;
+            }
+            return [...prev, carnicero];
+        });
+    };
+
     useEffect(() => {
         if (!user || user.role !== 'sede_butcher') return;
 
@@ -59,9 +77,12 @@ const Sede = () => {
             }
         });
 
+        socketService.onCarniceroUpdate(applyCarniceroUpdate);
+
         return () => {
             socketService.offNewOrder();
             socketService.offOrderUpdate();
+            socketService.offCarniceroUpdate();
             socketService.disconnect();
         };
     }, [user?.id, user?.sede_id]);

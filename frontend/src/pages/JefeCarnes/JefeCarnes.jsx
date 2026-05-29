@@ -415,9 +415,16 @@ const JefeCarnes = () => {
             setReportModalOrder((prev) => (prev?.id === updated.id ? updated : prev));
         });
 
+        socketService.onCarniceroUpdate(({ sede_id }) => {
+            if (!user.sede_id || String(sede_id) === String(user.sede_id)) {
+                fetchCarniceros();
+            }
+        });
+
         return () => {
             socketService.offNewOrder();
             socketService.offOrderUpdate();
+            socketService.offCarniceroUpdate();
             socketService.disconnect();
         };
     }, [user]);
