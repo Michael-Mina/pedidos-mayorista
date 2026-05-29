@@ -63,40 +63,44 @@ def _ensure_pedidos_columns():
 _ensure_pedidos_columns()
 
 
-def _ensure_app_roles_schema():
+def _ensure_app_roles_columns() -> None:
+    """Migraciones app_roles en transacciones separadas (evita rollback si falla users.role)."""
+    stmts = [
+        """
+        CREATE TABLE IF NOT EXISTS app_roles (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(48) UNIQUE NOT NULL,
+            label VARCHAR(120) NOT NULL,
+            panel VARCHAR(24) NOT NULL DEFAULT 'mayorista',
+            is_system BOOLEAN DEFAULT FALSE,
+            is_hidden BOOLEAN DEFAULT FALSE,
+            can_assign BOOLEAN DEFAULT TRUE,
+            is_enabled BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        """,
+        "ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT TRUE;",
+        "UPDATE app_roles SET is_enabled = TRUE WHERE is_enabled IS NULL;",
+    ]
+    for sql in stmts:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(sql))
+        except Exception as exc:
+            print(f"[migrations] Aviso app_roles: {exc}")
+
     try:
         with engine.begin() as conn:
-            conn.execute(
-                text(
-                    """
-                    CREATE TABLE IF NOT EXISTS app_roles (
-                        id SERIAL PRIMARY KEY,
-                        code VARCHAR(48) UNIQUE NOT NULL,
-                        label VARCHAR(120) NOT NULL,
-                        panel VARCHAR(24) NOT NULL DEFAULT 'mayorista',
-                        is_system BOOLEAN DEFAULT FALSE,
-                        is_hidden BOOLEAN DEFAULT FALSE,
-                        can_assign BOOLEAN DEFAULT TRUE,
-                        created_at TIMESTAMPTZ DEFAULT NOW()
-                    );
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    "ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT TRUE;"
-                )
-            )
             conn.execute(
                 text(
                     "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(48) USING role::text;"
                 )
             )
     except Exception as exc:
-        print(f"[migrations] Aviso app_roles / users.role: {exc}")
+        print(f"[migrations] Aviso users.role: {exc}")
 
 
-_ensure_app_roles_schema()
+_ensure_app_roles_columns()
 
 
 def _normalize_legacy_user_roles() -> None:
@@ -229,7 +233,7 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
             db.refresh(user)
 
     role_row = role_catalog.get_role_row(db, user.role)
-    if role_row and role_row.is_enabled is False:
+    if role_row and not role_catalog.role_is_enabled(db, user.role):
         raise HTTPException(status_code=403, detail="Su rol está deshabilitado. Contacte al administrador.")
     
     access_token = auth.create_access_token(data={"sub": user.username})

@@ -91,7 +91,18 @@ def seed_builtin_roles(db: Session) -> None:
 def get_role_row(db: Session, code: str) -> models.AppRole | None:
     if not code:
         return None
-    return db.query(models.AppRole).filter(models.AppRole.code == code).first()
+    try:
+        return db.query(models.AppRole).filter(models.AppRole.code == code).first()
+    except Exception:
+        db.rollback()
+        return None
+
+
+def role_is_enabled(db: Session, role_code: str) -> bool:
+    row = get_role_row(db, role_code)
+    if not row:
+        return True
+    return getattr(row, "is_enabled", True) is not False
 
 
 def resolve_panel(db: Session, role_code: str) -> str:

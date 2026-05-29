@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { getApiBaseUrl } from '../config/api';
 
 const AuthContext = createContext(null);
 
@@ -15,17 +16,23 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (username, password) => {
+        const apiUrl = getApiBaseUrl();
         try {
-            // Using the actual endpoint implemented in main.py
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/login`, {
+            const response = await fetch(`${apiUrl}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password }),
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Login failed');
+                let detail = 'Credenciales incorrectas';
+                try {
+                    const errorData = await response.json();
+                    detail = errorData.detail || detail;
+                } catch {
+                    /* respuesta no JSON */
+                }
+                throw new Error(typeof detail === 'string' ? detail : 'Login failed');
             }
 
             const data = await response.json();
@@ -36,7 +43,12 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             return userData;
         } catch (error) {
-            console.error("Login Error:", error);
+            console.error('Login Error:', error);
+            if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+                throw new Error(
+                    `No se pudo conectar con el servidor (${apiUrl}). Compruebe que la API esté activa en Render.`
+                );
+            }
             throw error;
         }
     };
@@ -50,7 +62,7 @@ export const AuthProvider = ({ children }) => {
     const refreshUser = async () => {
         if (!user) return;
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/users`, {
+            const response = await fetch(`${getApiBaseUrl()}/users`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (response.ok) {

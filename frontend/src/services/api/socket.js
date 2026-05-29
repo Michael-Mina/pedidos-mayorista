@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
+import { getApiBaseUrl } from '../../config/api';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8000';
+const WS_URL = import.meta.env.VITE_WS_URL?.trim() || getApiBaseUrl();
 
 const socket = io(WS_URL, {
     autoConnect: false,
