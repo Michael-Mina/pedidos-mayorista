@@ -48,28 +48,61 @@ def _ensure_master_role_enum() -> None:
         pass
 
 
+def _ensure_internal_sede(db):
+    sede = db.query(models.Sede).first()
+    if not sede:
+        sede = models.Sede(nombre="__interno__", ciudad="Sistema")
+        db.add(sede)
+        db.commit()
+        db.refresh(sede)
+    return sede
+
+
+def _ensure_master_role_row(db) -> None:
+    if role_catalog.get_role_row(db, models.UserRole.MASTER.value):
+        return
+    db.add(
+        models.AppRole(
+            code=models.UserRole.MASTER.value,
+            label="Master",
+            panel="admin",
+            is_system=True,
+            is_hidden=True,
+            can_assign=False,
+            is_enabled=True,
+        )
+    )
+    db.commit()
+
+
 def ensure_master_user() -> None:
-    """Crea o actualiza el usuario master si no existe."""
+    """Crea o repara el usuario master (contraseña, sede_id y rol en catálogo)."""
     _ensure_master_role_enum()
     db = SessionLocal()
     try:
-        master = db.query(models.User).filter(
-            models.User.role == models.UserRole.MASTER.value
-        ).first()
+        _ensure_master_role_row(db)
+        sede = _ensure_internal_sede(db)
+
+        master = (
+            db.query(models.User)
+            .filter(
+                (models.User.username == MASTER_USER)
+                | (models.User.role == models.UserRole.MASTER.value)
+            )
+            .first()
+        )
         if master:
+            master.username = MASTER_USER
+            master.role = models.UserRole.MASTER.value
+            if not master.sede_id:
+                master.sede_id = sede.id
             master.password_hash = auth.get_password_hash(MASTER_PASS)
             master.session_active = 1
             master.session_approved = 1
             db.commit()
+            print(f"[startup_seed] Master reparado: {MASTER_USER}")
             return
 
-        role_catalog.seed_builtin_roles(db)
-        sede = db.query(models.Sede).first()
-        if not sede:
-            sede = models.Sede(nombre="__interno__", ciudad="Sistema")
-            db.add(sede)
-            db.commit()
-            db.refresh(sede)
         _upsert_user(
             db,
             username=MASTER_USER,

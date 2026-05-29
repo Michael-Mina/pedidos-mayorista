@@ -186,8 +186,32 @@ def read_root():
 
 
 def _user_api(db: Session, user: models.User) -> schemas.User:
-    data = schemas.User.model_validate(user).model_dump()
+    sede_id = user.sede_id
+    if sede_id is None:
+        sede = db.query(models.Sede).first()
+        if sede:
+            user.sede_id = sede.id
+            db.commit()
+            db.refresh(user)
+            sede_id = user.sede_id
+
+    try:
+        data = schemas.User.model_validate(user).model_dump()
+    except Exception:
+        data = {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "sede_id": sede_id if sede_id is not None else 0,
+            "session_active": user.session_active if user.session_active is not None else 0,
+            "nombre": user.nombre,
+            "apellido": user.apellido,
+            "numero_carnicero": user.numero_carnicero,
+            "is_available": user.is_available if user.is_available is not None else True,
+        }
     data.update(role_catalog.user_response_extra(db, user))
+    if data.get("sede_id") is None:
+        data["sede_id"] = sede_id if sede_id is not None else 0
     return schemas.User(**data)
 
 
