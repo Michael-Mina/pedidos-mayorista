@@ -137,6 +137,7 @@ const Admin = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isNarrowLayout, setIsNarrowLayout] = useState(() => window.innerWidth <= 768);
     const [backupLoading, setBackupLoading] = useState(false);
+    const [resetDbLoading, setResetDbLoading] = useState(false);
     const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
     const [assignableRoles, setAssignableRoles] = useState([]);
@@ -628,6 +629,28 @@ const Admin = () => {
         } catch (err) {
             const detail = err.response?.data?.detail;
             alert(typeof detail === 'string' ? detail : `No se pudo ${action} el rol`);
+        }
+    };
+
+    const handleResetDatabase = async () => {
+        if (!window.confirm(
+            '¿VACIAR TODA LA BASE DE DATOS?\n\nSe eliminarán usuarios, sedes, pedidos, productos y roles.\nSolo quedará el usuario master.\n\nEsta acción NO se puede deshacer.'
+        )) return;
+        const typed = window.prompt('Escriba BORRAR TODO para confirmar:');
+        if (typed !== 'BORRAR TODO') return;
+        setResetDbLoading(true);
+        try {
+            const res = await api.post('/master/database/reset');
+            const { username, password } = res.data.access || {};
+            alert(
+                `Base de datos vaciada.\n\nUsuario: ${username}\nContraseña: ${password}\n\nInicie sesión de nuevo con esas credenciales.`
+            );
+            logout();
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : 'No se pudo vaciar la base de datos');
+        } finally {
+            setResetDbLoading(false);
         }
     };
 
@@ -1544,6 +1567,24 @@ const Admin = () => {
                                 Guarde el archivo en un lugar seguro fuera del servidor.
                             </p>
                         </div>
+                        {isMaster && (
+                            <div className={`${styles.backupCard} glass-card ${styles.dangerCard}`}>
+                                <h2>Zona peligrosa</h2>
+                                <p className={styles.backupIntro}>
+                                    Vacía por completo la base de datos y deja únicamente el usuario <strong>master</strong>
+                                    para que configure sedes, roles y usuarios desde cero.
+                                </p>
+                                <button
+                                    type="button"
+                                    className={`premium-button ${styles.dangerBtn}`}
+                                    onClick={handleResetDatabase}
+                                    disabled={resetDbLoading}
+                                >
+                                    <Trash2 size={18} />
+                                    {resetDbLoading ? 'Vaciando…' : 'Vaciar base de datos (solo master)'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </main>

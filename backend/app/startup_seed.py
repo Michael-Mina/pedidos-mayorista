@@ -49,14 +49,24 @@ def _ensure_master_role_enum() -> None:
 
 
 def ensure_master_user() -> None:
-    """Crea o actualiza el usuario master (misma vista que admin, oculto en listados)."""
+    """Crea o actualiza el usuario master si no existe."""
     _ensure_master_role_enum()
     db = SessionLocal()
     try:
+        master = db.query(models.User).filter(
+            models.User.role == models.UserRole.MASTER.value
+        ).first()
+        if master:
+            master.password_hash = auth.get_password_hash(MASTER_PASS)
+            master.session_active = 1
+            master.session_approved = 1
+            db.commit()
+            return
+
         role_catalog.seed_builtin_roles(db)
         sede = db.query(models.Sede).first()
         if not sede:
-            sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
+            sede = models.Sede(nombre="__interno__", ciudad="Sistema")
             db.add(sede)
             db.commit()
             db.refresh(sede)

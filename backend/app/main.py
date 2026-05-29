@@ -11,7 +11,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, role_catalog
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, role_catalog, db_reset
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -129,13 +129,14 @@ _STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
 _STATIC_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_ROOT)), name="static")
 
-# 4c. Catálogo de res en BD + imágenes locales (idempotente al arrancar)
-try:
-    with SessionLocal() as _db:
-        catalogo_res.ensure_cortes_res(_db)
-        catalogo_res.migrar_cortes_res_existentes_a_local(_db)
-except Exception as _seed_err:
-    print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
+# 4c. Catálogo de res (opcional; desactivado por defecto en producción limpia)
+if os.getenv("SEED_CATALOGO", "").lower() in ("1", "true", "yes"):
+    try:
+        with SessionLocal() as _db:
+            catalogo_res.ensure_cortes_res(_db)
+            catalogo_res.migrar_cortes_res_existentes_a_local(_db)
+    except Exception as _seed_err:
+        print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
 
 startup_seed.ensure_master_user()
 startup_seed.run_if_enabled()
@@ -462,6 +463,18 @@ def master_delete_role(
     if not row:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
     return {"message": "Rol eliminado"}
+
+
+@app.post("/master/database/reset")
+def master_reset_database(
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    """Elimina todos los datos y deja solo el usuario master."""
+    try:
+        return db_reset.reset_to_master_only(db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"No se pudo resetear la base: {exc}")
 
 
 @app.post("/master/roles/reset")

@@ -25,7 +25,9 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "480"
       - key: SEED_ON_STARTUP
-        value: "true"
+        value: "false"
+      - key: SEED_CATALOGO
+        value: "false"
       - key: CORS_ORIGINS
         fromService:
           type: web
