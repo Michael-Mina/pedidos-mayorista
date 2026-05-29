@@ -164,19 +164,19 @@ const Admin = () => {
             { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
             { id: 'users', label: 'Usuarios', icon: Users },
             { id: 'products', label: 'Productos', icon: Package },
-            { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
         ];
         if (isMaster) {
             tabs.splice(2, 0,
                 { id: 'roles', label: 'Roles', icon: Shield },
                 { id: 'sedes', label: 'Sedes', icon: MapPin },
             );
+            tabs.push({ id: 'backup', label: 'Respaldo', icon: HardDriveDownload });
         }
         return tabs;
     }, [isMaster]);
 
     useEffect(() => {
-        if (!isMaster && (activeTab === 'sedes' || activeTab === 'roles')) {
+        if (!isMaster && (activeTab === 'sedes' || activeTab === 'roles' || activeTab === 'backup')) {
             setActiveTab('dashboard');
         }
     }, [isMaster, activeTab]);
@@ -343,7 +343,7 @@ const Admin = () => {
                     api.get('/tipos-corte')
                 ]);
                 setProducts({ categories: resCats.data, cuts: resCortes.data, tiposCorte: resTipos.data });
-            } else if (activeTab === 'backup') {
+            } else if (activeTab === 'backup' && isMaster) {
                 const res = await api.get('/admin/backup/status');
                 setBackupStatus(res.data);
             } else if (activeTab === 'roles' && isMaster) {
@@ -1558,7 +1558,7 @@ const Admin = () => {
                     </div>
                 )}
 
-                {activeTab === 'backup' && (
+                {isMaster && activeTab === 'backup' && (
                     <div className={styles.backupWrapper}>
                         <div className={styles.topBanner}>
                             <h1>RESPALDO DE DATOS</h1>

@@ -772,7 +772,7 @@ async def set_availability_bulk(data: schemas.ButcherAvailabilityBulkUpdate, man
 
 
 @app.get("/admin/backup/status")
-def admin_backup_status(_admin: models.User = Depends(auth.require_admin)):
+def admin_backup_status(_master: models.User = Depends(auth.require_master)):
     """Comprueba si el servidor puede generar respaldos (pg_dump)."""
     return {
         "pg_dump_available": backup.pg_tools_available(),
@@ -783,7 +783,7 @@ def admin_backup_status(_admin: models.User = Depends(auth.require_admin)):
 
 
 @app.get("/admin/backup/download")
-def admin_backup_download(_admin: models.User = Depends(auth.require_admin)):
+def admin_backup_download(_master: models.User = Depends(auth.require_master)):
     """Genera y devuelve un ZIP con estructura BD, datos e imágenes estáticas."""
     try:
         content, filename = backup.build_backup_download()
