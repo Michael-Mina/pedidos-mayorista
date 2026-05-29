@@ -128,10 +128,25 @@ def list_assignable_roles(db: Session) -> list[models.AppRole]:
     )
 
 
+# Cuentas de operación en planta: no son usuarios del panel de administración
+NON_PANEL_USER_ROLES = frozenset(
+    {
+        models.UserRole.CARNICERO.value,
+        models.UserRole.SEDE_BUTCHER.value,
+        models.UserRole.MASTER.value,
+    }
+)
+
+
 def excluded_role_codes_for_user_list(db: Session) -> list[str]:
-    rows = (
-        db.query(models.AppRole.code)
-        .filter((models.AppRole.is_hidden == True) | (models.AppRole.panel == "sede"))
-        .all()
-    )
-    return [r[0] for r in rows]
+    codes = set(NON_PANEL_USER_ROLES)
+    try:
+        rows = (
+            db.query(models.AppRole.code)
+            .filter((models.AppRole.is_hidden == True) | (models.AppRole.panel == "sede"))
+            .all()
+        )
+        codes.update(r[0] for r in rows)
+    except Exception:
+        pass
+    return list(codes)

@@ -326,11 +326,13 @@ def gather_dashboard_report_data(
 
 # User Management
 def get_users(db: Session):
+    """Usuarios asignables desde el panel admin (sin carniceros ni tablet sede)."""
     exclude = role_catalog.excluded_role_codes_for_user_list(db)
-    q = db.query(models.User)
-    if exclude:
-        q = q.filter(~models.User.role.in_(exclude))
-    return q.all()
+    return (
+        db.query(models.User)
+        .filter(~models.User.role.in_(exclude))
+        .all()
+    )
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
@@ -344,8 +346,8 @@ def update_user(db: Session, user_id: int, user: schemas.UserBase, password_hash
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         return None
-    if db_user.role == models.UserRole.MASTER.value:
-        raise ValueError("El usuario master no puede modificarse desde el panel")
+    if db_user.role in role_catalog.NON_PANEL_USER_ROLES:
+        raise ValueError("Este tipo de cuenta no se gestiona desde Usuarios")
     validate_assignable_role(db, user.role)
 
     duplicate = (
@@ -385,8 +387,8 @@ def get_carniceros_by_sede(db: Session, sede_id: str):
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
-        if db_user.role == models.UserRole.MASTER.value:
-            raise ValueError("El usuario master no puede eliminarse")
+        if db_user.role in role_catalog.NON_PANEL_USER_ROLES:
+            raise ValueError("Este tipo de cuenta no se elimina desde Usuarios")
         db.delete(db_user)
         db.commit()
     return db_user

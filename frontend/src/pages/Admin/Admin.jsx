@@ -14,6 +14,9 @@ const PANEL_LABELS = {
     jefe: 'Jefe de carnes / piso',
     sede: 'Sede / carnicería',
 };
+
+/** No aparecen en Gestión de Usuarios (carniceros se administran en Jefe de carnes). */
+const EXCLUDED_FROM_USER_LIST = new Set(['carnicero', 'sede_butcher', 'master']);
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -658,9 +661,11 @@ const Admin = () => {
         );
     });
 
-    const availableUserRoles = [...new Set(usersList.map((user) => user.role).filter(Boolean))].sort();
+    const panelUsers = usersList.filter((u) => !EXCLUDED_FROM_USER_LIST.has(u.role));
 
-    const filteredUsers = usersList.filter((user) => {
+    const availableUserRoles = [...new Set(panelUsers.map((user) => user.role).filter(Boolean))].sort();
+
+    const filteredUsers = panelUsers.filter((user) => {
         const term = userSearch.trim().toLowerCase();
         const sedeName = sedesList.find((sede) => sede.id === user.sede_id)?.nombre || '';
         const matchesSearch = !term ||
