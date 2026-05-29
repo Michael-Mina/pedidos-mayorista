@@ -20,13 +20,23 @@ app = FastAPI(title="Pedidos Mayorista API")
 # 2. CORS Configuration
 def _build_cors_origins():
     raw = os.getenv("CORS_ORIGINS", "*").strip()
-    if raw == "*" or not raw:
-        return ["*"]
-    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    origins: list[str] = []
+    if raw and raw != "*":
+        origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    else:
+        origins = ["*"]
     for key in ("RENDER_EXTERNAL_URL", "PUBLIC_API_URL"):
         extra = os.getenv(key, "").strip().rstrip("/")
         if extra and extra not in origins:
             origins.append(extra)
+    # Sitio estático Render (por si CORS_ORIGINS no enlazó el frontend)
+    for known in (
+        "https://pedidos-mayorista-web.onrender.com",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ):
+        if known not in origins:
+            origins.append(known)
     return origins or ["*"]
 
 
@@ -123,6 +133,7 @@ def _normalize_legacy_user_roles() -> None:
 try:
     with SessionLocal() as _db:
         role_catalog.seed_builtin_roles(_db)
+        role_catalog.ensure_operational_roles(_db)
 except Exception as _roles_err:
     print(f"[role_catalog] Aviso al sembrar roles: {_roles_err}")
 
@@ -386,11 +397,25 @@ def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
 
 @app.post("/users/carniceros", response_model=schemas.User)
 def create_carnicero_endpoint(carnicero: schemas.CarniceroCreate, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_username(db, username=carnicero.username)
+    username = (carnicero.username or carnicero.numero_carnicero or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="El número de carnicero es obligatorio")
+    if not carnicero.nombre or not carnicero.apellido:
+        raise HTTPException(status_code=400, detail="Nombre y apellido son obligatorios")
+    if not carnicero.sede_id:
+        raise HTTPException(status_code=400, detail="La sede es obligatoria")
+    db_user = crud.get_user_by_username(db, username=username)
     if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    password_hash = auth.get_password_hash(carnicero.password)
-    return crud.create_carnicero(db, carnicero, password_hash)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe un usuario con el número {username}",
+        )
+    try:
+        password_hash = auth.get_password_hash(carnicero.password)
+        created = crud.create_carnicero(db, carnicero, password_hash)
+        return _user_api(db, created)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/users/carniceros/{user_id}/availability", response_model=schemas.User)
 def update_carnicero_availability_endpoint(user_id: int, is_available: bool, db: Session = Depends(get_db)):
@@ -583,11 +608,20 @@ def get_stats_cuts(
     )
     return [{"name": r[0], "total_kg": float(r[1] or 0)} for r in result]
 
+def _pedidos_to_schema_list(pedidos) -> list[schemas.Pedido]:
+    return [schemas.Pedido.model_validate(p) for p in pedidos]
+
+
 @app.get("/pedidos", response_model=List[schemas.Pedido])
 def read_pedidos(sede_id: str = None, db: Session = Depends(get_db)):
-    if sede_id:
-        return crud.get_pedidos_by_sede(db, sede_id)
-    return crud.get_all_pedidos(db)
+    try:
+        if sede_id:
+            pedidos = crud.get_pedidos_by_sede(db, sede_id)
+        else:
+            pedidos = crud.get_all_pedidos(db)
+        return _pedidos_to_schema_list(pedidos)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al cargar pedidos: {exc}")
 
 @app.post("/pedidos", response_model=schemas.Pedido)
 async def create_pedido_endpoint(pedido: schemas.PedidoCreate, db: Session = Depends(get_db)):

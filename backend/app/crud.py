@@ -379,10 +379,15 @@ def update_session_status(db: Session, user_id: int, active: int):
     return db_user
 
 def get_carniceros_by_sede(db: Session, sede_id: str):
-    return db.query(models.User).filter(
-        models.User.role == models.UserRole.CARNICERO.value,
-        models.User.sede_id == sede_id
-    ).all()
+    sid = int(sede_id)
+    return (
+        db.query(models.User)
+        .filter(
+            models.User.role == models.UserRole.CARNICERO.value,
+            models.User.sede_id == sid,
+        )
+        .all()
+    )
 
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -394,10 +399,16 @@ def delete_user(db: Session, user_id: int):
     return db_user
 
 def create_carnicero(db: Session, carnicero_data, pw_hash: str):
+    role_catalog.ensure_operational_roles(db)
+    username = (carnicero_data.username or carnicero_data.numero_carnicero or "").strip()
+    if not username:
+        raise ValueError("El número de carnicero es obligatorio")
+    if not carnicero_data.sede_id:
+        raise ValueError("La sede es obligatoria")
     db_user = models.User(
-        username=carnicero_data.username,
+        username=username,
         role=models.UserRole.CARNICERO.value,
-        sede_id=carnicero_data.sede_id,
+        sede_id=int(carnicero_data.sede_id),
         nombre=carnicero_data.nombre,
         apellido=carnicero_data.apellido,
         numero_carnicero=carnicero_data.numero_carnicero,
@@ -456,10 +467,11 @@ def _get_pedido_loaded(db: Session, pedido_id: int):
 
 
 def get_pedidos_by_sede(db: Session, sede_id: str):
+    sid = int(sede_id)
     return (
         db.query(models.Pedido)
         .options(*_PEDIDO_LOAD_OPTIONS)
-        .filter(models.Pedido.sede_id == sede_id)
+        .filter(models.Pedido.sede_id == sid)
         .order_by(models.Pedido.updated_at.desc())
         .all()
     )

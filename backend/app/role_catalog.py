@@ -88,6 +88,24 @@ def seed_builtin_roles(db: Session) -> None:
     db.commit()
 
 
+def ensure_operational_roles(db: Session) -> None:
+    """Garantiza roles carnicero / tablet sede tras vaciar el catálogo."""
+    for spec in BUILTIN_ROLES:
+        if spec["code"] not in OPERATIONAL_ROLE_CODES:
+            continue
+        row = db.query(models.AppRole).filter(models.AppRole.code == spec["code"]).first()
+        if not row:
+            db.add(models.AppRole(**spec))
+        else:
+            row.label = spec["label"]
+            row.panel = spec["panel"]
+            row.is_system = True
+            row.is_hidden = True
+            row.can_assign = False
+            row.is_enabled = True
+    db.commit()
+
+
 def get_role_row(db: Session, code: str) -> models.AppRole | None:
     if not code:
         return None

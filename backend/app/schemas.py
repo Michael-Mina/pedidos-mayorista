@@ -88,6 +88,20 @@ class User(UserBase):
     panel: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
+
+class UserBrief(BaseModel):
+    """Usuario embebido en pedidos (sede_id puede ser nulo en cuentas legacy)."""
+    id: int
+    username: str
+    role: str
+    sede_id: Optional[int] = None
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    numero_carnicero: Optional[str] = None
+    is_available: Optional[bool] = True
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -159,9 +173,9 @@ class Pedido(PedidoBase):
     id: int
     numero_pedido: Optional[str] = None
     mayorista_id: int
-    mayorista: Optional[User] = None
+    mayorista: Optional[UserBrief] = None
     carnicero_id: Optional[int] = None
-    carnicero: Optional[User] = None
+    carnicero: Optional[UserBrief] = None
     sede: Optional[Sede] = None
     estado: PedidoEstado
     timestamp: datetime

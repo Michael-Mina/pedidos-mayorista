@@ -425,8 +425,8 @@ const JefeCarnes = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Fetch some global orders (last 50)
-            const response = await api.get('/pedidos');
+            const params = user?.sede_id ? { sede_id: user.sede_id } : {};
+            const response = await api.get('/pedidos', { params });
             setGlobalOrders(response.data.slice(-50).reverse());
         } catch (error) {
             console.error("Error fetching global data:", error);
@@ -458,25 +458,40 @@ const JefeCarnes = () => {
 
     const handleAddCarnicero = async (e) => {
         e.preventDefault();
+        const numero = newCarnicero.numero_carnicero?.trim();
+        if (!numero || !newCarnicero.nombre?.trim() || !newCarnicero.apellido?.trim()) {
+            showNotify('Complete nombre, apellido y número de carnicero.', 'error');
+            return;
+        }
+        if (!user?.sede_id) {
+            showNotify('Su usuario no tiene sede asignada. Contacte al administrador.', 'error');
+            return;
+        }
         try {
             await api.post('/users/carniceros', {
-                username: newCarnicero.numero_carnicero,
+                username: numero,
                 role: 'carnicero',
-                sede_id: user.sede_id,
+                sede_id: Number(user.sede_id),
                 session_active: newCarnicero.is_available ? 1 : 0,
-                nombre: newCarnicero.nombre,
-                apellido: newCarnicero.apellido,
-                numero_carnicero: newCarnicero.numero_carnicero,
+                nombre: newCarnicero.nombre.trim(),
+                apellido: newCarnicero.apellido.trim(),
+                numero_carnicero: numero,
                 is_available: newCarnicero.is_available,
-                password: newCarnicero.numero_carnicero
+                password: numero,
             });
             setShowAddCarnicero(false);
             setNewCarnicero({ nombre: '', apellido: '', numero_carnicero: '', is_available: true, password: '' });
             fetchCarniceros();
-            showNotify("Carnicero creado exitosamente.", "success");
+            showNotify('Carnicero creado exitosamente.', 'success');
         } catch (error) {
-            console.error("Error al crear carnicero:", error);
-            showNotify("Error al crear el carnicero.", "error");
+            console.error('Error al crear carnicero:', error);
+            const detail = error.response?.data?.detail;
+            const msg = typeof detail === 'string'
+                ? detail
+                : Array.isArray(detail)
+                    ? detail.map((d) => d.msg).join(', ')
+                    : 'Error al crear el carnicero.';
+            showNotify(msg, 'error');
         }
     };
 
