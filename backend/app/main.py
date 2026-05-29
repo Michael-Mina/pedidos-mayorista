@@ -360,7 +360,7 @@ def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
 
 @app.get("/users", response_model=List[schemas.User])
 def read_users(db: Session = Depends(get_db)):
-    return crud.get_users(db)
+    return [_user_api(db, u) for u in crud.get_users(db)]
 
 
 @app.get("/roles/assignable", response_model=List[schemas.AppRole])

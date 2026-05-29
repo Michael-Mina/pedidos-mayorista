@@ -328,11 +328,11 @@ def gather_dashboard_report_data(
 def get_users(db: Session):
     """Usuarios asignables desde el panel admin (sin carniceros ni tablet sede)."""
     exclude = role_catalog.excluded_role_codes_for_user_list(db)
-    return (
-        db.query(models.User)
-        .filter(~models.User.role.in_(exclude))
-        .all()
-    )
+    return [
+        u
+        for u in db.query(models.User).all()
+        if role_catalog.normalize_role_code(u.role or "") not in exclude
+    ]
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
@@ -346,7 +346,7 @@ def update_user(db: Session, user_id: int, user: schemas.UserBase, password_hash
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         return None
-    if db_user.role in role_catalog.NON_PANEL_USER_ROLES:
+    if role_catalog.role_is_excluded_from_user_list(db, db_user.role):
         raise ValueError("Este tipo de cuenta no se gestiona desde Usuarios")
     validate_assignable_role(db, user.role)
 
@@ -387,7 +387,7 @@ def get_carniceros_by_sede(db: Session, sede_id: str):
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
-        if db_user.role in role_catalog.NON_PANEL_USER_ROLES:
+        if role_catalog.role_is_excluded_from_user_list(db, db_user.role):
             raise ValueError("Este tipo de cuenta no se elimina desde Usuarios")
         db.delete(db_user)
         db.commit()

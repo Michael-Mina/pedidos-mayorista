@@ -7,16 +7,9 @@ import {
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
     HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2
 } from 'lucide-react';
+import { PANEL_LABELS } from '../../utils/rolePanels';
+import { filterPanelUsers } from '../../utils/userListFilters';
 
-const PANEL_LABELS = {
-    admin: 'Administración (panel admin)',
-    mayorista: 'Mayorista',
-    jefe: 'Jefe de carnes / piso',
-    sede: 'Sede / carnicería',
-};
-
-/** No aparecen en Gestión de Usuarios (carniceros se administran en Jefe de carnes). */
-const EXCLUDED_FROM_USER_LIST = new Set(['carnicero', 'sede_butcher', 'master']);
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -661,7 +654,15 @@ const Admin = () => {
         );
     });
 
-    const panelUsers = usersList.filter((u) => !EXCLUDED_FROM_USER_LIST.has(u.role));
+    const rolesForUserFilter = useMemo(
+        () => [...assignableRoles, ...rolesCatalog],
+        [assignableRoles, rolesCatalog]
+    );
+
+    const panelUsers = useMemo(
+        () => filterPanelUsers(usersList, rolesForUserFilter),
+        [usersList, rolesForUserFilter]
+    );
 
     const availableUserRoles = [...new Set(panelUsers.map((user) => user.role).filter(Boolean))].sort();
 
@@ -1131,7 +1132,7 @@ const Admin = () => {
                             <h1>Catálogo de roles</h1>
                         </div>
                         <p className={styles.rolesHint}>
-                            Defina roles personalizados (ej. jefe de piso, mayorista regional). El <strong>panel</strong> define qué pantalla verá el usuario al iniciar sesión.
+                            Defina roles personalizados (ej. supervisor de turno, pedidos zona norte). El <strong>panel</strong> define qué pantalla verá el usuario al iniciar sesión.
                         </p>
                         <form className={`glass-card ${styles.roleCreateForm}`} onSubmit={handleCreateRole}>
                             <h2>Nuevo rol</h2>

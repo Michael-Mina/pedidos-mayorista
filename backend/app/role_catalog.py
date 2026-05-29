@@ -64,6 +64,13 @@ PANEL_HOME = {
     "sede": "/sede",
 }
 
+PANEL_LABELS = {
+    "admin": "Panel de administración",
+    "mayorista": "Panel de pedidos",
+    "jefe": "Panel de proteínas",
+    "sede": "Panel de supervisor",
+}
+
 
 def normalize_role_code(code: str) -> str:
     text = (code or "").strip().lower().replace(" ", "_")
@@ -109,9 +116,11 @@ def resolve_panel(db: Session, role_code: str) -> str:
 
 def user_response_extra(db: Session, user: models.User) -> dict:
     row = get_role_row(db, user.role)
+    panel = resolve_panel(db, user.role)
     return {
         "role_label": row.label if row else user.role,
-        "panel": resolve_panel(db, user.role),
+        "panel": panel,
+        "panel_label": PANEL_LABELS.get(panel, panel),
     }
 
 
@@ -138,7 +147,8 @@ NON_PANEL_USER_ROLES = frozenset(
 )
 
 
-def excluded_role_codes_for_user_list(db: Session) -> list[str]:
+def excluded_role_codes_for_user_list(db: Session) -> frozenset[str]:
+    """Códigos de rol que no deben aparecer en GET /users (comparación en minúsculas)."""
     codes = set(NON_PANEL_USER_ROLES)
     try:
         rows = (
@@ -146,7 +156,13 @@ def excluded_role_codes_for_user_list(db: Session) -> list[str]:
             .filter((models.AppRole.is_hidden == True) | (models.AppRole.panel == "sede"))
             .all()
         )
-        codes.update(r[0] for r in rows)
+        codes.update(r[0] for r in rows if r[0])
     except Exception:
         pass
-    return list(codes)
+    return frozenset(normalize_role_code(c) for c in codes if c)
+
+
+def role_is_excluded_from_user_list(db: Session, role_code: str | None) -> bool:
+    if not role_code:
+        return False
+    return normalize_role_code(role_code) in excluded_role_codes_for_user_list(db)
