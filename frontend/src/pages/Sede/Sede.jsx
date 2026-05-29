@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
+import { panelLabel } from '../../utils/rolePanels';
 
 const Sede = () => {
     const { user, logout } = useAuth();
@@ -143,7 +144,7 @@ const Sede = () => {
             <header className={`${styles.header} glass-card`}>
                 <div className={styles.logo}>
                     <Monitor size={24} style={{ marginRight: '10px', color: 'var(--primary-color)' }} />
-                    Pedidos <span>Mayorista</span> <small>| Panel de Sede</small>
+                    Pedidos <span>Mayorista</span> <small>| {panelLabel('sede')}</small>
                 </div>
 
                 <div className={styles.headerRight}>

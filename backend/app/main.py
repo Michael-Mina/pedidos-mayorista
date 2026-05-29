@@ -93,11 +93,31 @@ def _ensure_app_roles_schema():
 
 _ensure_app_roles_schema()
 
+
+def _normalize_legacy_user_roles() -> None:
+    """Unifica roles guardados como enum en mayúsculas (p. ej. JEFE_CARNES → jefe_carnes)."""
+    try:
+        with SessionLocal() as db:
+            changed = False
+            for user in db.query(models.User).all():
+                normalized = role_catalog.normalize_role_code(user.role or "")
+                if user.role != normalized:
+                    user.role = normalized
+                    changed = True
+            if changed:
+                db.commit()
+                print("[migrations] Roles de usuarios normalizados a minúsculas")
+    except Exception as exc:
+        print(f"[migrations] Aviso al normalizar roles de usuarios: {exc}")
+
+
 try:
     with SessionLocal() as _db:
         role_catalog.seed_builtin_roles(_db)
 except Exception as _roles_err:
     print(f"[role_catalog] Aviso al sembrar roles: {_roles_err}")
+
+_normalize_legacy_user_roles()
 
 # 4b. Archivos estáticos (imágenes de cortes en el servidor)
 _STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"

@@ -8,7 +8,7 @@ import {
     HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2
 } from 'lucide-react';
 import { PANEL_LABELS } from '../../utils/rolePanels';
-import { filterPanelUsers } from '../../utils/userListFilters';
+import { filterPanelUsers, normalizeRoleCode } from '../../utils/userListFilters';
 
 import {
     Chart as ChartJS,
@@ -188,7 +188,10 @@ const Admin = () => {
 
     const roleLabelFor = useCallback(
         (code) => {
-            const row = [...assignableRoles, ...rolesCatalog].find((r) => r.code === code);
+            const norm = normalizeRoleCode(code);
+            const row = [...assignableRoles, ...rolesCatalog].find(
+                (r) => normalizeRoleCode(r.code) === norm
+            );
             return row ? row.label : code;
         },
         [assignableRoles, rolesCatalog]
@@ -664,7 +667,17 @@ const Admin = () => {
         [usersList, rolesForUserFilter]
     );
 
-    const availableUserRoles = [...new Set(panelUsers.map((user) => user.role).filter(Boolean))].sort();
+    const availableUserRoles = useMemo(() => {
+        const byNorm = new Map();
+        panelUsers.forEach((user) => {
+            if (!user.role) return;
+            const norm = normalizeRoleCode(user.role);
+            if (!byNorm.has(norm)) byNorm.set(norm, user.role);
+        });
+        return [...byNorm.values()].sort((a, b) =>
+            roleLabelFor(a).localeCompare(roleLabelFor(b), 'es')
+        );
+    }, [panelUsers, roleLabelFor]);
 
     const filteredUsers = panelUsers.filter((user) => {
         const term = userSearch.trim().toLowerCase();
@@ -672,9 +685,11 @@ const Admin = () => {
         const matchesSearch = !term ||
             user.username.toLowerCase().includes(term) ||
             user.role.toLowerCase().includes(term) ||
+            roleLabelFor(user.role).toLowerCase().includes(term) ||
             sedeName.toLowerCase().includes(term) ||
             String(user.sede_id ?? '').toLowerCase().includes(term);
-        const matchesRole = !userRoleFilter || user.role === userRoleFilter;
+        const matchesRole = !userRoleFilter ||
+            normalizeRoleCode(user.role) === normalizeRoleCode(userRoleFilter);
         const matchesSede = !userSedeFilter || String(user.sede_id) === userSedeFilter;
 
         return matchesSearch && matchesRole && matchesSede;
@@ -1084,7 +1099,7 @@ const Admin = () => {
                             >
                                 <option value="">Todos los roles</option>
                                 {availableUserRoles.map((role) => (
-                                    <option key={role} value={role}>{role}</option>
+                                    <option key={role} value={role}>{roleLabelFor(role)}</option>
                                 ))}
                             </select>
                             <select
