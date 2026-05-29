@@ -11,7 +11,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, role_catalog
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -61,6 +61,43 @@ def _ensure_pedidos_columns():
         print(f"[migrations] Aviso al asegurar columnas pedidos: {exc}")
 
 _ensure_pedidos_columns()
+
+
+def _ensure_app_roles_schema():
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_roles (
+                        id SERIAL PRIMARY KEY,
+                        code VARCHAR(48) UNIQUE NOT NULL,
+                        label VARCHAR(120) NOT NULL,
+                        panel VARCHAR(24) NOT NULL DEFAULT 'mayorista',
+                        is_system BOOLEAN DEFAULT FALSE,
+                        is_hidden BOOLEAN DEFAULT FALSE,
+                        can_assign BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(48) USING role::text;"
+                )
+            )
+    except Exception as exc:
+        print(f"[migrations] Aviso app_roles / users.role: {exc}")
+
+
+_ensure_app_roles_schema()
+
+try:
+    with SessionLocal() as _db:
+        role_catalog.seed_builtin_roles(_db)
+except Exception as _roles_err:
+    print(f"[role_catalog] Aviso al sembrar roles: {_roles_err}")
 
 # 4b. Archivos estáticos (imágenes de cortes en el servidor)
 _STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
@@ -117,13 +154,24 @@ def _parse_stats_date(value: Optional[str]) -> Optional[date]:
 def read_root():
     return {"message": "Pedidos Mayorista API is running", "docs": "/docs"}
 
+
+def _user_api(db: Session, user: models.User) -> schemas.User:
+    data = schemas.User.model_validate(user).model_dump()
+    data.update(role_catalog.user_response_extra(db, user))
+    return schemas.User(**data)
+
+
 @app.post("/register", response_model=schemas.User)
 def register_user(user: schemas.UserBase, password: Optional[str] = None, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
-    if user.role == models.UserRole.MASTER:
+    if user.role == models.UserRole.MASTER.value:
         raise HTTPException(status_code=400, detail="No se puede registrar el rol master desde la API")
+    try:
+        crud.validate_assignable_role(db, user.role)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # If no password is provided (e.g., for butchers), use a dummy password
     actual_password = password if password else "nopassword_carnicero_default"
@@ -138,7 +186,7 @@ def register_user(user: schemas.UserBase, password: Optional[str] = None, db: Se
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+    return _user_api(db, new_user)
 
 @app.post("/login", response_model=schemas.Token)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
@@ -147,7 +195,7 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     
     # If user is a sede (butcher shop), ensure session is active
-    if user.role == models.UserRole.SEDE_BUTCHER:
+    if user.role == models.UserRole.SEDE_BUTCHER.value:
         # Always set to active (1) for direct access
         if user.session_active != 1:
             user.session_active = 1
@@ -158,7 +206,7 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": _user_api(db, user),
     }
 
 @app.post("/logout")
@@ -169,7 +217,7 @@ async def logout(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     
     # Deactivate session
-    if user.role == models.UserRole.SEDE_BUTCHER:
+    if user.role == models.UserRole.SEDE_BUTCHER.value:
         crud.update_session_status(db, user_id, 0)
         # Notify via socket
         await sio.emit("sede_logout", {"user_id": user_id}, room=f"sede_{user.sede_id}")
@@ -313,6 +361,78 @@ def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db)):
 @app.get("/users", response_model=List[schemas.User])
 def read_users(db: Session = Depends(get_db)):
     return crud.get_users(db)
+
+
+@app.get("/roles/assignable", response_model=List[schemas.AppRole])
+def read_assignable_roles(
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(auth.require_admin),
+):
+    return role_catalog.list_assignable_roles(db)
+
+
+@app.get("/master/roles", response_model=List[schemas.AppRole])
+def master_list_roles(
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    return role_catalog.list_roles_for_master(db)
+
+
+@app.post("/master/roles", response_model=schemas.AppRole)
+def master_create_role(
+    body: schemas.AppRoleCreate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    try:
+        return crud.create_app_role(
+            db,
+            code=body.code,
+            label=body.label,
+            panel=body.panel,
+            can_assign=body.can_assign,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/master/roles/{role_id}", response_model=schemas.AppRole)
+def master_update_role(
+    role_id: int,
+    body: schemas.AppRoleUpdate,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    try:
+        row = crud.update_app_role(
+            db,
+            role_id,
+            label=body.label,
+            panel=body.panel,
+            can_assign=body.can_assign,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    return row
+
+
+@app.delete("/master/roles/{role_id}")
+def master_delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    _master: models.User = Depends(auth.require_master),
+):
+    try:
+        row = crud.delete_app_role(db, role_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    return {"message": "Rol eliminado"}
+
 
 def _resolve_sede_ids(
     sede_id: Optional[int],
@@ -491,82 +611,6 @@ async def set_availability_bulk(data: schemas.ButcherAvailabilityBulkUpdate, man
     }, room=f"sede_{sede_id}")
     
     return {"success": True, "updated": len(results)}
-
-
-@app.get("/master/profiles", response_model=List[schemas.User])
-def list_master_profiles(
-    db: Session = Depends(get_db),
-    _master: models.User = Depends(auth.require_master),
-):
-    return crud.get_manageable_profiles(db)
-
-
-@app.post("/master/profiles", response_model=schemas.User)
-def create_master_profile(
-    body: schemas.ProfileCreate,
-    db: Session = Depends(get_db),
-    _master: models.User = Depends(auth.require_master),
-):
-    try:
-        return crud.create_profile_user(
-            db,
-            username=body.username,
-            password_hash=auth.get_password_hash(body.password),
-            role=body.role,
-            sede_id=body.sede_id,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.put("/master/profiles/{user_id}", response_model=schemas.User)
-def update_master_profile(
-    user_id: int,
-    body: schemas.ProfileUpdate,
-    db: Session = Depends(get_db),
-    _master: models.User = Depends(auth.require_master),
-):
-    db_user = crud.get_user(db, user_id)
-    if not db_user or db_user.role == models.UserRole.MASTER:
-        raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    if db_user.role not in schemas.MASTER_CREATABLE_ROLES:
-        raise HTTPException(status_code=400, detail="Este perfil no se puede editar")
-    password_hash = auth.get_password_hash(body.password) if body.password and body.password.strip() else None
-    try:
-        updated = crud.update_user(
-            db,
-            user_id,
-            schemas.UserBase(
-                username=body.username,
-                role=body.role,
-                sede_id=body.sede_id,
-                session_active=db_user.session_active,
-            ),
-            password_hash=password_hash,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    return updated
-
-
-@app.delete("/master/profiles/{user_id}")
-def delete_master_profile(
-    user_id: int,
-    db: Session = Depends(get_db),
-    _master: models.User = Depends(auth.require_master),
-):
-    db_user = crud.get_user(db, user_id)
-    if not db_user or db_user.role == models.UserRole.MASTER:
-        raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    if db_user.role not in schemas.MASTER_CREATABLE_ROLES:
-        raise HTTPException(status_code=400, detail="Este perfil no se puede eliminar")
-    try:
-        crud.delete_user(db, user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"message": "Perfil eliminado correctamente"}
 
 
 @app.get("/admin/backup/status")

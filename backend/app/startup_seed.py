@@ -3,7 +3,7 @@ import os
 
 from sqlalchemy import text
 
-from . import auth, models
+from . import auth, models, role_catalog
 from .database import SessionLocal, engine
 
 DEMO_USER = "mayorista_test"
@@ -53,6 +53,7 @@ def ensure_master_user() -> None:
     _ensure_master_role_enum()
     db = SessionLocal()
     try:
+        role_catalog.seed_builtin_roles(db)
         sede = db.query(models.Sede).first()
         if not sede:
             sede = models.Sede(nombre="Sede Central", ciudad="Bogotá")
@@ -63,7 +64,7 @@ def ensure_master_user() -> None:
             db,
             username=MASTER_USER,
             password=MASTER_PASS,
-            role=models.UserRole.MASTER,
+            role=models.UserRole.MASTER.value,
             sede_id=sede.id,
             session_active=1,
             session_approved=1,
@@ -95,14 +96,14 @@ def run_if_enabled() -> None:
             db,
             username=DEMO_USER,
             password=DEMO_PASS,
-            role=models.UserRole.MAYORISTA,
+            role=models.UserRole.MAYORISTA.value,
             sede_id=sede.id,
         )
         _upsert_user(
             db,
             username=ADMIN_USER,
             password=ADMIN_PASS,
-            role=models.UserRole.ADMIN,
+            role=models.UserRole.ADMIN.value,
             sede_id=sede.id,
             session_active=1,
             session_approved=1,

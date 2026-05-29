@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
-from . import models, schemas, reporte_mensajes
+from . import models, schemas, reporte_mensajes, role_catalog
 from datetime import datetime, timezone, date, time
 
 # Sede CRUD
@@ -20,7 +20,7 @@ def create_sede(db: Session, sede: schemas.SedeCreate):
     pw_hash = auth.get_password_hash(sede.password)
     db_user = models.User(
         username=db_sede.nombre,
-        role=models.UserRole.SEDE_BUTCHER,
+        role=models.UserRole.SEDE_BUTCHER.value,
         sede_id=db_sede.id,
         password_hash=pw_hash,
         session_active=0
@@ -43,7 +43,7 @@ def update_sede(db: Session, sede_id: int, sede: schemas.SedeUpdate):
         if sede.password or sede.nombre:
             db_user = db.query(models.User).filter(
                 models.User.sede_id == sede_id,
-                models.User.role == models.UserRole.SEDE_BUTCHER
+                models.User.role == models.UserRole.SEDE_BUTCHER.value
             ).first()
             if db_user:
                 if sede.nombre: db_user.username = sede.nombre
@@ -57,7 +57,7 @@ def delete_sede(db: Session, sede_id: int):
         # Delete associated tablet user (by sede_id for safety)
         db.query(models.User).filter(
             models.User.sede_id == sede_id,
-            models.User.role == models.UserRole.SEDE_BUTCHER
+            models.User.role == models.UserRole.SEDE_BUTCHER.value
         ).delete()
         
         db.delete(db_sede)
@@ -299,7 +299,7 @@ def gather_dashboard_report_data(
     )
     mayoristas = [
         u for u in users
-        if u.role == models.UserRole.MAYORISTA
+        if u.role == models.UserRole.MAYORISTA.value
         and (not sede_ids or u.sede_id in sede_ids)
     ]
     ciudades = list({s.ciudad for s in all_sedes if s.ciudad and (not sede_ids or s.id in sede_ids)})
@@ -326,46 +326,11 @@ def gather_dashboard_report_data(
 
 # User Management
 def get_users(db: Session):
-    return db.query(models.User).filter(
-        models.User.role != models.UserRole.CARNICERO,
-        models.User.role != models.UserRole.SEDE_BUTCHER,
-        models.User.role != models.UserRole.MASTER,
-    ).all()
-
-
-def get_manageable_profiles(db: Session):
-    """Perfiles que el master puede listar y gestionar (misma vista que get_users)."""
-    return get_users(db)
-
-
-_MASTER_CREATABLE_ROLES = {
-    models.UserRole.ADMIN,
-    models.UserRole.MAYORISTA,
-    models.UserRole.JEFE_CARNES,
-}
-
-
-def create_profile_user(db: Session, *, username: str, password_hash: str, role, sede_id: int):
-    if role not in _MASTER_CREATABLE_ROLES:
-        raise ValueError("Rol no permitido para creación de perfiles")
-    if get_user_by_username(db, username):
-        raise ValueError("El nombre de usuario ya está registrado")
-    sede = db.query(models.Sede).filter(models.Sede.id == sede_id).first()
-    if not sede:
-        raise ValueError("La sede indicada no existe")
-
-    db_user = models.User(
-        username=username.strip(),
-        role=role,
-        sede_id=sede_id,
-        password_hash=password_hash,
-        session_active=1,
-        session_approved=1,
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    exclude = role_catalog.excluded_role_codes_for_user_list(db)
+    q = db.query(models.User)
+    if exclude:
+        q = q.filter(~models.User.role.in_(exclude))
+    return q.all()
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
@@ -379,8 +344,9 @@ def update_user(db: Session, user_id: int, user: schemas.UserBase, password_hash
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         return None
-    if db_user.role == models.UserRole.MASTER:
+    if db_user.role == models.UserRole.MASTER.value:
         raise ValueError("El usuario master no puede modificarse desde el panel")
+    validate_assignable_role(db, user.role)
 
     duplicate = (
         db.query(models.User)
@@ -412,14 +378,14 @@ def update_session_status(db: Session, user_id: int, active: int):
 
 def get_carniceros_by_sede(db: Session, sede_id: str):
     return db.query(models.User).filter(
-        models.User.role == models.UserRole.CARNICERO,
+        models.User.role == models.UserRole.CARNICERO.value,
         models.User.sede_id == sede_id
     ).all()
 
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
-        if db_user.role == models.UserRole.MASTER:
+        if db_user.role == models.UserRole.MASTER.value:
             raise ValueError("El usuario master no puede eliminarse")
         db.delete(db_user)
         db.commit()
@@ -428,7 +394,7 @@ def delete_user(db: Session, user_id: int):
 def create_carnicero(db: Session, carnicero_data, pw_hash: str):
     db_user = models.User(
         username=carnicero_data.username,
-        role=models.UserRole.CARNICERO,
+        role=models.UserRole.CARNICERO.value,
         sede_id=carnicero_data.sede_id,
         nombre=carnicero_data.nombre,
         apellido=carnicero_data.apellido,
@@ -442,7 +408,7 @@ def create_carnicero(db: Session, carnicero_data, pw_hash: str):
     return db_user
 
 def update_carnicero_availability(db: Session, user_id: int, is_available: bool):
-    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO).first()
+    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO.value).first()
     if db_user:
         db_user.is_available = is_available
         db.commit()
@@ -450,7 +416,7 @@ def update_carnicero_availability(db: Session, user_id: int, is_available: bool)
     return db_user
 
 def update_carnicero(db: Session, user_id: int, carnicero_data: schemas.CarniceroUpdate, password_hash: str = None):
-    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO).first()
+    db_user = db.query(models.User).filter(models.User.id == user_id, models.User.role == models.UserRole.CARNICERO.value).first()
     if db_user:
         if carnicero_data.nombre is not None:
             db_user.nombre = carnicero_data.nombre
@@ -628,7 +594,7 @@ def respond_pedido_problema(db: Session, pedido_id: int, respuesta: str):
 def get_butchers_by_sede(db: Session, sede_id: str):
     """Get all butchers (carniceros) for a specific sede"""
     return db.query(models.User).filter(
-        models.User.role == models.UserRole.CARNICERO,
+        models.User.role == models.UserRole.CARNICERO.value,
         models.User.sede_id == sede_id
     ).all()
 
@@ -691,3 +657,72 @@ def check_butcher_available_today(db: Session, butcher_id: int):
     ).first()
     
     return availability is not None
+
+
+# App roles (catálogo — gestión master)
+def create_app_role(db: Session, *, code: str, label: str, panel: str, can_assign: bool = True):
+    code = role_catalog.normalize_role_code(code)
+    if not code:
+        raise ValueError("Código de rol inválido")
+    if db.query(models.AppRole).filter(models.AppRole.code == code).first():
+        raise ValueError("Ya existe un rol con ese código")
+    if panel not in ("admin", "mayorista", "jefe", "sede"):
+        raise ValueError("Panel inválido")
+    row = models.AppRole(
+        code=code,
+        label=label.strip(),
+        panel=panel,
+        is_system=False,
+        is_hidden=False,
+        can_assign=can_assign,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def update_app_role(db: Session, role_id: int, *, label: str | None = None, panel: str | None = None, can_assign: bool | None = None):
+    row = db.query(models.AppRole).filter(models.AppRole.id == role_id).first()
+    if not row:
+        return None
+    if row.is_system and row.code in (models.UserRole.MASTER.value, models.UserRole.ADMIN.value):
+        if label is not None:
+            row.label = label.strip()
+        if can_assign is not None:
+            row.can_assign = can_assign
+    else:
+        if label is not None:
+            row.label = label.strip()
+        if panel is not None:
+            if panel not in ("admin", "mayorista", "jefe", "sede"):
+                raise ValueError("Panel inválido")
+            row.panel = panel
+        if can_assign is not None:
+            row.can_assign = can_assign
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def delete_app_role(db: Session, role_id: int):
+    row = db.query(models.AppRole).filter(models.AppRole.id == role_id).first()
+    if not row:
+        return None
+    if row.is_system:
+        raise ValueError("No se pueden eliminar roles del sistema")
+    in_use = db.query(models.User).filter(models.User.role == row.code).count()
+    if in_use > 0:
+        raise ValueError(f"Hay {in_use} usuario(s) con este rol")
+    db.delete(row)
+    db.commit()
+    return row
+
+
+def validate_assignable_role(db: Session, role_code: str) -> models.AppRole:
+    row = role_catalog.get_role_row(db, role_code)
+    if not row:
+        raise ValueError("Rol no registrado")
+    if not row.can_assign or row.is_hidden:
+        raise ValueError("Este rol no puede asignarse desde el panel")
+    return row

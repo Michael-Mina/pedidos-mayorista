@@ -591,41 +591,6 @@
     margin-bottom: 0;
 }
 
-.profilesHint {
-    margin: -8px 0 16px;
-    font-size: 0.9rem;
-    color: #94a3b8;
-    line-height: 1.45;
-    max-width: 720px;
-}
-
-.profileCreateCard {
-    padding: 20px 22px;
-    margin-bottom: 20px;
-}
-
-.profileCreateTitle {
-    margin: 0 0 16px;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--primary-color);
-}
-
-.profileCreateForm {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-    align-items: end;
-}
-
-.profileCreateForm .premium-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 44px;
-}
-
 .sectionScroll,
 .managementScroll {
     overflow-y: auto;
@@ -1100,6 +1065,57 @@
 .backupCard .premium-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.rolesHint {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 720px;
+}
+
+.roleCreateForm {
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.roleCreateForm h2 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--primary-color);
+}
+
+.roleFormGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    align-items: center;
+}
+
+.roleCheckLabel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.roleDeleteBtn {
+    background: transparent;
+    border: none;
+    color: var(--error);
+    cursor: pointer;
+    padding: 4px;
+    line-height: 0;
+}
+
+.roleDeleteBtn:hover {
+    opacity: 0.85;
 }
 
 @media (max-width: 480px) {

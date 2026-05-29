@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Admin.module.css';
 import api, { downloadAdminBackup, downloadAdminReport } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet,
-    UserPlus,
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2
 } from 'lucide-react';
 
-const PROFILE_ROLE_OPTIONS = [
-    { value: 'mayorista', label: 'Mayorista' },
-    { value: 'jefe_carnes', label: 'Jefe de carnes (piso)' },
-    { value: 'admin', label: 'Administrador' },
-];
-
-const profileRoleLabel = (role) =>
-    PROFILE_ROLE_OPTIONS.find((o) => o.value === role)?.label || role;
+const PANEL_LABELS = {
+    admin: 'Administración (panel admin)',
+    mayorista: 'Mayorista',
+    jefe: 'Jefe de carnes / piso',
+    sede: 'Sede / carnicería',
+};
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -146,32 +143,68 @@ const Admin = () => {
     const [backupLoading, setBackupLoading] = useState(false);
     const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
-    const [profilesList, setProfilesList] = useState([]);
-    const [profileForm, setProfileForm] = useState({
-        username: '',
-        password: '',
-        role: '',
-        sede_id: '',
+    const [assignableRoles, setAssignableRoles] = useState([]);
+    const [rolesCatalog, setRolesCatalog] = useState([]);
+    const [roleForm, setRoleForm] = useState({
+        code: '',
+        label: '',
+        panel: 'mayorista',
+        can_assign: true,
     });
-    const [profileSearch, setProfileSearch] = useState('');
-    const [profileSaving, setProfileSaving] = useState(false);
+    const [roleFormError, setRoleFormError] = useState('');
 
     const navTabs = useMemo(() => {
         const tabs = [
             { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
-        ];
-        if (isMaster) {
-            tabs.push({ id: 'profiles', label: 'Creación de perfiles', icon: UserPlus });
-        } else {
-            tabs.push({ id: 'users', label: 'Usuarios', icon: Users });
-        }
-        tabs.push(
+            { id: 'users', label: 'Usuarios', icon: Users },
             { id: 'sedes', label: 'Sedes', icon: MapPin },
             { id: 'products', label: 'Productos', icon: Package },
             { id: 'backup', label: 'Respaldo', icon: HardDriveDownload },
-        );
+        ];
+        if (isMaster) {
+            tabs.splice(2, 0, { id: 'roles', label: 'Roles', icon: Shield });
+        }
         return tabs;
     }, [isMaster]);
+
+    const loadAssignableRoles = useCallback(async () => {
+        try {
+            const res = await api.get('/roles/assignable');
+            setAssignableRoles(res.data || []);
+        } catch (e) {
+            console.error('Error loading assignable roles', e);
+        }
+    }, []);
+
+    const loadRolesCatalog = useCallback(async () => {
+        if (!isMaster) return;
+        try {
+            const res = await api.get('/master/roles');
+            setRolesCatalog(res.data || []);
+        } catch (e) {
+            console.error('Error loading roles catalog', e);
+        }
+    }, [isMaster]);
+
+    useEffect(() => {
+        loadAssignableRoles();
+    }, [loadAssignableRoles]);
+
+    const roleLabelFor = useCallback(
+        (code) => {
+            const row = [...assignableRoles, ...rolesCatalog].find((r) => r.code === code);
+            return row ? row.label : code;
+        },
+        [assignableRoles, rolesCatalog]
+    );
+
+    const mayoristaRoleCodes = useMemo(
+        () =>
+            [...assignableRoles, ...rolesCatalog]
+                .filter((r) => r.panel === 'mayorista')
+                .map((r) => r.code),
+        [assignableRoles, rolesCatalog]
+    );
 
     const goToTab = (tabId) => {
         setActiveTab(tabId);
@@ -209,9 +242,6 @@ const Admin = () => {
             setUserSearch('');
             setUserRoleFilter('');
             setUserSedeFilter('');
-        }
-        if (activeTab !== 'profiles') {
-            setProfileSearch('');
         }
     }, [activeTab]);
 
@@ -286,13 +316,6 @@ const Admin = () => {
                 ]);
                 setUsersList(resUsers.data);
                 setSedesList(resSedes.data);
-            } else if (activeTab === 'profiles') {
-                const [resProfiles, resSedes] = await Promise.all([
-                    api.get('/master/profiles'),
-                    api.get('/sedes'),
-                ]);
-                setProfilesList(resProfiles.data);
-                setSedesList(resSedes.data);
             } else if (activeTab === 'sedes') {
                 const res = await api.get('/sedes');
                 setSedesList(res.data);
@@ -306,6 +329,8 @@ const Admin = () => {
             } else if (activeTab === 'backup') {
                 const res = await api.get('/admin/backup/status');
                 setBackupStatus(res.data);
+            } else if (activeTab === 'roles' && isMaster) {
+                await loadRolesCatalog();
             }
         } catch (error) {
             console.error("Error fetching admin data:", error);
@@ -318,7 +343,7 @@ const Admin = () => {
         setEditItem(item);
         if (type === 'cut' && item) {
             setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map(t => t.id) || [] });
-        } else if ((type === 'user' || type === 'profile') && item) {
+        } else if (type === 'user' && item) {
             setFormData({
                 username: item.username,
                 role: item.role,
@@ -336,28 +361,6 @@ const Admin = () => {
         try {
             let endpoint = '';
             let dataToSend = {};
-
-            if (modalType === 'profile') {
-                const sedeId = parseInt(formData.sede_id, 10);
-                if (!formData.username?.trim() || !formData.role || Number.isNaN(sedeId)) {
-                    alert('Complete usuario, rol y sede.');
-                    return;
-                }
-                dataToSend = {
-                    username: formData.username.trim(),
-                    role: formData.role,
-                    sede_id: sedeId,
-                };
-                if (formData.password?.trim()) {
-                    dataToSend.password = formData.password;
-                }
-                if (editItem) {
-                    await api.put(`/master/profiles/${editItem.id}`, dataToSend);
-                }
-                setShowModal(false);
-                fetchData();
-                return;
-            }
 
             if (modalType === 'user') {
                 endpoint = '/users';
@@ -434,36 +437,10 @@ const Admin = () => {
         }
     };
 
-    const handleCreateProfile = async (e) => {
-        e.preventDefault();
-        const sedeId = parseInt(profileForm.sede_id, 10);
-        if (!profileForm.username?.trim() || !profileForm.password?.trim() || !profileForm.role || Number.isNaN(sedeId)) {
-            alert('Complete usuario, contraseña, rol y sede.');
-            return;
-        }
-        setProfileSaving(true);
-        try {
-            await api.post('/master/profiles', {
-                username: profileForm.username.trim(),
-                password: profileForm.password,
-                role: profileForm.role,
-                sede_id: sedeId,
-            });
-            setProfileForm({ username: '', password: '', role: '', sede_id: '' });
-            fetchData();
-        } catch (error) {
-            const detail = error.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : 'No se pudo crear el perfil.');
-        } finally {
-            setProfileSaving(false);
-        }
-    };
-
     const handleDelete = async (type, id) => {
         if (!window.confirm("¿Está seguro de eliminar este elemento?")) return;
         try {
             let endpoint = '';
-            if (type === 'profile') endpoint = '/master/profiles';
             if (type === 'user') endpoint = '/users';
             if (type === 'sede') endpoint = '/sedes';
             if (type === 'category') endpoint = '/categorias';
@@ -539,8 +516,34 @@ const Admin = () => {
     const isMultiSedeCompare = dashboardCompareMode === 'specific' && dashboardSelectedSedes.length > 1;
     const totalPedidos = stats.sedeOrders.reduce((a, b) => a + b.count, 0);
     const totalKg = stats.topCuts.reduce((a, b) => a + (b.total_kg || 0), 0);
+    const handleCreateRole = async (e) => {
+        e.preventDefault();
+        setRoleFormError('');
+        try {
+            await api.post('/master/roles', roleForm);
+            setRoleForm({ code: '', label: '', panel: 'mayorista', can_assign: true });
+            await loadRolesCatalog();
+            await loadAssignableRoles();
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            setRoleFormError(typeof detail === 'string' ? detail : 'No se pudo crear el rol');
+        }
+    };
+
+    const handleDeleteRole = async (roleId) => {
+        if (!window.confirm('¿Eliminar este rol? Solo si ningún usuario lo usa.')) return;
+        try {
+            await api.delete(`/master/roles/${roleId}`);
+            await loadRolesCatalog();
+            await loadAssignableRoles();
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : 'No se pudo eliminar el rol');
+        }
+    };
+
     const mayoristasEnVista = usersList.filter((u) => {
-        if (u.role !== 'mayorista') return false;
+        if (!mayoristaRoleCodes.includes(u.role)) return false;
         if (isAllSedesCompare) return true;
         return dashboardSelectedSedes.includes(String(u.sede_id));
     });
@@ -656,18 +659,6 @@ const Admin = () => {
     });
 
     const availableUserRoles = [...new Set(usersList.map((user) => user.role).filter(Boolean))].sort();
-
-    const filteredProfiles = profilesList.filter((profile) => {
-        const term = profileSearch.trim().toLowerCase();
-        const sedeName = sedesList.find((s) => s.id === profile.sede_id)?.nombre || '';
-        if (!term) return true;
-        return (
-            profile.username.toLowerCase().includes(term) ||
-            profileRoleLabel(profile.role).toLowerCase().includes(term) ||
-            profile.role.toLowerCase().includes(term) ||
-            sedeName.toLowerCase().includes(term)
-        );
-    });
 
     const filteredUsers = usersList.filter((user) => {
         const term = userSearch.trim().toLowerCase();
@@ -1063,125 +1054,6 @@ const Admin = () => {
                     </div>
                 )}
 
-                {activeTab === 'profiles' && isMaster && (
-                    <>
-                        <div className={styles.managementHeader}>
-                            <h1>Creación de perfiles</h1>
-                        </div>
-                        <p className={styles.profilesHint}>
-                            Cree accesos para mayoristas, jefes de carnes, administradores y otros roles operativos.
-                            El usuario master no aparece en esta lista.
-                        </p>
-
-                        <div className={`glass-card ${styles.profileCreateCard}`}>
-                            <h2 className={styles.profileCreateTitle}>Nuevo perfil</h2>
-                            <form className={styles.profileCreateForm} onSubmit={handleCreateProfile}>
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Nombre de usuario"
-                                    value={profileForm.username}
-                                    onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
-                                    required
-                                />
-                                <input
-                                    type="password"
-                                    className="input-field"
-                                    placeholder="Contraseña"
-                                    value={profileForm.password}
-                                    onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
-                                    required
-                                />
-                                <select
-                                    className="input-field"
-                                    value={profileForm.role}
-                                    onChange={(e) => setProfileForm({ ...profileForm, role: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Tipo de perfil</option>
-                                    {PROFILE_ROLE_OPTIONS.map((opt) => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                </select>
-                                <select
-                                    className="input-field"
-                                    value={profileForm.sede_id}
-                                    onChange={(e) => setProfileForm({ ...profileForm, sede_id: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Sede asignada</option>
-                                    {sedesList.map((s) => (
-                                        <option key={s.id} value={s.id}>{s.nombre}</option>
-                                    ))}
-                                </select>
-                                <button type="submit" className="premium-button" disabled={profileSaving}>
-                                    <UserPlus size={18} />
-                                    {profileSaving ? 'Creando…' : 'Crear perfil'}
-                                </button>
-                            </form>
-                        </div>
-
-                        <div className={styles.userFilters}>
-                            <div className={styles.searchBar}>
-                                <Search size={16} />
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Buscar perfiles..."
-                                    value={profileSearch}
-                                    onChange={(e) => setProfileSearch(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className={`glass-card ${styles.managementScroll}`} style={{ padding: '0px' }}>
-                            <table className={styles.table}>
-                                <thead>
-                                    <tr>
-                                        <th>Usuario</th>
-                                        <th>Perfil</th>
-                                        <th>Sede</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredProfiles.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
-                                                {loading ? 'Cargando…' : 'No hay perfiles creados aún.'}
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredProfiles.map((p) => (
-                                            <tr key={p.id}>
-                                                <td>{p.username}</td>
-                                                <td><span className={styles.badge}>{profileRoleLabel(p.role)}</span></td>
-                                                <td>{sedesList.find((s) => s.id === p.sede_id)?.nombre || p.sede_id}</td>
-                                                <td>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleOpenModal('profile', p)}
-                                                        style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '10px' }}
-                                                    >
-                                                        Editar
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDelete('profile', p.id)}
-                                                        style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}
-                                                    >
-                                                        Eliminar
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                )}
-
                 {activeTab === 'users' && (
                     <>
                         <div className={styles.managementHeader}>
@@ -1234,11 +1106,99 @@ const Admin = () => {
                                     {filteredUsers.map(u => (
                                         <tr key={u.id}>
                                             <td>{u.username}</td>
-                                            <td><span className={styles.badge}>{u.role}</span></td>
+                                            <td><span className={styles.badge}>{roleLabelFor(u.role)}</span></td>
                                             <td>{sedesList.find(s => s.id === u.sede_id)?.nombre || u.sede_id}</td>
                                             <td>
                                                 <button onClick={() => handleOpenModal('user', u)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '10px' }}>Editar</button>
                                                 <button onClick={() => handleDelete('user', u.id)} style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}>Eliminar</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
+
+                {activeTab === 'roles' && isMaster && (
+                    <>
+                        <div className={styles.managementHeader}>
+                            <h1>Catálogo de roles</h1>
+                        </div>
+                        <p className={styles.rolesHint}>
+                            Defina roles personalizados (ej. jefe de piso, mayorista regional). El <strong>panel</strong> define qué pantalla verá el usuario al iniciar sesión.
+                        </p>
+                        <form className={`glass-card ${styles.roleCreateForm}`} onSubmit={handleCreateRole}>
+                            <h2>Nuevo rol</h2>
+                            {roleFormError && <p className={styles.filterError} role="alert">{roleFormError}</p>}
+                            <div className={styles.roleFormGrid}>
+                                <input
+                                    className="input-field"
+                                    placeholder="Código (ej. jefe_piso)"
+                                    value={roleForm.code}
+                                    onChange={(e) => setRoleForm({ ...roleForm, code: e.target.value })}
+                                    required
+                                />
+                                <input
+                                    className="input-field"
+                                    placeholder="Nombre visible (ej. Jefe de piso)"
+                                    value={roleForm.label}
+                                    onChange={(e) => setRoleForm({ ...roleForm, label: e.target.value })}
+                                    required
+                                />
+                                <select
+                                    className="input-field"
+                                    value={roleForm.panel}
+                                    onChange={(e) => setRoleForm({ ...roleForm, panel: e.target.value })}
+                                >
+                                    {Object.entries(PANEL_LABELS).map(([value, label]) => (
+                                        <option key={value} value={value}>{label}</option>
+                                    ))}
+                                </select>
+                                <label className={styles.roleCheckLabel}>
+                                    <input
+                                        type="checkbox"
+                                        checked={roleForm.can_assign}
+                                        onChange={(e) => setRoleForm({ ...roleForm, can_assign: e.target.checked })}
+                                    />
+                                    Permitir asignar a usuarios nuevos
+                                </label>
+                            </div>
+                            <button type="submit" className="premium-button">
+                                <Plus size={18} /> Crear rol
+                            </button>
+                        </form>
+                        <div className={`glass-card ${styles.managementScroll}`} style={{ padding: 0 }}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre</th>
+                                        <th>Panel</th>
+                                        <th>Asignable</th>
+                                        <th>Sistema</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rolesCatalog.map((r) => (
+                                        <tr key={r.id}>
+                                            <td><code>{r.code}</code></td>
+                                            <td>{r.label}</td>
+                                            <td>{PANEL_LABELS[r.panel] || r.panel}</td>
+                                            <td>{r.can_assign ? 'Sí' : 'No'}</td>
+                                            <td>{r.is_system ? 'Sí' : 'No'}</td>
+                                            <td>
+                                                {!r.is_system && (
+                                                    <button
+                                                        type="button"
+                                                        className={styles.roleDeleteBtn}
+                                                        onClick={() => handleDeleteRole(r.id)}
+                                                        title="Eliminar rol"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -1445,7 +1405,6 @@ const Admin = () => {
                 <div className={styles.modalOverlay}>
                     <div className={`${styles.modal} glass-card`}>
                         <h3>{editItem ? 'Editar' : 'Crear'} {
-                            modalType === 'profile' ? 'Perfil' :
                             modalType === 'user' ? 'Usuario' :
                                 modalType === 'sede' ? 'Sede' :
                                     modalType === 'category' ? 'Categoría' :
@@ -1453,47 +1412,6 @@ const Admin = () => {
                                             modalType === 'tipoCorte' ? 'Corte' : modalType
                         }</h3>
                         <form onSubmit={handleSubmit}>
-                            {modalType === 'profile' && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <input
-                                        placeholder="Nombre de usuario"
-                                        className="input-field"
-                                        value={formData.username || ''}
-                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                        required
-                                    />
-                                    <input
-                                        placeholder={editItem ? 'Nueva contraseña (opcional)' : 'Contraseña'}
-                                        type="password"
-                                        className="input-field"
-                                        value={formData.password || ''}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        required={!editItem}
-                                    />
-                                    <select
-                                        className="input-field"
-                                        value={formData.role || ''}
-                                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">Tipo de perfil</option>
-                                        {PROFILE_ROLE_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        className="input-field"
-                                        value={formData.sede_id || ''}
-                                        onChange={(e) => setFormData({ ...formData, sede_id: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">Sede asignada</option>
-                                        {sedesList.map((s) => (
-                                            <option key={s.id} value={s.id}>{s.nombre}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
                             {modalType === 'user' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input placeholder="Nombre de usuario" className="input-field" value={formData.username || ''} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
@@ -1506,9 +1424,11 @@ const Admin = () => {
                                     />
                                     <select className="input-field" value={formData.role || ''} onChange={e => setFormData({ ...formData, role: e.target.value })} required>
                                         <option value="">Seleccionar Rol</option>
-                                        <option value="admin">Administrador</option>
-                                        <option value="mayorista">Mayorista</option>
-                                        <option value="jefe_carnes">Jefe de Carnes</option>
+                                        {assignableRoles.map((r) => (
+                                            <option key={r.code} value={r.code}>
+                                                {r.label} — {PANEL_LABELS[r.panel] || r.panel}
+                                            </option>
+                                        ))}
                                     </select>
                                     <select className="input-field" value={formData.sede_id || ''} onChange={e => setFormData({ ...formData, sede_id: e.target.value })} required>
                                         <option value="">Seleccionar Sede</option>

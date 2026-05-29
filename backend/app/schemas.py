@@ -2,7 +2,7 @@ import json
 from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime, date
 from typing import List, Optional
-from .models import UserRole, PedidoEstado
+from .models import PedidoEstado
 
 class SedeBase(BaseModel):
     nombre: str
@@ -21,9 +21,33 @@ class Sede(SedeBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+class AppRoleBase(BaseModel):
+    code: str
+    label: str
+    panel: str
+    can_assign: bool = True
+
+
+class AppRoleCreate(AppRoleBase):
+    pass
+
+
+class AppRoleUpdate(BaseModel):
+    label: Optional[str] = None
+    panel: Optional[str] = None
+    can_assign: Optional[bool] = None
+
+
+class AppRole(AppRoleBase):
+    id: int
+    is_system: bool = False
+    is_hidden: bool = False
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserBase(BaseModel):
     username: str
-    role: UserRole
+    role: str
     sede_id: int
     session_active: Optional[int] = 0
     nombre: Optional[str] = None
@@ -34,7 +58,7 @@ class UserBase(BaseModel):
 
 class UserUpdate(BaseModel):
     username: str
-    role: UserRole
+    role: str
     sede_id: int
     password: Optional[str] = None
     session_active: Optional[int] = None
@@ -58,79 +82,9 @@ class CarniceroUpdate(BaseModel):
 
 class User(UserBase):
     id: int
+    role_label: Optional[str] = None
+    panel: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
-
-
-MASTER_CREATABLE_ROLES = frozenset({
-    UserRole.ADMIN,
-    UserRole.MAYORISTA,
-    UserRole.JEFE_CARNES,
-})
-
-
-class ProfileCreate(BaseModel):
-    username: str
-    password: str
-    role: UserRole
-    sede_id: int
-
-    @field_validator("username")
-    @classmethod
-    def username_not_empty(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("El usuario es obligatorio")
-        return v
-
-    @field_validator("password")
-    @classmethod
-    def password_not_empty(cls, v: str) -> str:
-        if not v or not str(v).strip():
-            raise ValueError("La contraseña es obligatoria")
-        return str(v).strip()
-
-    @field_validator("role")
-    @classmethod
-    def role_allowed(cls, v: UserRole) -> UserRole:
-        if v not in MASTER_CREATABLE_ROLES:
-            raise ValueError("Rol no permitido para creación de perfiles")
-        return v
-
-    @field_validator("sede_id", mode="before")
-    @classmethod
-    def coerce_sede_id(cls, v):
-        if v is None or v == "":
-            raise ValueError("sede_id es obligatorio")
-        return int(v)
-
-
-class ProfileUpdate(BaseModel):
-    username: str
-    role: UserRole
-    sede_id: int
-    password: Optional[str] = None
-
-    @field_validator("username")
-    @classmethod
-    def username_not_empty(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("El usuario es obligatorio")
-        return v
-
-    @field_validator("role")
-    @classmethod
-    def role_allowed(cls, v: UserRole) -> UserRole:
-        if v not in MASTER_CREATABLE_ROLES:
-            raise ValueError("Rol no permitido")
-        return v
-
-    @field_validator("sede_id", mode="before")
-    @classmethod
-    def coerce_sede_id(cls, v):
-        if v is None or v == "":
-            raise ValueError("sede_id es obligatorio")
-        return int(v)
 
 class Token(BaseModel):
     access_token: str

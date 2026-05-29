@@ -7,13 +7,14 @@ import Sede from './pages/Sede/Sede';
 import Admin from './pages/Admin/Admin';
 
 import JefeCarnes from './pages/JefeCarnes/JefeCarnes';
+import { homePathForUser, userHasPanel } from './utils/rolePanels';
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
+const ProtectedRoute = ({ children, allowedPanels }) => {
   const { user, loading } = useAuth();
 
   if (loading) return <div>Cargando...</div>;
   if (!user) return <Navigate to="/login" />;
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedPanels && !userHasPanel(user, allowedPanels)) {
     return <Navigate to="/" />;
   }
 
@@ -23,17 +24,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const HomeRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" />;
-
-  switch (user.role) {
-    case 'admin':
-    case 'master':
-      return <Navigate to="/admin" />;
-    case 'mayorista': return <Navigate to="/mayorista" />;
-    case 'jefe_carnes': return <Navigate to="/jefe" />;
-    case 'sede_butcher': return <Navigate to="/sede" />;
-    case 'carnicero': return <Navigate to="/sede" />;
-    default: return <Navigate to="/login" />;
-  }
+  return <Navigate to={homePathForUser(user)} replace />;
 };
 
 const App = () => {
@@ -44,22 +35,22 @@ const App = () => {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={
-              <ProtectedRoute allowedRoles={['admin', 'master']}>
+              <ProtectedRoute allowedPanels={['admin']}>
                 <Admin />
               </ProtectedRoute>
             } />
             <Route path="/mayorista" element={
-              <ProtectedRoute allowedRoles={['mayorista']}>
+              <ProtectedRoute allowedPanels={['mayorista']}>
                 <Mayorista />
               </ProtectedRoute>
             } />
             <Route path="/sede" element={
-              <ProtectedRoute allowedRoles={['sede_butcher', 'carnicero']}>
+              <ProtectedRoute allowedPanels={['sede']}>
                 <Sede />
               </ProtectedRoute>
             } />
             <Route path="/jefe" element={
-              <ProtectedRoute allowedRoles={['jefe_carnes']}>
+              <ProtectedRoute allowedPanels={['jefe']}>
                 <JefeCarnes />
               </ProtectedRoute>
             } />

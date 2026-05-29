@@ -10,12 +10,33 @@ corte_tipocorte_association = Table(
     Column('tipo_corte_id', Integer, ForeignKey('tipos_corte.id', ondelete="CASCADE"))
 )
 class UserRole(str, enum.Enum):
+    """Códigos de rol conocidos (también existen roles personalizados en app_roles)."""
     ADMIN = "admin"
-    MASTER = "master"  # Panel admin; no aparece en listados de usuarios
+    MASTER = "master"
     MAYORISTA = "mayorista"
     CARNICERO = "carnicero"
     JEFE_CARNES = "jefe_carnes"
     SEDE_BUTCHER = "sede_butcher"
+
+
+class RolePanel(str, enum.Enum):
+    ADMIN = "admin"
+    MAYORISTA = "mayorista"
+    JEFE = "jefe"
+    SEDE = "sede"
+
+
+class AppRole(Base):
+    __tablename__ = "app_roles"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(48), unique=True, index=True, nullable=False)
+    label = Column(String(120), nullable=False)
+    panel = Column(String(24), nullable=False, default="mayorista")
+    is_system = Column(Boolean, default=False)
+    is_hidden = Column(Boolean, default=False)
+    can_assign = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class PedidoEstado(str, enum.Enum):
     PENDIENTE = "pendiente"
@@ -36,12 +57,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    role = Column(
-        Enum(
-            UserRole,
-            values_callable=lambda roles: [r.value for r in roles],
-        )
-    )
+    role = Column(String(48), index=True, nullable=False)
     sede_id = Column(Integer, ForeignKey("sedes.id"))
     
     # Nuevos campos para Carnicero / Empleados
