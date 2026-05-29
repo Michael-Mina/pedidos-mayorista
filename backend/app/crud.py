@@ -684,15 +684,28 @@ def create_app_role(db: Session, *, code: str, label: str, panel: str, can_assig
     return row
 
 
-def update_app_role(db: Session, role_id: int, *, label: str | None = None, panel: str | None = None, can_assign: bool | None = None):
+def update_app_role(
+    db: Session,
+    role_id: int,
+    *,
+    label: str | None = None,
+    panel: str | None = None,
+    can_assign: bool | None = None,
+    is_enabled: bool | None = None,
+):
     row = db.query(models.AppRole).filter(models.AppRole.id == role_id).first()
     if not row:
         return None
-    if row.is_system and row.code in (models.UserRole.MASTER.value, models.UserRole.ADMIN.value):
+
+    if row.code == models.UserRole.MASTER.value:
+        if is_enabled is not None and not is_enabled:
+            raise ValueError("No se puede deshabilitar el rol master")
+        if panel is not None and panel != row.panel:
+            raise ValueError("No se puede cambiar el panel del rol master")
+        if can_assign is not None and not can_assign:
+            raise ValueError("No se puede quitar asignación del rol master")
         if label is not None:
             row.label = label.strip()
-        if can_assign is not None:
-            row.can_assign = can_assign
     else:
         if label is not None:
             row.label = label.strip()
@@ -702,6 +715,9 @@ def update_app_role(db: Session, role_id: int, *, label: str | None = None, pane
             row.panel = panel
         if can_assign is not None:
             row.can_assign = can_assign
+        if is_enabled is not None:
+            row.is_enabled = is_enabled
+
     db.commit()
     db.refresh(row)
     return row
@@ -713,6 +729,8 @@ def delete_app_role(db: Session, role_id: int):
         return None
     if row.is_system:
         raise ValueError("No se pueden eliminar roles del sistema")
+    if row.code == models.UserRole.MASTER.value:
+        raise ValueError("No se puede eliminar el rol master")
     in_use = db.query(models.User).filter(models.User.role == row.code).count()
     if in_use > 0:
         raise ValueError(f"Hay {in_use} usuario(s) con este rol")
@@ -725,6 +743,8 @@ def validate_assignable_role(db: Session, role_code: str) -> models.AppRole:
     row = role_catalog.get_role_row(db, role_code)
     if not row:
         raise ValueError("Rol no registrado")
+    if not row.is_enabled:
+        raise ValueError("Este rol está deshabilitado")
     if not row.can_assign or row.is_hidden:
         raise ValueError("Este rol no puede asignarse desde el panel")
     return row

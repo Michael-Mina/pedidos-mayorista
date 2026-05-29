@@ -35,6 +35,7 @@ class AppRole(Base):
     is_system = Column(Boolean, default=False)
     is_hidden = Column(Boolean, default=False)
     can_assign = Column(Boolean, default=True)
+    is_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

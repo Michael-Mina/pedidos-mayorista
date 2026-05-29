@@ -84,6 +84,11 @@ def _ensure_app_roles_schema():
             )
             conn.execute(
                 text(
+                    "ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT TRUE;"
+                )
+            )
+            conn.execute(
+                text(
                     "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(48) USING role::text;"
                 )
             )
@@ -221,6 +226,10 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
             user.session_active = 1
             db.commit()
             db.refresh(user)
+
+    role_row = role_catalog.get_role_row(db, user.role)
+    if role_row and role_row.is_enabled is False:
+        raise HTTPException(status_code=403, detail="Su rol está deshabilitado. Contacte al administrador.")
     
     access_token = auth.create_access_token(data={"sub": user.username})
     return {
@@ -431,6 +440,7 @@ def master_update_role(
             label=body.label,
             panel=body.panel,
             can_assign=body.can_assign,
+            is_enabled=body.is_enabled,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

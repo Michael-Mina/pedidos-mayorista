@@ -5,7 +5,7 @@ import api, { downloadAdminBackup, downloadAdminReport } from '../../services/ap
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
-    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2
+    HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2, Edit2, Ban, Check
 } from 'lucide-react';
 import { PANEL_LABELS } from '../../utils/rolePanels';
 import { filterPanelUsers, normalizeRoleCode } from '../../utils/userListFilters';
@@ -148,6 +148,15 @@ const Admin = () => {
         can_assign: true,
     });
     const [roleFormError, setRoleFormError] = useState('');
+    const [showRoleEditModal, setShowRoleEditModal] = useState(false);
+    const [editingRole, setEditingRole] = useState(null);
+    const [roleEditForm, setRoleEditForm] = useState({
+        label: '',
+        panel: 'mayorista',
+        can_assign: true,
+        is_enabled: true,
+    });
+    const [roleEditError, setRoleEditError] = useState('');
 
     const navTabs = useMemo(() => {
         const tabs = [
@@ -529,15 +538,74 @@ const Admin = () => {
         }
     };
 
-    const handleDeleteRole = async (roleId) => {
-        if (!window.confirm('¿Eliminar este rol? Solo si ningún usuario lo usa.')) return;
+    const handleDeleteRole = async (role) => {
+        if (role.is_system) {
+            alert('Los roles del sistema no se pueden eliminar.');
+            return;
+        }
+        if (!window.confirm(`¿Eliminar el rol "${role.label}"? Solo si ningún usuario lo usa.`)) return;
         try {
-            await api.delete(`/master/roles/${roleId}`);
+            await api.delete(`/master/roles/${role.id}`);
             await loadRolesCatalog();
             await loadAssignableRoles();
         } catch (err) {
             const detail = err.response?.data?.detail;
             alert(typeof detail === 'string' ? detail : 'No se pudo eliminar el rol');
+        }
+    };
+
+    const openEditRole = (role) => {
+        setEditingRole(role);
+        setRoleEditForm({
+            label: role.label,
+            panel: role.panel,
+            can_assign: role.can_assign,
+            is_enabled: role.is_enabled !== false,
+        });
+        setRoleEditError('');
+        setShowRoleEditModal(true);
+    };
+
+    const handleSaveRoleEdit = async (e) => {
+        e.preventDefault();
+        if (!editingRole) return;
+        setRoleEditError('');
+        try {
+            await api.put(`/master/roles/${editingRole.id}`, {
+                label: roleEditForm.label.trim(),
+                panel: roleEditForm.panel,
+                can_assign: roleEditForm.can_assign,
+                is_enabled: roleEditForm.is_enabled,
+            });
+            setShowRoleEditModal(false);
+            setEditingRole(null);
+            await loadRolesCatalog();
+            await loadAssignableRoles();
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            setRoleEditError(typeof detail === 'string' ? detail : 'No se pudo guardar el rol');
+        }
+    };
+
+    const handleToggleRoleEnabled = async (role) => {
+        if (role.code === 'master') {
+            alert('El rol master no se puede deshabilitar.');
+            return;
+        }
+        const enabled = role.is_enabled !== false;
+        const action = enabled ? 'deshabilitar' : 'habilitar';
+        if (!window.confirm(
+            enabled
+                ? `¿Deshabilitar "${role.label}"? No se podrá asignar a usuarios nuevos ni iniciar sesión con este rol.`
+                : `¿Habilitar "${role.label}"?`
+        )) return;
+        try {
+            await api.put(`/master/roles/${role.id}`, { is_enabled: !enabled });
+            await loadRolesCatalog();
+            await loadAssignableRoles();
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : `No se pudo ${action} el rol`);
         }
     };
 
@@ -1197,32 +1265,61 @@ const Admin = () => {
                                         <th>Nombre</th>
                                         <th>Panel</th>
                                         <th>Asignable</th>
+                                        <th>Estado</th>
                                         <th>Sistema</th>
-                                        <th></th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {rolesCatalog.map((r) => (
-                                        <tr key={r.id}>
+                                    {rolesCatalog.map((r) => {
+                                        const isActive = r.is_enabled !== false;
+                                        return (
+                                        <tr key={r.id} className={!isActive ? styles.roleRowDisabled : ''}>
                                             <td><code>{r.code}</code></td>
                                             <td>{r.label}</td>
                                             <td>{PANEL_LABELS[r.panel] || r.panel}</td>
                                             <td>{r.can_assign ? 'Sí' : 'No'}</td>
+                                            <td>
+                                                <span className={isActive ? styles.roleStatusActive : styles.roleStatusDisabled}>
+                                                    {isActive ? 'Activo' : 'Deshabilitado'}
+                                                </span>
+                                            </td>
                                             <td>{r.is_system ? 'Sí' : 'No'}</td>
                                             <td>
-                                                {!r.is_system && (
+                                                <div className={styles.roleActions}>
                                                     <button
                                                         type="button"
-                                                        className={styles.roleDeleteBtn}
-                                                        onClick={() => handleDeleteRole(r.id)}
-                                                        title="Eliminar rol"
+                                                        className={styles.roleActionEdit}
+                                                        onClick={() => openEditRole(r)}
+                                                        title="Editar rol"
                                                     >
-                                                        <Trash2 size={16} />
+                                                        <Edit2 size={15} /> Editar
                                                     </button>
-                                                )}
+                                                    {r.code !== 'master' && (
+                                                        <button
+                                                            type="button"
+                                                            className={isActive ? styles.roleActionDisable : styles.roleActionEnable}
+                                                            onClick={() => handleToggleRoleEnabled(r)}
+                                                            title={isActive ? 'Deshabilitar rol' : 'Habilitar rol'}
+                                                        >
+                                                            {isActive ? <Ban size={15} /> : <Check size={15} />}
+                                                            {isActive ? 'Deshabilitar' : 'Habilitar'}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className={styles.roleActionDelete}
+                                                        onClick={() => handleDeleteRole(r)}
+                                                        disabled={r.is_system}
+                                                        title={r.is_system ? 'Los roles del sistema no se eliminan' : 'Eliminar rol'}
+                                                    >
+                                                        <Trash2 size={15} /> Eliminar
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -1420,6 +1517,70 @@ const Admin = () => {
                     </div>
                 )}
             </main>
+
+            {showRoleEditModal && editingRole && (
+                <div className={styles.modalOverlay} onClick={() => setShowRoleEditModal(false)}>
+                    <div
+                        className={`${styles.modal} glass-card`}
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                    >
+                        <h3>Editar rol — <code>{editingRole.code}</code></h3>
+                        {roleEditError && <p className={styles.filterError} role="alert">{roleEditError}</p>}
+                        <form onSubmit={handleSaveRoleEdit}>
+                            <div className={styles.roleFormGrid}>
+                                <input
+                                    className="input-field"
+                                    placeholder="Nombre visible"
+                                    value={roleEditForm.label}
+                                    onChange={(e) => setRoleEditForm({ ...roleEditForm, label: e.target.value })}
+                                    required
+                                />
+                                <select
+                                    className="input-field"
+                                    value={roleEditForm.panel}
+                                    onChange={(e) => setRoleEditForm({ ...roleEditForm, panel: e.target.value })}
+                                    disabled={editingRole.code === 'master'}
+                                >
+                                    {Object.entries(PANEL_LABELS).map(([value, label]) => (
+                                        <option key={value} value={value}>{label}</option>
+                                    ))}
+                                </select>
+                                <label className={styles.roleCheckLabel}>
+                                    <input
+                                        type="checkbox"
+                                        checked={roleEditForm.can_assign}
+                                        onChange={(e) => setRoleEditForm({ ...roleEditForm, can_assign: e.target.checked })}
+                                        disabled={editingRole.code === 'master'}
+                                    />
+                                    Permitir asignar a usuarios nuevos
+                                </label>
+                                <label className={styles.roleCheckLabel}>
+                                    <input
+                                        type="checkbox"
+                                        checked={roleEditForm.is_enabled}
+                                        onChange={(e) => setRoleEditForm({ ...roleEditForm, is_enabled: e.target.checked })}
+                                        disabled={editingRole.code === 'master'}
+                                    />
+                                    Rol activo (puede iniciar sesión)
+                                </label>
+                            </div>
+                            <div className={styles.modalActions}>
+                                <button
+                                    type="button"
+                                    className="premium-button"
+                                    style={{ background: 'var(--bg-card)' }}
+                                    onClick={() => setShowRoleEditModal(false)}
+                                >
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="premium-button">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Modal for CRUD */}
             {showModal && (

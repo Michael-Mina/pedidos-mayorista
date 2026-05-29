@@ -36,12 +36,14 @@ class AppRoleUpdate(BaseModel):
     label: Optional[str] = None
     panel: Optional[str] = None
     can_assign: Optional[bool] = None
+    is_enabled: Optional[bool] = None
 
 
 class AppRole(AppRoleBase):
     id: int
     is_system: bool = False
     is_hidden: bool = False
+    is_enabled: bool = True
     model_config = ConfigDict(from_attributes=True)
 
 

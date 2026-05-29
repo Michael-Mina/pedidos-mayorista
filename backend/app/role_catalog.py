@@ -89,6 +89,8 @@ def seed_builtin_roles(db: Session) -> None:
             row.is_system = spec["is_system"]
             row.is_hidden = spec["is_hidden"]
             row.can_assign = spec["can_assign"]
+            if getattr(row, "is_enabled", None) is None:
+                row.is_enabled = True
     _fix_supervisor_roles_panel(db)
     db.commit()
 
@@ -141,7 +143,11 @@ def list_roles_for_master(db: Session) -> list[models.AppRole]:
 def list_assignable_roles(db: Session) -> list[models.AppRole]:
     return (
         db.query(models.AppRole)
-        .filter(models.AppRole.can_assign == True, models.AppRole.is_hidden == False)
+        .filter(
+            models.AppRole.can_assign == True,
+            models.AppRole.is_hidden == False,
+            models.AppRole.is_enabled == True,
+        )
         .order_by(models.AppRole.label)
         .all()
     )

@@ -1118,6 +1118,65 @@
     opacity: 0.85;
 }
 
+.roleActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    align-items: center;
+}
+
+.roleActionEdit,
+.roleActionDisable,
+.roleActionEnable,
+.roleActionDelete {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 2px 0;
+    white-space: nowrap;
+}
+
+.roleActionEdit {
+    color: var(--primary-color);
+}
+
+.roleActionDisable {
+    color: #f59e0b;
+}
+
+.roleActionEnable {
+    color: #2ecc71;
+}
+
+.roleActionDelete {
+    color: var(--error);
+}
+
+.roleActionDelete:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.roleStatusActive {
+    color: #2ecc71;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.roleStatusDisabled {
+    color: #ef4444;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.roleRowDisabled {
+    opacity: 0.72;
+}
+
 @media (max-width: 480px) {
     .mainContent {
         padding: 10px;
