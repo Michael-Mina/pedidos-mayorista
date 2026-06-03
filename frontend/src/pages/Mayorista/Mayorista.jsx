@@ -795,7 +795,7 @@ const Mayorista = () => {
                             recentActivity.map(item => (
                                 <div
                                     key={item.id}
-                                    className={`${styles.historyCard} ${styles[item.estado]} ${isNewFinalizado(item) ? styles.finalizadoNuevo : ''}`}
+                                    className={`${styles.historyCard} ${styles[item.estado]} ${isNewFinalizado(item) ? styles.finalizadoNuevo : ''} ${isUnreadReportResponse(item) ? styles.historyCardNotif : ''}`}
                                     onClick={() => openOrderDetails(item)}
                                     style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
@@ -803,6 +803,13 @@ const Mayorista = () => {
                                 >
                                     {isNewFinalizado(item) && (
                                         <span className={styles.nuevoBadge}>Nuevo</span>
+                                    )}
+                                    {isUnreadReportResponse(item) && (
+                                        <span
+                                            className={styles.historyCardNotifBubble}
+                                            title="Nuevo mensaje en el reporte"
+                                            aria-label="Nuevo mensaje en el reporte"
+                                        />
                                     )}
                                     <div className={styles.historyInfo}>
                                         <strong>{formatPedidoNumero(item)} - {item.cliente_nombre}</strong>

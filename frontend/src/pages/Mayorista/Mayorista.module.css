@@ -264,6 +264,35 @@
     border-color: var(--success);
 }
 
+.historyCardNotif {
+    z-index: 0;
+}
+
+.historyCardNotifBubble {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid #0f172a;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.75);
+    z-index: 2;
+    animation: reportNotifPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reportNotifPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.75);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 14px rgba(239, 68, 68, 0.95);
+    }
+}
+
 .nuevoBadge {
     position: absolute;
     top: -8px;
