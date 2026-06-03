@@ -160,9 +160,23 @@ export function todayLocalIsoDate() {
     return pedidoLocalDateKey(new Date());
 }
 
+/** Pedido finalizado en el día indicado (usa finished_at, luego updated_at). */
+export function pedidoFinalizadoHoy(pedido, todayKey = todayLocalIsoDate()) {
+    if (pedido?.estado !== 'finalizado') return false;
+    const finishDay = pedido.finished_at
+        ? pedidoLocalDateKey(pedido.finished_at)
+        : pedido.updated_at
+          ? pedidoLocalDateKey(pedido.updated_at)
+          : pedidoLocalDateKey(pedido.timestamp);
+    return finishDay === todayKey;
+}
+
 /** Monitor jefe: pedidos de hoy o pendientes arrastrados de días anteriores. */
 export function pedidoVisibleEnMonitorGlobal(pedido, todayKey = todayLocalIsoDate()) {
     if (!pedido?.timestamp) return false;
+    if (pedido.estado === 'finalizado') {
+        return pedidoFinalizadoHoy(pedido, todayKey);
+    }
     const orderDay = pedidoLocalDateKey(pedido.timestamp);
     if (!orderDay) return false;
     if (orderDay === todayKey) return true;

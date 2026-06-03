@@ -35,6 +35,7 @@ import {
     formatCarniceroLabel,
     getPedidoTiemposMonitor,
     pedidoVisibleEnMonitorGlobal,
+    pedidoFinalizadoHoy,
     todayLocalIsoDate,
 } from '../../utils/pedidos';
 import {
@@ -644,7 +645,13 @@ const JefeCarnes = () => {
                                 <div className={`${styles.statCard} glass-card`}>
                                     <CheckCircle size={24} color="var(--primary-color)" />
                                     <div>
-                                        <strong>{globalOrders.filter(o => o.estado === 'finalizado' && (!user.sede_id || o.sede_id === user.sede_id)).length}</strong>
+                                        <strong>
+                                            {globalOrders.filter(
+                                                (o) =>
+                                                    (!user.sede_id || o.sede_id === user.sede_id) &&
+                                                    pedidoFinalizadoHoy(o, monitorTodayKey)
+                                            ).length}
+                                        </strong>
                                         <span>Finalizados Hoy</span>
                                     </div>
                                 </div>
