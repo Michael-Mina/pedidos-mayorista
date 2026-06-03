@@ -676,11 +676,13 @@ const JefeCarnes = () => {
                                         <th>T. espera</th>
                                         <th>T. prep.</th>
                                         <th>T. total</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {paginatedOrders.map((order) => {
                                         const tiempos = getPedidoTiemposMonitor(order, nowTick);
+                                        const unreadFromMayorista = isUnreadReportFromMayorista(order);
                                         return (
                                         <tr
                                             key={order.id}
@@ -698,6 +700,22 @@ const JefeCarnes = () => {
                                             <td className={styles.timeCell}>{tiempos.espera}</td>
                                             <td className={styles.timeCell}>{tiempos.preparacion}</td>
                                             <td className={styles.timeCell}>{tiempos.total}</td>
+                                            <td onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    type="button"
+                                                    className={`${styles.revokeBtn} ${styles.reportActionBtn} ${unreadFromMayorista ? styles.reportActionPending : ''}`}
+                                                    onClick={() => openReportModal(order)}
+                                                    title={tieneReporte(order) ? 'Ver conversación del reporte' : 'Iniciar reporte del pedido'}
+                                                >
+                                                    <MessageSquare size={14} />
+                                                    {!tieneReporte(order)
+                                                        ? 'Reportar'
+                                                        : unreadFromMayorista
+                                                            ? 'Responder'
+                                                            : 'Ver reporte'}
+                                                    {unreadFromMayorista && <span className={styles.rowNotifDot} aria-hidden />}
+                                                </button>
+                                            </td>
                                         </tr>
                                         );
                                     })}
@@ -1311,6 +1329,17 @@ const JefeCarnes = () => {
                                     >
                                         <MessageSquare size={16} />
                                         Abrir conversación del reporte
+                                    </button>
+                                )}
+
+                                {!tieneReporte(selectedOrder) && (
+                                    <button
+                                        type="button"
+                                        className={styles.linkToReportBtn}
+                                        onClick={() => openReportModal(selectedOrder)}
+                                    >
+                                        <MessageSquare size={16} />
+                                        Montar reporte
                                     </button>
                                 )}
 
