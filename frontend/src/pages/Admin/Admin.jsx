@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { PANEL_LABELS } from '../../utils/rolePanels';
 import { filterPanelUsers, normalizeRoleCode } from '../../utils/userListFilters';
+import LoggedUserLabel from '../../components/LoggedUserLabel/LoggedUserLabel';
 
 import {
     Chart as ChartJS,
@@ -891,13 +892,16 @@ const Admin = () => {
                     </div>
                 ))}
 
-                <div
-                    className={`${styles.navItem} ${styles.navLogout}`}
-                    onClick={() => { setMenuOpen(false); logout(); }}
-                    role="button"
-                    tabIndex={0}
-                >
-                    <LogOut size={20} /> Cerrar Sesión
+                <div className={styles.sidebarFooter}>
+                    <LoggedUserLabel user={user} />
+                    <div
+                        className={`${styles.navItem} ${styles.navLogout}`}
+                        onClick={() => { setMenuOpen(false); logout(); }}
+                        role="button"
+                        tabIndex={0}
+                    >
+                        <LogOut size={20} /> Cerrar Sesión
+                    </div>
                 </div>
             </nav>
 

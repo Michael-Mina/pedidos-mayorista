@@ -43,6 +43,7 @@ function pedidoLocalDateKey(ts) {
 }
 
 const SEEN_REPORT_COUNTS_KEY = 'mayorista_seen_report_msg_counts';
+const PENDING_FINALIZED_KEY = 'mayorista_pending_finalized';
 
 function loadSeenReportCounts() {
     try {
@@ -53,6 +54,21 @@ function loadSeenReportCounts() {
     } catch {
         return {};
     }
+}
+
+function loadPendingFinalized() {
+    try {
+        const raw = localStorage.getItem(PENDING_FINALIZED_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function savePendingFinalized(map) {
+    localStorage.setItem(PENDING_FINALIZED_KEY, JSON.stringify(map));
 }
 
 const Mayorista = () => {
@@ -81,6 +97,38 @@ const Mayorista = () => {
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const toastDismissRef = useRef(null);
     const [seenReportCounts, setSeenReportCounts] = useState(() => loadSeenReportCounts());
+    const [pendingFinalized, setPendingFinalized] = useState(() => loadPendingFinalized());
+
+    const isNewFinalizado = useCallback(
+        (pedido) => pedido?.estado === 'finalizado' && Boolean(pendingFinalized[pedido.id]),
+        [pendingFinalized]
+    );
+
+    const pendingFinalizadoCount = useMemo(
+        () => pedidosHistory.filter((p) => isNewFinalizado(p)).length,
+        [pedidosHistory, isNewFinalizado]
+    );
+
+    const markFinalizadoSeen = useCallback((orderId) => {
+        if (!orderId) return;
+        setPendingFinalized((prev) => {
+            if (!prev[orderId]) return prev;
+            const next = { ...prev };
+            delete next[orderId];
+            savePendingFinalized(next);
+            return next;
+        });
+    }, []);
+
+    const notifyFinalizado = useCallback((order) => {
+        if (!order?.id) return;
+        setPendingFinalized((prev) => {
+            if (prev[order.id]) return prev;
+            const next = { ...prev, [order.id]: Date.now() };
+            savePendingFinalized(next);
+            return next;
+        });
+    }, []);
 
     const markReportThreadSeen = useCallback((pedido) => {
         const orderId = pedidoReporteId(pedido);
@@ -136,12 +184,32 @@ const Mayorista = () => {
     }, [pedidosHistory]);
 
     useEffect(() => {
+        setPendingFinalized((prev) => {
+            const ids = Object.keys(prev);
+            if (!ids.length) return prev;
+            const byId = new Map(pedidosHistory.map((p) => [String(p.id), p]));
+            let changed = false;
+            const next = { ...prev };
+            for (const id of ids) {
+                const pedido = byId.get(id);
+                if (!pedido || pedido.estado !== 'finalizado') {
+                    delete next[id];
+                    changed = true;
+                }
+            }
+            if (changed) savePendingFinalized(next);
+            return changed ? next : prev;
+        });
+    }, [pedidosHistory]);
+
+    useEffect(() => {
         requestNotificationPermission();
     }, []);
 
     const openOrderDetails = useCallback((pedido) => {
         setViewingOrder(pedido);
-    }, []);
+        markFinalizadoSeen(pedido.id);
+    }, [markFinalizadoSeen]);
 
     const closeOrderDetails = useCallback(() => {
         setViewingOrder(null);
@@ -230,6 +298,20 @@ const Mayorista = () => {
                         showToast(msg, 'success');
                         notifyBrowserMessage('Pedidos Mayorista', msg);
                     }
+
+                    const justFinalizado =
+                        updatedOrder.estado === 'finalizado' && prevOrder.estado !== 'finalizado';
+                    if (justFinalizado) {
+                        notifyFinalizado(updatedOrder);
+                        const msg = `¡Pedido ${formatPedidoNumero(updatedOrder)} listo!`;
+                        showToast(msg, 'success');
+                        notifyBrowserMessage('Pedidos Mayorista', msg);
+                    }
+                } else if (updatedOrder.estado === 'finalizado') {
+                    notifyFinalizado(updatedOrder);
+                    const msg = `¡Pedido ${formatPedidoNumero(updatedOrder)} listo!`;
+                    showToast(msg, 'success');
+                    notifyBrowserMessage('Pedidos Mayorista', msg);
                 }
 
                 setPedidosHistory((prevList) => upsertPedidoInList(prevList, updatedOrder));
@@ -666,7 +748,12 @@ const Mayorista = () => {
 
                 {/* Column 3: History (Sidebar) */}
                 <aside className={`${styles.column} ${styles.historyColumn} glass-card`}>
-                    <h2 className={styles.colTitle}><History size={20} /> Actividad Reciente</h2>
+                    <h2 className={styles.colTitle}>
+                        <History size={20} /> Actividad Reciente
+                        {pendingFinalizadoCount > 0 && (
+                            <span className={styles.colNotifBadge}>{pendingFinalizadoCount}</span>
+                        )}
+                    </h2>
                     <div className={styles.historyList}>
                         {pedidosHistory.length === 0 ? (
                             <p className={styles.emptyMsg}>No hay pedidos aún</p>
@@ -674,12 +761,15 @@ const Mayorista = () => {
                             pedidosHistory.slice(0, 10).map(item => (
                                 <div
                                     key={item.id}
-                                    className={`${styles.historyCard} ${styles[item.estado]}`}
+                                    className={`${styles.historyCard} ${styles[item.estado]} ${isNewFinalizado(item) ? styles.finalizadoNuevo : ''}`}
                                     onClick={() => openOrderDetails(item)}
                                     style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                 >
+                                    {isNewFinalizado(item) && (
+                                        <span className={styles.nuevoBadge}>Nuevo</span>
+                                    )}
                                     <div className={styles.historyInfo}>
                                         <strong>{formatPedidoNumero(item)} - {item.cliente_nombre}</strong>
                                         <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
@@ -751,8 +841,16 @@ const Mayorista = () => {
                                 </thead>
                                 <tbody>
                                     {filteredHistory.map(p => (
-                                        <tr key={p.id}>
-                                            <td><strong>{formatPedidoNumero(p)}</strong></td>
+                                        <tr
+                                            key={p.id}
+                                            className={isNewFinalizado(p) ? styles.rowFinalizadoNuevo : undefined}
+                                        >
+                                            <td>
+                                                <strong>{formatPedidoNumero(p)}</strong>
+                                                {isNewFinalizado(p) && (
+                                                    <span className={styles.nuevoBadgeInline}>Nuevo</span>
+                                                )}
+                                            </td>
                                             <td>{new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                             <td>{p.cliente_nombre}</td>
                                             <td>{formatMayoristaLabel(p.mayorista)}</td>

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { panelLabel } from '../../utils/rolePanels';
+import LoggedUserLabel from '../../components/LoggedUserLabel/LoggedUserLabel';
 import {
     formatPedidoNumero,
     formatMayoristaLabel,
@@ -594,6 +595,7 @@ const JefeCarnes = () => {
                 </nav>
 
                 <div className={styles.sidebarFooter}>
+                    <LoggedUserLabel user={user} />
                     <button
                         type="button"
                         onClick={() => { setMenuOpen(false); logout(); }}
