@@ -169,6 +169,24 @@ export function pedidoVisibleEnMonitorGlobal(pedido, todayKey = todayLocalIsoDat
     return pedido.estado === 'pendiente' && orderDay < todayKey;
 }
 
+/** Timestamp (ms) del último cambio del pedido (estado, reporte, etc.). */
+export function getPedidoUpdatedAtMs(pedido) {
+    if (pedido?.updated_at) {
+        const t = new Date(pedido.updated_at).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    if (pedido?.timestamp) {
+        const t = new Date(pedido.timestamp).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    return 0;
+}
+
+/** Ordena pedidos por última actividad (más reciente primero). */
+export function sortPedidosByRecentActivity(list) {
+    return [...list].sort((a, b) => getPedidoUpdatedAtMs(b) - getPedidoUpdatedAtMs(a));
+}
+
 /** Inserta o actualiza un pedido en una lista por id (evita duplicados en UI). */
 export function upsertPedidoInList(list, pedido) {
     if (!pedido?.id) return list;
@@ -176,7 +194,6 @@ export function upsertPedidoInList(list, pedido) {
     if (index === -1) {
         return [pedido, ...list];
     }
-    const next = [...list];
-    next[index] = pedido;
-    return next;
+    const next = list.filter((p) => p.id !== pedido.id);
+    return [pedido, ...next];
 }

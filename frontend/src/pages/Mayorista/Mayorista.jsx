@@ -10,6 +10,7 @@ import {
     upsertPedidoInList,
     formatMayoristaLabel,
     formatCarniceroLabel,
+    sortPedidosByRecentActivity,
 } from '../../utils/pedidos';
 import {
     getReporteMensajes,
@@ -87,6 +88,7 @@ const Mayorista = () => {
     const reportingPedidoRef = useRef(null);
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [recentClientSearch, setRecentClientSearch] = useState('');
     const [viewingOrder, setViewingOrder] = useState(null);
     const [tempQty, setTempQty] = useState(1.0);
     const [tempObs, setTempObs] = useState('');
@@ -108,6 +110,15 @@ const Mayorista = () => {
         () => pedidosHistory.filter((p) => isNewFinalizado(p)).length,
         [pedidosHistory, isNewFinalizado]
     );
+
+    const recentActivity = useMemo(() => {
+        const sorted = sortPedidosByRecentActivity(pedidosHistory);
+        const term = recentClientSearch.trim().toLowerCase();
+        const filtered = term
+            ? sorted.filter((p) => (p.cliente_nombre || '').toLowerCase().includes(term))
+            : sorted;
+        return term ? filtered : filtered.slice(0, 10);
+    }, [pedidosHistory, recentClientSearch]);
 
     const markFinalizadoSeen = useCallback((orderId) => {
         if (!orderId) return;
@@ -476,8 +487,8 @@ const Mayorista = () => {
         }
     };
 
-    const filteredHistory = pedidosHistory
-        .filter((p) => {
+    const filteredHistory = sortPedidosByRecentActivity(
+        pedidosHistory.filter((p) => {
             const matchesDate = pedidoLocalDateKey(p.timestamp) === filterDate;
             const raw = searchTerm.trim().toLowerCase();
             const idPart = raw.startsWith('#') ? raw.slice(1).trim() : raw;
@@ -502,7 +513,7 @@ const Mayorista = () => {
                 (tracking && idPart && tracking.includes(idPart));
             return matchesDate && matchesSearch;
         })
-        .sort((a, b) => b.id - a.id);
+    );
 
     const formatDuration = (start, end) => {
         if (!start || !end) return "En espera...";
@@ -754,11 +765,34 @@ const Mayorista = () => {
                             <span className={styles.colNotifBadge}>{pendingFinalizadoCount}</span>
                         )}
                     </h2>
+                    <div className={styles.historySearch}>
+                        <Search size={16} aria-hidden />
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="Buscar por cliente..."
+                            value={recentClientSearch}
+                            onChange={(e) => setRecentClientSearch(e.target.value)}
+                            aria-label="Buscar pedidos por nombre del cliente"
+                        />
+                        {recentClientSearch && (
+                            <button
+                                type="button"
+                                className={styles.historySearchClear}
+                                onClick={() => setRecentClientSearch('')}
+                                aria-label="Limpiar búsqueda"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
                     <div className={styles.historyList}>
                         {pedidosHistory.length === 0 ? (
                             <p className={styles.emptyMsg}>No hay pedidos aún</p>
+                        ) : recentActivity.length === 0 ? (
+                            <p className={styles.emptyMsg}>No hay pedidos para ese cliente.</p>
                         ) : (
-                            pedidosHistory.slice(0, 10).map(item => (
+                            recentActivity.map(item => (
                                 <div
                                     key={item.id}
                                     className={`${styles.historyCard} ${styles[item.estado]} ${isNewFinalizado(item) ? styles.finalizadoNuevo : ''}`}
@@ -980,7 +1014,24 @@ const Mayorista = () => {
                         </div>
 
                         <div className={styles.modalActions}>
-                            <button type="button" className="premium-button" style={{ width: '100%' }} onClick={closeOrderDetails}>Cerrar</button>
+                            <button
+                                type="button"
+                                className={`${styles.reportBtn} ${styles.modalReportBtn} ${styles.btnWithBadge} ${tieneReporte(viewingOrder) ? styles.reportBtnAnswered : ''}`}
+                                onClick={() => {
+                                    const order = pedidosHistory.find((p) => p.id === viewingOrder.id) ?? viewingOrder;
+                                    closeOrderDetails();
+                                    openReportModal(order);
+                                }}
+                            >
+                                <AlertCircle size={16} />
+                                {tieneReporte(viewingOrder) ? 'Ver reporte' : 'Reportar'}
+                                {isUnreadReportResponse(viewingOrder) && (
+                                    <span className={styles.reportBtnDot} aria-hidden />
+                                )}
+                            </button>
+                            <button type="button" className="premium-button" style={{ flex: 1 }} onClick={closeOrderDetails}>
+                                Cerrar
+                            </button>
                         </div>
                     </div>
                 </div>
