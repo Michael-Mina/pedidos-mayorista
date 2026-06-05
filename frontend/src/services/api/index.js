@@ -53,8 +53,14 @@ export const productService = {
 
 /** Descarga respaldo ZIP (solo admin, requiere token). */
 export const downloadAdminBackup = async () => {
+    await downloadAdminBackupPart('zip');
+};
+
+/** Descarga un componente del respaldo: schema | data | static | manifest | zip */
+export const downloadAdminBackupPart = async (part) => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}/admin/backup/download`, {
+    const path = part === 'zip' ? '/admin/backup/download' : `/admin/backup/download/${part}`;
+    const response = await fetch(`${API_URL}${path}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!response.ok) {
@@ -70,7 +76,10 @@ export const downloadAdminBackup = async () => {
     const blob = await response.blob();
     const disposition = response.headers.get('Content-Disposition') || '';
     const match = disposition.match(/filename="?([^";\n]+)"?/i);
-    const filename = match ? match[1].trim() : `pedidos_mayorista_backup_${Date.now()}.zip`;
+    const fallback = part === 'zip'
+        ? `pedidos_mayorista_backup_${Date.now()}.zip`
+        : `pedidos_mayorista_${part}_${Date.now()}`;
+    const filename = match ? match[1].trim() : fallback;
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

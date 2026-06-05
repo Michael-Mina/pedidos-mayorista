@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Admin.module.css';
-import api, { downloadAdminBackup, downloadAdminReport } from '../../services/api';
+import api, { downloadAdminBackupPart, downloadAdminReport } from '../../services/api';
 import {
     LayoutDashboard, Users, MapPin, Package, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
@@ -101,6 +101,13 @@ ChartJS.register(
     Filler
 );
 
+const BACKUP_DOWNLOAD_PARTS = [
+    { id: 'schema', file: 'schema.sql', description: 'Estructura de tablas' },
+    { id: 'data', file: 'data.sql', description: 'Datos de la aplicación' },
+    { id: 'static', file: 'static.zip', description: 'Imágenes en el servidor' },
+    { id: 'manifest', file: 'manifest.json', description: 'Metadatos del respaldo' },
+];
+
 const Admin = () => {
     const { user, logout } = useAuth();
     const isMaster = user?.role === 'master';
@@ -132,13 +139,13 @@ const Admin = () => {
     const [formData, setFormData] = useState({});
     const [categorySearch, setCategorySearch] = useState('');
     const [productSearch, setProductSearch] = useState('');
+    const [productCategoryFilter, setProductCategoryFilter] = useState('');
     const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userSedeFilter, setUserSedeFilter] = useState('');
     const [menuOpen, setMenuOpen] = useState(false);
     const [isNarrowLayout, setIsNarrowLayout] = useState(() => window.innerWidth <= 768);
-    const [backupLoading, setBackupLoading] = useState(false);
-    const [resetDbLoading, setResetDbLoading] = useState(false);
+    const [backupLoadingPart, setBackupLoadingPart] = useState(null);
     const [reportLoading, setReportLoading] = useState(false);
     const [backupStatus, setBackupStatus] = useState(null);
     const [assignableRoles, setAssignableRoles] = useState([]);
@@ -255,6 +262,7 @@ const Admin = () => {
         if (activeTab !== 'products') {
             setCategorySearch('');
             setProductSearch('');
+            setProductCategoryFilter('');
         }
         if (activeTab !== 'users') {
             setUserSearch('');
@@ -444,14 +452,14 @@ const Admin = () => {
         }
     };
 
-    const handleDownloadBackup = async () => {
-        setBackupLoading(true);
+    const handleDownloadBackupPart = async (part) => {
+        setBackupLoadingPart(part);
         try {
-            await downloadAdminBackup();
+            await downloadAdminBackupPart(part);
         } catch (error) {
             alert(error.message || 'Error al descargar el respaldo');
         } finally {
-            setBackupLoading(false);
+            setBackupLoadingPart(null);
         }
     };
 
@@ -589,37 +597,6 @@ const Admin = () => {
         }
     };
 
-    const handleResetRolesCatalog = async () => {
-        if (!window.confirm(
-            '¿Vaciar el catálogo de roles?\n\nSe eliminarán todos excepto master.'
-        )) return;
-        const forceAll = window.confirm(
-            '¿También eliminar los usuarios ligados a esos roles?\n\n(Sí = borra carniceros, tablets sede, etc. No = solo roles sin usuarios)'
-        );
-        try {
-            const res = await api.post('/master/roles/reset', null, {
-                params: forceAll ? { force: true } : {},
-            });
-            const { deleted = [], skipped = [] } = res.data || {};
-            await loadRolesCatalog();
-            await loadAssignableRoles();
-            let msg = deleted.length
-                ? `Eliminados: ${deleted.join(', ')}`
-                : 'No se eliminó ningún rol.';
-            if (res.data?.users_removed > 0) {
-                msg += `\n\nUsuarios de operación eliminados: ${res.data.users_removed}`;
-            }
-            if (skipped.length) {
-                msg += `\n\nNo se pudieron eliminar (tienen usuarios):\n${skipped.map((s) => `• ${s.label} (${s.code}): ${s.users} usuario(s)`).join('\n')}`;
-                msg += '\n\nVuelva a vaciar y elija Sí en eliminar usuarios ligados.';
-            }
-            alert(msg);
-        } catch (err) {
-            const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : 'No se pudo vaciar el catálogo');
-        }
-    };
-
     const openEditRole = (role) => {
         setEditingRole(role);
         setRoleEditForm({
@@ -672,28 +649,6 @@ const Admin = () => {
         } catch (err) {
             const detail = err.response?.data?.detail;
             alert(typeof detail === 'string' ? detail : `No se pudo ${action} el rol`);
-        }
-    };
-
-    const handleResetDatabase = async () => {
-        if (!window.confirm(
-            '¿VACIAR TODA LA BASE DE DATOS?\n\nSe eliminarán usuarios, sedes, pedidos, productos y roles.\nSolo quedará el usuario master.\n\nEsta acción NO se puede deshacer.'
-        )) return;
-        const typed = window.prompt('Escriba BORRAR TODO para confirmar:');
-        if (typed !== 'BORRAR TODO') return;
-        setResetDbLoading(true);
-        try {
-            const res = await api.post('/master/database/reset');
-            const { username, password } = res.data.access || {};
-            alert(
-                `Base de datos vaciada.\n\nUsuario: ${username}\nContraseña: ${password}\n\nInicie sesión de nuevo con esas credenciales.`
-            );
-            logout();
-        } catch (err) {
-            const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : 'No se pudo vaciar la base de datos');
-        } finally {
-            setResetDbLoading(false);
         }
     };
 
@@ -804,13 +759,12 @@ const Admin = () => {
     );
 
     const filteredCuts = products.cuts.filter((cut) => {
+        if (productCategoryFilter && String(cut.categoria_id) !== productCategoryFilter) {
+            return false;
+        }
         const term = productSearch.trim().toLowerCase();
         if (!term) return true;
-        const categoryName = products.categories.find((c) => c.id === cut.categoria_id)?.nombre || '';
-        return (
-            cut.nombre.toLowerCase().includes(term) ||
-            categoryName.toLowerCase().includes(term)
-        );
+        return cut.nombre.toLowerCase().includes(term);
     });
 
     const rolesForUserFilter = useMemo(
@@ -1304,14 +1258,6 @@ const Admin = () => {
                     <>
                         <div className={styles.managementHeader}>
                             <h1>Catálogo de roles</h1>
-                            <button
-                                type="button"
-                                className="premium-button"
-                                style={{ background: 'var(--bg-card)' }}
-                                onClick={handleResetRolesCatalog}
-                            >
-                                <Trash2 size={18} /> Vaciar catálogo
-                            </button>
                         </div>
                         <p className={styles.rolesHint}>
                             Defina roles personalizados (ej. supervisor, mayorista regional). El <strong>panel</strong> define la pantalla al iniciar sesión.
@@ -1504,10 +1450,24 @@ const Admin = () => {
                                 <input
                                     type="text"
                                     className="input-field"
-                                    placeholder="Buscar producto o categoría..."
+                                    placeholder="Buscar producto..."
                                     value={productSearch}
                                     onChange={(e) => setProductSearch(e.target.value)}
                                 />
+                            </div>
+                            <div className={styles.productCategoryFilter}>
+                                <label htmlFor="product-category-filter">Filtrar por categoría</label>
+                                <select
+                                    id="product-category-filter"
+                                    className="input-field"
+                                    value={productCategoryFilter}
+                                    onChange={(e) => setProductCategoryFilter(e.target.value)}
+                                >
+                                    <option value="">Todas las categorías</option>
+                                    {products.categories.map((cat) => (
+                                        <option key={cat.id} value={String(cat.id)}>{cat.nombre}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div className={`glass-card ${styles.sectionScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
@@ -1541,7 +1501,7 @@ const Admin = () => {
                                 <h2>Cortes (Preparaciones)</h2>
                                 <button className="premium-button" onClick={() => handleOpenModal('tipoCorte')}><Plus size={14} /></button>
                             </div>
-                            <div className="glass-card" style={{ padding: '0px' }}>
+                            <div className={`glass-card ${styles.sectionScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
                                     <tbody>
                                         {products.tiposCorte && products.tiposCorte.map(tipo => (
@@ -1569,14 +1529,30 @@ const Admin = () => {
                         </div>
                         <div className={`${styles.backupCard} glass-card`}>
                             <p className={styles.backupIntro}>
-                                Descargue un archivo ZIP con la estructura de la base de datos,
-                                los datos de pedidos/usuarios/productos y las imágenes estáticas del catálogo.
+                                Descargue cada componente por separado o el archivo ZIP completo con
+                                estructura, datos, imágenes estáticas y metadatos del respaldo.
                             </p>
-                            <ul className={styles.backupList}>
-                                <li><strong>schema.sql</strong> — estructura de tablas</li>
-                                <li><strong>data.sql</strong> — datos de la aplicación</li>
-                                <li><strong>static.zip</strong> — imágenes en el servidor</li>
-                                <li><strong>manifest.json</strong> — metadatos del respaldo</li>
+                            <ul className={styles.backupPartList}>
+                                {BACKUP_DOWNLOAD_PARTS.map(({ id, file, description }) => (
+                                    <li key={id} className={styles.backupPartItem}>
+                                        <div className={styles.backupPartInfo}>
+                                            <strong><code>{file}</code></strong>
+                                            <span>{description}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.backupPartBtn}
+                                            onClick={() => handleDownloadBackupPart(id)}
+                                            disabled={
+                                                Boolean(backupLoadingPart) ||
+                                                !backupStatus?.backup_available
+                                            }
+                                        >
+                                            <HardDriveDownload size={14} />
+                                            {backupLoadingPart === id ? 'Generando…' : 'Descargar'}
+                                        </button>
+                                    </li>
+                                ))}
                             </ul>
                             {backupStatus && (
                                 <div className={styles.backupStatusRow}>
@@ -1603,35 +1579,22 @@ const Admin = () => {
                             <button
                                 type="button"
                                 className="premium-button"
-                                onClick={handleDownloadBackup}
-                                disabled={backupLoading || !backupStatus?.backup_available}
+                                onClick={() => handleDownloadBackupPart('zip')}
+                                disabled={
+                                    Boolean(backupLoadingPart) ||
+                                    !backupStatus?.backup_available
+                                }
                             >
                                 <HardDriveDownload size={18} />
-                                {backupLoading ? 'Generando respaldo…' : 'Descargar respaldo ZIP'}
+                                {backupLoadingPart === 'zip'
+                                    ? 'Generando respaldo…'
+                                    : 'Descargar respaldo ZIP completo'}
                             </button>
                             <p className={styles.backupHint}>
                                 La descarga puede tardar unos segundos según el tamaño de la base de datos.
                                 Guarde el archivo en un lugar seguro fuera del servidor.
                             </p>
                         </div>
-                        {isMaster && (
-                            <div className={`${styles.backupCard} glass-card ${styles.dangerCard}`}>
-                                <h2>Zona peligrosa</h2>
-                                <p className={styles.backupIntro}>
-                                    Vacía por completo la base de datos y deja únicamente el usuario <strong>master</strong>
-                                    para que configure sedes, roles y usuarios desde cero.
-                                </p>
-                                <button
-                                    type="button"
-                                    className={`premium-button ${styles.dangerBtn}`}
-                                    onClick={handleResetDatabase}
-                                    disabled={resetDbLoading}
-                                >
-                                    <Trash2 size={18} />
-                                    {resetDbLoading ? 'Vaciando…' : 'Vaciar base de datos (solo master)'}
-                                </button>
-                            </div>
-                        )}
                     </div>
                 )}
             </main>

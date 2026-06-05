@@ -239,14 +239,17 @@
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+    min-width: 0;
 }
 
 .detailWrapper {
     height: 100%;
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     padding: 24px;
+    overflow: hidden;
 }
 
 .detailTitle {
@@ -286,9 +289,11 @@
 .actionArea {
     flex: 1;
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow: hidden;
 }
 
 .instructionBox {
@@ -608,6 +613,9 @@
 
 .detailScrollable {
     flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -615,6 +623,7 @@
 
 .itemsTable {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
 }
 
@@ -626,22 +635,46 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.itemsTable th:last-child {
+    width: 5.5rem;
+    text-align: right;
+}
+
 .itemsTable td {
     padding: 20px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    vertical-align: top;
+}
+
+.itemsTable td:first-child {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    padding-right: 12px;
+}
+
+.itemsTable td:last-child {
+    width: 5.5rem;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .productName {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     font-size: 1.2rem;
     font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .productName small {
     color: var(--text-muted);
     font-weight: 400;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .itemObs {
@@ -650,6 +683,12 @@
     font-style: italic;
     margin-top: 5px;
     padding-left: 28px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.45;
+    box-sizing: border-box;
 }
 
 .globalObs {

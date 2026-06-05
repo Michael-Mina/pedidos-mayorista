@@ -603,7 +603,56 @@
 }
 
 .sectionScroll {
-    max-height: min(320px, calc((100vh - 320px) / 2));
+    max-height: min(420px, calc((100vh - 300px) / 2));
+}
+
+.productsGrid .table th {
+    padding: 18px 20px;
+    font-size: 0.85rem;
+}
+
+.productsGrid .table td {
+    padding: 22px 20px;
+    vertical-align: middle;
+}
+
+.productsGrid .table tbody tr {
+    min-height: 76px;
+}
+
+.productsGrid .productCell {
+    gap: 18px;
+}
+
+.productsGrid .productCell span {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.productsGrid .tableImg {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.productCategoryFilter {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.productCategoryFilter label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.productCategoryFilter select {
+    width: 100%;
 }
 
 .managementScroll {
@@ -1001,7 +1050,7 @@
     flex-direction: column;
     gap: 24px;
     animation: fadeIn 0.5s ease-out;
-    max-width: 640px;
+    max-width: 720px;
 }
 
 .backupCard {
@@ -1022,6 +1071,64 @@
     padding-left: 1.25rem;
     color: var(--text-light);
     line-height: 1.7;
+}
+
+.backupPartList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.backupPartItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.backupPartInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.backupPartInfo span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.backupPartBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(46, 204, 113, 0.35);
+    background: rgba(46, 204, 113, 0.1);
+    color: var(--primary-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.backupPartBtn:hover:not(:disabled) {
+    background: rgba(46, 204, 113, 0.2);
+    color: white;
+}
+
+.backupPartBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .backupList code,

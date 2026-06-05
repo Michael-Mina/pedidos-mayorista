@@ -533,22 +533,73 @@ def build_backup_download() -> tuple[bytes, str]:
     Genera un ZIP listo para descargar (estructura BD + datos + estáticos).
     Devuelve (contenido, nombre_archivo).
     """
+    content, filename, _ = build_backup_part("zip")
+    return content, filename
+
+
+def build_backup_part(part: str) -> tuple[bytes, str, str]:
+    """
+    Genera un archivo de respaldo individual o el ZIP completo.
+    part: schema | data | static | manifest | zip
+    Devuelve (contenido, nombre_archivo, media_type).
+    """
     if not backup_available():
         raise FileNotFoundError(
             "No se puede conectar a la base de datos para generar el respaldo."
         )
 
+    allowed = {"schema", "data", "static", "manifest", "zip"}
+    if part not in allowed:
+        raise ValueError(f"Parte de respaldo no válida: {part}")
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"pedidos_mayorista_backup_{stamp}.zip"
+
+    if part == "zip":
+        with tempfile.TemporaryDirectory(prefix="backup_dl_") as tmp:
+            tmp_root = Path(tmp)
+            result = create_backup(backup_dir=tmp_root, cleanup=False)
+            if not result["ok"]:
+                errors = result.get("manifest", {}).get("errors", ["Error desconocido"])
+                raise RuntimeError("; ".join(errors))
+            run_dir = Path(result["backup_dir"])
+            filename = f"pedidos_mayorista_backup_{stamp}.zip"
+            return _zip_directory(run_dir), filename, "application/zip"
+
+    include_schema = part == "schema"
+    include_data = part == "data"
+    include_static = part == "static"
+    include_all_for_manifest = part == "manifest"
 
     with tempfile.TemporaryDirectory(prefix="backup_dl_") as tmp:
         tmp_root = Path(tmp)
-        result = create_backup(backup_dir=tmp_root, cleanup=False)
-        if not result["ok"]:
+        result = create_backup(
+            backup_dir=tmp_root,
+            cleanup=False,
+            include_schema=include_schema or include_all_for_manifest,
+            include_data=include_data or include_all_for_manifest,
+            include_static=include_static or include_all_for_manifest,
+        )
+        if not result["ok"] and part != "manifest":
             errors = result.get("manifest", {}).get("errors", ["Error desconocido"])
             raise RuntimeError("; ".join(errors))
+
         run_dir = Path(result["backup_dir"])
-        return _zip_directory(run_dir), filename
+        part_files = {
+            "schema": ("schema.sql", "application/sql"),
+            "data": ("data.sql", "application/sql"),
+            "static": ("static.zip", "application/zip"),
+            "manifest": ("manifest.json", "application/json"),
+        }
+        filename_on_disk, media_type = part_files[part]
+        path = run_dir / filename_on_disk
+        if not path.is_file():
+            if part == "static":
+                raise FileNotFoundError("No hay archivos estáticos para incluir en el respaldo.")
+            errors = result.get("manifest", {}).get("errors", [])
+            raise RuntimeError(errors[0] if errors else f"No se generó {filename_on_disk}")
+
+        download_name = f"pedidos_mayorista_{part}_{stamp}{path.suffix}"
+        return path.read_bytes(), download_name, media_type
 
 
 def list_backups(backup_dir: Path | None = None) -> list[dict[str, Any]]:

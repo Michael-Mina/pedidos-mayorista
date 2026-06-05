@@ -11,6 +11,7 @@ import {
     formatMayoristaLabel,
     formatCarniceroLabel,
     sortPedidosByRecentActivity,
+    getPedidoActivityCardTime,
 } from '../../utils/pedidos';
 import {
     getReporteMensajes,
@@ -89,6 +90,7 @@ const Mayorista = () => {
     const [problemText, setProblemText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [recentClientSearch, setRecentClientSearch] = useState('');
+    const [nowTick, setNowTick] = useState(() => Date.now());
     const [viewingOrder, setViewingOrder] = useState(null);
     const [tempQty, setTempQty] = useState(1.0);
     const [tempObs, setTempObs] = useState('');
@@ -119,6 +121,17 @@ const Mayorista = () => {
             : sorted;
         return term ? filtered : filtered.slice(0, 10);
     }, [pedidosHistory, recentClientSearch]);
+
+    const activityNeedsLiveTick = useMemo(
+        () => recentActivity.some((p) => p.estado === 'pendiente' || p.estado === 'en_proceso'),
+        [recentActivity]
+    );
+
+    useEffect(() => {
+        if (!activityNeedsLiveTick) return;
+        const id = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [activityNeedsLiveTick]);
 
     const markFinalizadoSeen = useCallback((orderId) => {
         if (!orderId) return;
@@ -792,7 +805,9 @@ const Mayorista = () => {
                         ) : recentActivity.length === 0 ? (
                             <p className={styles.emptyMsg}>No hay pedidos para ese cliente.</p>
                         ) : (
-                            recentActivity.map(item => (
+                            recentActivity.map((item) => {
+                                const timeInfo = getPedidoActivityCardTime(item, nowTick);
+                                return (
                                 <div
                                     key={item.id}
                                     className={`${styles.historyCard} ${styles[item.estado]} ${isNewFinalizado(item) ? styles.finalizadoNuevo : ''} ${isUnreadReportResponse(item) ? styles.historyCardNotif : ''}`}
@@ -813,11 +828,19 @@ const Mayorista = () => {
                                     )}
                                     <div className={styles.historyInfo}>
                                         <strong>{formatPedidoNumero(item)} - {item.cliente_nombre}</strong>
-                                        <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                                        <span className={styles.historyCardTime} title={timeInfo.label}>
+                                            {timeInfo.label && (
+                                                <span className={styles.historyCardTimeLabel}>
+                                                    {timeInfo.label}:{' '}
+                                                </span>
+                                            )}
+                                            {timeInfo.value}
+                                        </span>
                                     </div>
                                     <span className={styles.statusBadge}>{item.estado.replace('_', ' ')}</span>
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </aside>

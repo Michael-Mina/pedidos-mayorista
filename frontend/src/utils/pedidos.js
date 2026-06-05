@@ -145,6 +145,57 @@ export function getPedidoTiemposMonitor(pedido, nowMs = Date.now()) {
     return { espera: '—', preparacion: '—', total: '—' };
 }
 
+/** Hora local de finalización para tarjetas (ej. 04:32:15 p. m.). */
+export function formatPedidoFinishedAtClock(isoTimestamp) {
+    if (isoTimestamp == null || isoTimestamp === '') return '—';
+    const d = new Date(isoTimestamp);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+    });
+}
+
+/**
+ * Texto de tiempo para tarjeta de actividad según estado actual.
+ * pendiente → contador desde creación; en_proceso → tiempo en preparación; finalizado → hora de cierre.
+ */
+export function getPedidoActivityCardTime(pedido, nowMs = Date.now()) {
+    if (!pedido) return { label: '', value: '—', live: false };
+
+    const { timestamp, started_at, finished_at, estado } = pedido;
+
+    if (estado === 'pendiente') {
+        return {
+            label: 'Pendiente',
+            value: formatElapsedSince(timestamp, nowMs),
+            live: true,
+        };
+    }
+
+    if (estado === 'en_proceso') {
+        const prepStart = started_at || timestamp;
+        return {
+            label: 'En preparación',
+            value: formatElapsedSince(prepStart, nowMs),
+            live: true,
+        };
+    }
+
+    if (estado === 'finalizado') {
+        const finishAt = finished_at || pedido.updated_at || timestamp;
+        return {
+            label: 'Finalizado',
+            value: formatPedidoFinishedAtClock(finishAt),
+            live: false,
+        };
+    }
+
+    return { label: '', value: '—', live: false };
+}
+
 /** Fecha local YYYY-MM-DD de un timestamp ISO. */
 export function pedidoLocalDateKey(ts) {
     if (ts == null || ts === '') return '';

@@ -798,6 +798,27 @@ def admin_backup_download(_master: models.User = Depends(auth.require_master)):
     )
 
 
+@app.get("/admin/backup/download/{part}")
+def admin_backup_download_part(
+    part: str,
+    _master: models.User = Depends(auth.require_master),
+):
+    """Descarga un componente del respaldo: schema, data, static o manifest."""
+    try:
+        content, filename, media_type = backup.build_backup_part(part)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/admin/report/excel")
 def admin_report_excel(
     sede_ids: Optional[List[int]] = Query(None),
