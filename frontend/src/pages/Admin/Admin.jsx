@@ -1445,31 +1445,33 @@ const Admin = () => {
                                 <h2>Productos</h2>
                                 <button className="premium-button" onClick={() => handleOpenModal('cut')}><Plus size={14} /></button>
                             </div>
-                            <div className={styles.searchBar}>
-                                <Search size={16} />
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Buscar producto..."
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                />
+                            <div className={styles.productFilters}>
+                                <div className={styles.searchBar}>
+                                    <Search size={16} />
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="Buscar producto..."
+                                        value={productSearch}
+                                        onChange={(e) => setProductSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div className={styles.productCategoryFilter}>
+                                    <label htmlFor="product-category-filter">Filtrar por categoría</label>
+                                    <select
+                                        id="product-category-filter"
+                                        className="input-field"
+                                        value={productCategoryFilter}
+                                        onChange={(e) => setProductCategoryFilter(e.target.value)}
+                                    >
+                                        <option value="">Todas las categorías</option>
+                                        {products.categories.map((cat) => (
+                                            <option key={cat.id} value={String(cat.id)}>{cat.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                            <div className={styles.productCategoryFilter}>
-                                <label htmlFor="product-category-filter">Filtrar por categoría</label>
-                                <select
-                                    id="product-category-filter"
-                                    className="input-field"
-                                    value={productCategoryFilter}
-                                    onChange={(e) => setProductCategoryFilter(e.target.value)}
-                                >
-                                    <option value="">Todas las categorías</option>
-                                    {products.categories.map((cat) => (
-                                        <option key={cat.id} value={String(cat.id)}>{cat.nombre}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className={`glass-card ${styles.sectionScroll}`} style={{ padding: '0px' }}>
+                            <div className={`glass-card ${styles.sectionScroll} ${styles.productsListScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
                                     <thead>
                                         <tr>
