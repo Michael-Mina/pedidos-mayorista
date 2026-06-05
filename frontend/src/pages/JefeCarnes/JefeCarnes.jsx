@@ -1034,7 +1034,6 @@ const JefeCarnes = () => {
                             </section>
                         </div>
                     )}
-                </div>
 
                     {activeTab === 'productos' && (
                         user?.sede_id ? (
@@ -1045,6 +1044,7 @@ const JefeCarnes = () => {
                             </p>
                         )
                     )}
+                </div>
 
                     {activeTab === 'personal' && (
                         <div className={styles.personalWrapper}>

@@ -1,8 +1,20 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search } from 'lucide-react';
-import api from '../../services/api';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Plus, Search, Download, Upload } from 'lucide-react';
+import api, { downloadCatalogExcel, downloadCatalogTemplate, importCatalogExcel } from '../../services/api';
 import { useAppDialog } from '../../context/AppDialogContext';
 import styles from './ProductCatalog.module.css';
+
+const TIPO_LABELS = {
+    categoria: 'Categoría',
+    tipo_corte: 'Preparación',
+    corte: 'Producto',
+};
+
+const MODAL_FROM_TIPO = {
+    categoria: 'category',
+    tipo_corte: 'tipoCorte',
+    corte: 'cut',
+};
 
 const ProductCatalog = ({ sedeNombre }) => {
     const { showToast, confirm } = useAppDialog();
@@ -15,6 +27,10 @@ const ProductCatalog = ({ sedeNombre }) => {
     const [categorySearch, setCategorySearch] = useState('');
     const [productSearch, setProductSearch] = useState('');
     const [productCategoryFilter, setProductCategoryFilter] = useState('');
+    const [excelBusy, setExcelBusy] = useState(false);
+    const [importResult, setImportResult] = useState(null);
+    const [showImportSummary, setShowImportSummary] = useState(false);
+    const fileInputRef = useRef(null);
 
     const fetchCatalog = useCallback(async () => {
         setLoading(true);
@@ -41,15 +57,128 @@ const ProductCatalog = ({ sedeNombre }) => {
         fetchCatalog();
     }, [fetchCatalog]);
 
-    const handleOpenModal = (type, item = null) => {
+    const handleOpenModal = (type, item = null, prefilled = null) => {
         setModalType(type);
         setEditItem(item);
-        if (type === 'cut' && item) {
-            setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map((t) => t.id) || [] });
+        if (item) {
+            if (type === 'cut') {
+                setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map((t) => t.id) || [] });
+            } else {
+                setFormData({ ...item });
+            }
+        } else if (prefilled) {
+            setFormData(prefilled);
         } else {
-            setFormData(item || {});
+            setFormData({});
         }
         setShowModal(true);
+    };
+
+    const findCategoryByName = useCallback((name) => {
+        const key = (name || '').trim().toLowerCase();
+        if (!key) return null;
+        return products.categories.find((c) => c.nombre.trim().toLowerCase() === key) || null;
+    }, [products.categories]);
+
+    const buildPrefillFromEntry = useCallback((entry) => {
+        if (entry.tipo === 'categoria') {
+            return { nombre: entry.nombre, imagen_url: entry.imagen_url || '' };
+        }
+        if (entry.tipo === 'tipo_corte') {
+            return { nombre: entry.nombre };
+        }
+        if (entry.tipo === 'corte') {
+            const cat = findCategoryByName(entry.categoria);
+            const prepIds = [];
+            if (entry.preparaciones) {
+                entry.preparaciones.split(',').forEach((raw) => {
+                    const prepName = raw.trim().toLowerCase();
+                    if (!prepName) return;
+                    const tipo = products.tiposCorte.find((t) => t.nombre.trim().toLowerCase() === prepName);
+                    if (tipo) prepIds.push(tipo.id);
+                });
+            }
+            return {
+                nombre: entry.nombre,
+                imagen_url: entry.imagen_url || '',
+                categoria_id: cat?.id || '',
+                tipos_corte_ids: prepIds,
+            };
+        }
+        return {};
+    }, [findCategoryByName, products.tiposCorte]);
+
+    const handleEditFromImport = (entry) => {
+        const modalType = MODAL_FROM_TIPO[entry.tipo];
+        if (!modalType) return;
+
+        if (entry.existente_id) {
+            let item = null;
+            if (entry.tipo === 'categoria') {
+                item = products.categories.find((c) => c.id === entry.existente_id);
+            } else if (entry.tipo === 'tipo_corte') {
+                item = products.tiposCorte.find((t) => t.id === entry.existente_id);
+            } else if (entry.tipo === 'corte') {
+                item = products.cuts.find((c) => c.id === entry.existente_id);
+            }
+            if (item) {
+                handleOpenModal(modalType, item);
+                return;
+            }
+        }
+
+        handleOpenModal(modalType, null, buildPrefillFromEntry(entry));
+    };
+
+    const handleExportExcel = async () => {
+        setExcelBusy(true);
+        try {
+            await downloadCatalogExcel();
+            showToast('Catálogo descargado', 'success');
+        } catch (error) {
+            showToast(error.message || 'No se pudo descargar el catálogo', 'error');
+        } finally {
+            setExcelBusy(false);
+        }
+    };
+
+    const handleDownloadTemplate = async () => {
+        setExcelBusy(true);
+        try {
+            await downloadCatalogTemplate();
+            showToast('Plantilla descargada', 'success');
+        } catch (error) {
+            showToast(error.message || 'No se pudo descargar la plantilla', 'error');
+        } finally {
+            setExcelBusy(false);
+        }
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+
+        setExcelBusy(true);
+        try {
+            const result = await importCatalogExcel(file);
+            setImportResult(result);
+            setShowImportSummary(true);
+            await fetchCatalog();
+            const { totals } = result;
+            showToast(
+                `Carga finalizada: ${totals.creados} creados, ${totals.omitidos} omitidos, ${totals.errores} errores`,
+                totals.errores > 0 ? 'warning' : 'success'
+            );
+        } catch (error) {
+            showToast(error.message || 'No se pudo importar el catálogo', 'error');
+        } finally {
+            setExcelBusy(false);
+        }
+    };
+
+    const handleRetryImport = () => {
+        fileInputRef.current?.click();
     };
 
     const handleSubmit = async (e) => {
@@ -141,11 +270,47 @@ const ProductCatalog = ({ sedeNombre }) => {
     }
 
     return (
-        <>
+        <div className={styles.catalogPage}>
             <p className={styles.catalogIntro}>
                 Catálogo de <strong>{sedeNombre || 'su sede'}</strong>. Los productos que configure aquí
                 solo estarán disponibles para los mayoristas de esta sede.
             </p>
+
+            <div className={styles.excelToolbar}>
+                <button
+                    type="button"
+                    className="premium-button"
+                    onClick={handleExportExcel}
+                    disabled={excelBusy}
+                >
+                    <Download size={16} />
+                    Descargar Excel
+                </button>
+                <button
+                    type="button"
+                    className="premium-button"
+                    onClick={handleRetryImport}
+                    disabled={excelBusy}
+                >
+                    <Upload size={16} />
+                    Cargar catálogo
+                </button>
+                <button
+                    type="button"
+                    className={`premium-button ${styles.excelToolbarSecondary}`}
+                    onClick={handleDownloadTemplate}
+                    disabled={excelBusy}
+                >
+                    Plantilla
+                </button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xlsm"
+                    className={styles.hiddenFileInput}
+                    onChange={handleFileChange}
+                />
+            </div>
 
             <div className={styles.productsGrid}>
                 <div className={styles.column}>
@@ -277,6 +442,141 @@ const ProductCatalog = ({ sedeNombre }) => {
                 </div>
             </div>
 
+            {showImportSummary && importResult && (
+                <div className={styles.modalOverlay} onClick={() => setShowImportSummary(false)} role="presentation">
+                    <div
+                        className={`${styles.importSummaryModal} glass-card`}
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="import-summary-title"
+                    >
+                        <h3 id="import-summary-title">Resumen de carga del catálogo</h3>
+                        <div className={styles.importTotals}>
+                            <span className={styles.importOk}>
+                                Creados: {importResult.totals?.creados ?? 0}
+                            </span>
+                            <span className={styles.importSkip}>
+                                Omitidos: {importResult.totals?.omitidos ?? 0}
+                            </span>
+                            <span className={styles.importErr}>
+                                Errores: {importResult.totals?.errores ?? 0}
+                            </span>
+                        </div>
+
+                        {(importResult.created?.categorias?.length > 0
+                            || importResult.created?.tipos_corte?.length > 0
+                            || importResult.created?.cortes?.length > 0) && (
+                            <section className={styles.importSection}>
+                                <h4>Elementos cargados</h4>
+                                {importResult.created.categorias?.length > 0 && (
+                                    <ul className={styles.importList}>
+                                        {importResult.created.categorias.map((item) => (
+                                            <li key={`cat-${item.id}`}>
+                                                <span className={styles.importBadge}>Categoría</span>
+                                                {item.nombre}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {importResult.created.tipos_corte?.length > 0 && (
+                                    <ul className={styles.importList}>
+                                        {importResult.created.tipos_corte.map((item) => (
+                                            <li key={`tipo-${item.id}`}>
+                                                <span className={styles.importBadge}>Preparación</span>
+                                                {item.nombre}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {importResult.created.cortes?.length > 0 && (
+                                    <ul className={styles.importList}>
+                                        {importResult.created.cortes.map((item) => (
+                                            <li key={`corte-${item.id}`}>
+                                                <span className={styles.importBadge}>Producto</span>
+                                                {item.nombre}
+                                                {item.categoria ? ` (${item.categoria})` : ''}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </section>
+                        )}
+
+                        {importResult.skipped?.length > 0 && (
+                            <section className={styles.importSection}>
+                                <h4>No cargados (ya existían)</h4>
+                                <ul className={styles.importList}>
+                                    {importResult.skipped.map((entry, idx) => (
+                                        <li key={`skip-${idx}`} className={styles.importRow}>
+                                            <div className={styles.importRowInfo}>
+                                                <span className={styles.importBadge}>{TIPO_LABELS[entry.tipo] || entry.tipo}</span>
+                                                <strong>{entry.nombre}</strong>
+                                                <span className={styles.importMotivo}>{entry.motivo}</span>
+                                                {entry.fila ? <span className={styles.importFila}>Fila {entry.fila}</span> : null}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className={styles.importEditBtn}
+                                                onClick={() => handleEditFromImport(entry)}
+                                            >
+                                                Editar
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
+                        {importResult.errors?.length > 0 && (
+                            <section className={styles.importSection}>
+                                <h4>Con errores</h4>
+                                <ul className={styles.importList}>
+                                    {importResult.errors.map((entry, idx) => (
+                                        <li key={`err-${idx}`} className={styles.importRow}>
+                                            <div className={styles.importRowInfo}>
+                                                <span className={`${styles.importBadge} ${styles.importBadgeError}`}>
+                                                    {TIPO_LABELS[entry.tipo] || entry.tipo}
+                                                </span>
+                                                <strong>{entry.nombre}</strong>
+                                                <span className={styles.importMotivo}>{entry.motivo}</span>
+                                                {entry.fila ? <span className={styles.importFila}>Fila {entry.fila}</span> : null}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className={styles.importEditBtn}
+                                                onClick={() => handleEditFromImport(entry)}
+                                            >
+                                                Editar
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
+                        <div className={styles.importActions}>
+                            <button
+                                type="button"
+                                className="premium-button"
+                                onClick={handleRetryImport}
+                                disabled={excelBusy}
+                            >
+                                <Upload size={16} />
+                                Volver a cargar
+                            </button>
+                            <button
+                                type="button"
+                                className={`premium-button ${styles.excelToolbarSecondary}`}
+                                onClick={() => setShowImportSummary(false)}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowModal(false)} role="presentation">
                     <div className={`${styles.modal} glass-card`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -346,7 +646,7 @@ const ProductCatalog = ({ sedeNombre }) => {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 };
 

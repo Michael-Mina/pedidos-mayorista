@@ -90,25 +90,13 @@ export const downloadAdminBackupPart = async (part) => {
     URL.revokeObjectURL(url);
 };
 
-/** Descarga reporte Excel del dashboard (solo admin). */
-export const downloadAdminReport = async (params = {}) => {
+const downloadBlobFromApi = async (path, fallbackFilename, errorMessage) => {
     const token = localStorage.getItem('token');
-    const qs = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-        if (value === undefined || value === null || value === '') return;
-        if (Array.isArray(value)) {
-            value.forEach((v) => qs.append(key, String(v)));
-        } else {
-            qs.append(key, String(value));
-        }
-    });
-    const query = qs.toString();
-    const url = `${API_URL}/admin/report/excel${query ? `?${query}` : ''}`;
-    const response = await fetch(url, {
+    const response = await fetch(`${API_URL}${path}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!response.ok) {
-        let detail = 'No se pudo generar el reporte';
+        let detail = errorMessage;
         try {
             const body = await response.json();
             detail = body.detail || detail;
@@ -120,7 +108,7 @@ export const downloadAdminReport = async (params = {}) => {
     const blob = await response.blob();
     const disposition = response.headers.get('Content-Disposition') || '';
     const match = disposition.match(/filename="?([^";\n]+)"?/i);
-    const filename = match ? match[1].trim() : `reporte_pedidos_mayorista_${Date.now()}.xlsx`;
+    const filename = match ? match[1].trim() : fallbackFilename;
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = blobUrl;
@@ -129,6 +117,66 @@ export const downloadAdminReport = async (params = {}) => {
     link.click();
     link.remove();
     URL.revokeObjectURL(blobUrl);
+};
+
+/** Descarga catálogo Excel de la sede del supervisor. */
+export const downloadCatalogExcel = async () => {
+    await downloadBlobFromApi(
+        '/catalogo/excel/export',
+        `catalogo_${Date.now()}.xlsx`,
+        'No se pudo exportar el catálogo'
+    );
+};
+
+/** Descarga plantilla Excel para cargar catálogo. */
+export const downloadCatalogTemplate = async () => {
+    await downloadBlobFromApi(
+        '/catalogo/excel/plantilla',
+        `plantilla_catalogo_${Date.now()}.xlsx`,
+        'No se pudo descargar la plantilla'
+    );
+};
+
+/** Importa catálogo desde Excel (supervisor). */
+export const importCatalogExcel = async (file) => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_URL}/catalogo/excel/import`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+    });
+    if (!response.ok) {
+        let detail = 'No se pudo importar el catálogo';
+        try {
+            const body = await response.json();
+            detail = body.detail || detail;
+        } catch {
+            /* respuesta no JSON */
+        }
+        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    }
+    return response.json();
+};
+
+/** Descarga reporte Excel del dashboard (solo admin). */
+export const downloadAdminReport = async (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        if (Array.isArray(value)) {
+            value.forEach((v) => qs.append(key, String(v)));
+        } else {
+            qs.append(key, String(value));
+        }
+    });
+    const query = qs.toString();
+    await downloadBlobFromApi(
+        `/admin/report/excel${query ? `?${query}` : ''}`,
+        `reporte_pedidos_mayorista_${Date.now()}.xlsx`,
+        'No se pudo generar el reporte'
+    );
 };
 
 export default api;

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Body
+from fastapi import FastAPI, Depends, HTTPException, Query, Body, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +11,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, role_catalog, db_reset
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, catalog_excel, role_catalog, db_reset
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -520,6 +520,57 @@ def delete_tipo_corte_endpoint(
     if not deleted:
         raise HTTPException(status_code=404, detail="Tipo de corte no encontrado en esta sede")
     return {"ok": True}
+
+
+@app.get("/catalogo/excel/export")
+def export_catalog_excel(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    sede = db.query(models.Sede).filter(models.Sede.id == current_user.sede_id).first()
+    sede_nombre = sede.nombre if sede else f"sede_{current_user.sede_id}"
+    try:
+        content, filename = catalog_excel.build_catalog_export(db, current_user.sede_id, sede_nombre)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al exportar catálogo: {exc}")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/catalogo/excel/plantilla")
+def download_catalog_template(
+    _current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    content, filename = catalog_excel.build_catalog_template("plantilla")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/catalogo/excel/import")
+async def import_catalog_excel(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Suba un archivo Excel (.xlsx)")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+    try:
+        result = catalog_excel.import_catalog_from_excel(db, current_user.sede_id, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al importar catálogo: {exc}")
+    return result
+
 
 @app.get("/users/carniceros/{sede_id}", response_model=List[schemas.User])
 def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
