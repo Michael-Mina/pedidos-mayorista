@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppDialogProvider } from './context/AppDialogContext';
 import Login from './pages/Login/Login';
 import Mayorista from './pages/Mayorista/Mayorista';
 import Sede from './pages/Sede/Sede';
@@ -30,7 +31,8 @@ const HomeRedirect = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <Router>
+      <AppDialogProvider>
+        <Router>
         <div className="app-container">
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -57,7 +59,8 @@ const App = () => {
             <Route path="/" element={<HomeRedirect />} />
           </Routes>
         </div>
-      </Router>
+        </Router>
+      </AppDialogProvider>
     </AuthProvider>
   );
 };

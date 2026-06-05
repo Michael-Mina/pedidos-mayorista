@@ -1,0 +1,200 @@
+.toastContainer {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 14000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    min-width: 300px;
+    max-width: min(420px, calc(100vw - 48px));
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: #f8fafc;
+    font-weight: 500;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    animation: appToastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast_success {
+    border-left: 4px solid #2ecc71;
+}
+
+.toast_error {
+    border-left: 4px solid #ef4444;
+}
+
+.toast_info {
+    border-left: 4px solid #3498db;
+}
+
+.toast_warning {
+    border-left: 4px solid #f59e0b;
+}
+
+@keyframes appToastIn {
+    from {
+        transform: translateX(110%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.confirmOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 15000;
+    padding: 20px;
+    animation: appFadeIn 0.25s ease;
+}
+
+.confirmBox {
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 32px 28px;
+    max-width: 460px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: appConfirmIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes appFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes appConfirmIn {
+    from {
+        transform: scale(0.92);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.confirmIcon {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.confirmIconPrimary {
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+}
+
+.confirmBox h3 {
+    color: white;
+    font-size: 1.25rem;
+    margin: 0 0 12px;
+}
+
+.confirmMessage {
+    color: #94a3b8;
+    line-height: 1.6;
+    margin: 0 0 28px;
+    white-space: pre-line;
+}
+
+.confirmActions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.cancelBtn,
+.confirmDangerBtn,
+.confirmPrimaryBtn {
+    padding: 12px 22px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-size: 0.95rem;
+}
+
+.cancelBtn {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.cancelBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.confirmDangerBtn {
+    background: #ef4444;
+    color: white;
+}
+
+.confirmDangerBtn:hover {
+    background: #dc2626;
+}
+
+.confirmPrimaryBtn {
+    background: var(--primary-color, #2ecc71);
+    color: white;
+}
+
+.confirmPrimaryBtn:hover {
+    filter: brightness(1.08);
+}
+
+@media (max-width: 768px) {
+    .toastContainer {
+        top: max(12px, env(safe-area-inset-top, 0px));
+        right: 12px;
+        left: 12px;
+        align-items: stretch;
+    }
+
+    .toast {
+        min-width: 0;
+    }
+
+    .confirmActions {
+        flex-direction: column;
+    }
+
+    .cancelBtn,
+    .confirmDangerBtn,
+    .confirmPrimaryBtn {
+        width: 100%;
+    }
+}

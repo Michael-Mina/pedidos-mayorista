@@ -395,7 +395,7 @@ const Mayorista = () => {
 
     const handleAddToCart = () => {
         if (tempQty <= 0) {
-            alert("La cantidad debe ser mayor a 0");
+            showToast("La cantidad debe ser mayor a 0", 'error');
             return;
         }
         const newItem = {
@@ -471,7 +471,10 @@ const Mayorista = () => {
             setShowConfirmModal(false);
         } catch (error) {
             console.error("Error creating order detailed:", error.response?.data);
-            alert("Error al enviar pedido: " + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message));
+            showToast(
+                "Error al enviar pedido: " + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message),
+                'error'
+            );
         } finally {
             setIsSubmittingOrder(false);
         }

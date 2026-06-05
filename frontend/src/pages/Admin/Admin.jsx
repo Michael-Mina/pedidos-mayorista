@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useAppDialog } from '../../context/AppDialogContext';
 import styles from './Admin.module.css';
 import api, { downloadAdminBackupPart, downloadAdminReport } from '../../services/api';
 import {
@@ -110,6 +111,7 @@ const BACKUP_DOWNLOAD_PARTS = [
 
 const Admin = () => {
     const { user, logout } = useAuth();
+    const { showToast, confirm } = useAppDialog();
     const isMaster = user?.role === 'master';
     const [activeTab, setActiveTab] = useState('dashboard');
     const [stats, setStats] = useState({ sedeOrders: [], topCuts: [], ordersByEstado: [] });
@@ -392,7 +394,7 @@ const Admin = () => {
                 endpoint = '/users';
                 const sedeId = parseInt(formData.sede_id, 10);
                 if (!formData.username?.trim() || !formData.role || Number.isNaN(sedeId)) {
-                    alert('Complete usuario, rol y sede.');
+                    showToast('Complete usuario, rol y sede.', 'warning');
                     return;
                 }
                 dataToSend = {
@@ -448,7 +450,10 @@ const Admin = () => {
             fetchData();
         } catch (error) {
             console.error("Error detailed:", error.response?.data);
-            alert("Error al guardar: " + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message));
+            showToast(
+                'Error al guardar: ' + (error.response?.data?.detail?.[0]?.msg || error.response?.data?.detail || error.message),
+                'error'
+            );
         }
     };
 
@@ -457,14 +462,20 @@ const Admin = () => {
         try {
             await downloadAdminBackupPart(part);
         } catch (error) {
-            alert(error.message || 'Error al descargar el respaldo');
+            showToast(error.message || 'Error al descargar el respaldo', 'error');
         } finally {
             setBackupLoadingPart(null);
         }
     };
 
     const handleDelete = async (type, id) => {
-        if (!window.confirm("¿Está seguro de eliminar este elemento?")) return;
+        const ok = await confirm({
+            title: 'Eliminar elemento',
+            message: '¿Está seguro de eliminar este elemento?',
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar',
+        });
+        if (!ok) return;
         try {
             let endpoint = '';
             if (type === 'user') endpoint = '/users';
@@ -476,7 +487,7 @@ const Admin = () => {
             await api.delete(`${endpoint}/${id}`);
             fetchData();
         } catch (error) {
-            alert("Error al eliminar");
+            showToast('Error al eliminar', 'error');
         }
     };
 
@@ -564,10 +575,16 @@ const Admin = () => {
 
     const handleDeleteRole = async (role) => {
         if (role.code === 'master') {
-            alert('El rol master no se puede eliminar.');
+            showToast('El rol master no se puede eliminar.', 'warning');
             return;
         }
-        if (!window.confirm(`¿Eliminar el rol "${role.label}" (${role.code})?`)) return;
+        const ok = await confirm({
+            title: 'Eliminar rol',
+            message: `¿Eliminar el rol "${role.label}" (${role.code})?`,
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar',
+        });
+        if (!ok) return;
         try {
             await deleteRoleRequest(role.id, false);
         } catch (err) {
@@ -580,20 +597,24 @@ const Admin = () => {
                 const extra = isOps
                     ? '\n\nSon carniceros o tablets de sede (no aparecen en Gestión de Usuarios).'
                     : '';
-                if (window.confirm(
-                    `Hay ${n} usuario(s) con este rol.${extra}\n\n¿Eliminar el rol y también esas ${n} cuenta(s)?`
-                )) {
+                const forceOk = await confirm({
+                    title: 'Eliminar rol y cuentas',
+                    message: `Hay ${n} usuario(s) con este rol.${extra}\n\n¿Eliminar el rol y también esas ${n} cuenta(s)?`,
+                    confirmText: 'Eliminar todo',
+                    cancelText: 'Cancelar',
+                });
+                if (forceOk) {
                     try {
                         await deleteRoleRequest(role.id, true);
                         return;
                     } catch (err2) {
                         const d2 = err2.response?.data?.detail;
-                        alert(typeof d2 === 'string' ? d2 : 'No se pudo eliminar el rol');
+                        showToast(typeof d2 === 'string' ? d2 : 'No se pudo eliminar el rol', 'error');
                         return;
                     }
                 }
             }
-            alert(msg);
+            showToast(msg, 'error');
         }
     };
 
@@ -632,23 +653,28 @@ const Admin = () => {
 
     const handleToggleRoleEnabled = async (role) => {
         if (role.code === 'master') {
-            alert('El rol master no se puede deshabilitar.');
+            showToast('El rol master no se puede deshabilitar.', 'warning');
             return;
         }
         const enabled = role.is_enabled !== false;
         const action = enabled ? 'deshabilitar' : 'habilitar';
-        if (!window.confirm(
-            enabled
+        const ok = await confirm({
+            title: enabled ? 'Deshabilitar rol' : 'Habilitar rol',
+            message: enabled
                 ? `¿Deshabilitar "${role.label}"? No se podrá asignar a usuarios nuevos ni iniciar sesión con este rol.`
-                : `¿Habilitar "${role.label}"?`
-        )) return;
+                : `¿Habilitar "${role.label}"?`,
+            confirmText: enabled ? 'Deshabilitar' : 'Habilitar',
+            cancelText: 'Cancelar',
+            variant: enabled ? 'danger' : 'primary',
+        });
+        if (!ok) return;
         try {
             await api.put(`/master/roles/${role.id}`, { is_enabled: !enabled });
             await loadRolesCatalog();
             await loadAssignableRoles();
         } catch (err) {
             const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : `No se pudo ${action} el rol`);
+            showToast(typeof detail === 'string' ? detail : `No se pudo ${action} el rol`, 'error');
         }
     };
 
@@ -715,14 +741,14 @@ const Admin = () => {
     const handleDownloadReport = async () => {
         const params = buildReportDownloadParams();
         if (!params) {
-            alert(dashboardFilterError || 'Configure filtros válidos antes de descargar el reporte.');
+            showToast(dashboardFilterError || 'Configure filtros válidos antes de descargar el reporte.', 'warning');
             return;
         }
         setReportLoading(true);
         try {
             await downloadAdminReport(params);
         } catch (error) {
-            alert(error.message || 'Error al descargar el reporte');
+            showToast(error.message || 'Error al descargar el reporte', 'error');
         } finally {
             setReportLoading(false);
         }
@@ -1421,7 +1447,7 @@ const Admin = () => {
                                     onChange={(e) => setCategorySearch(e.target.value)}
                                 />
                             </div>
-                            <div className={`glass-card ${styles.sectionScroll}`} style={{ padding: '0px' }}>
+                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
                                     <tbody>
                                         {filteredCategories.map(cat => (
@@ -1471,7 +1497,7 @@ const Admin = () => {
                                     </select>
                                 </div>
                             </div>
-                            <div className={`glass-card ${styles.sectionScroll} ${styles.productsListScroll}`} style={{ padding: '0px' }}>
+                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
                                     <thead>
                                         <tr>
@@ -1503,7 +1529,7 @@ const Admin = () => {
                                 <h2>Cortes (Preparaciones)</h2>
                                 <button className="premium-button" onClick={() => handleOpenModal('tipoCorte')}><Plus size={14} /></button>
                             </div>
-                            <div className={`glass-card ${styles.sectionScroll}`} style={{ padding: '0px' }}>
+                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
                                 <table className={styles.table}>
                                     <tbody>
                                         {products.tiposCorte && products.tiposCorte.map(tipo => (

@@ -242,25 +242,30 @@ def get_stats_top_cuts(
     )
 
 
+_REPORT_PEDIDO_LOAD = (
+    joinedload(models.Pedido.carnicero),
+    joinedload(models.Pedido.mayorista),
+    joinedload(models.Pedido.sede),
+    joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte).joinedload(models.Corte.categoria),
+    joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte),
+)
+
+
 def get_pedidos_for_report(
     db: Session,
     sede_ids: list[int] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    limit: int = 500,
+    limit: int | None = 10000,
 ):
-    q = (
-        db.query(models.Pedido)
-        .options(
-            joinedload(models.Pedido.sede),
-            joinedload(models.Pedido.mayorista),
-            joinedload(models.Pedido.detalles),
-        )
-    )
+    q = db.query(models.Pedido).options(*_REPORT_PEDIDO_LOAD)
     if sede_ids:
         q = q.filter(models.Pedido.sede_id.in_(sede_ids))
     q = _apply_pedido_date_filter(q, date_from, date_to)
-    return q.order_by(models.Pedido.timestamp.desc()).limit(limit).all()
+    q = q.order_by(models.Pedido.timestamp.desc())
+    if limit:
+        q = q.limit(limit)
+    return q.all()
 
 
 _ESTADO_LABELS = {
