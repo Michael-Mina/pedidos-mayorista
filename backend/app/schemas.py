@@ -118,6 +118,7 @@ class CategoriaBase(BaseModel):
 
 class Categoria(CategoriaBase):
     id: int
+    sede_id: int
     model_config = ConfigDict(from_attributes=True)
 
 class TipoCorteBase(BaseModel):
@@ -125,6 +126,7 @@ class TipoCorteBase(BaseModel):
 
 class TipoCorte(TipoCorteBase):
     id: int
+    sede_id: int
     model_config = ConfigDict(from_attributes=True)
 
 class CorteBase(BaseModel):
@@ -135,6 +137,7 @@ class CorteBase(BaseModel):
 
 class Corte(CorteBase):
     id: int
+    sede_id: int
     tipos_corte: List[TipoCorte] = []
     model_config = ConfigDict(from_attributes=True)
 

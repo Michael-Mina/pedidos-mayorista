@@ -79,19 +79,25 @@ class User(Base):
 class Categoria(Base):
     __tablename__ = "categorias"
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True, index=True)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=False, index=True)
+    nombre = Column(String, index=True)
     imagen_url = Column(String, nullable=True)
     popularidad_score = Column(Float, default=0.0)
 
+    sede = relationship("Sede", backref="categorias")
     cortes = relationship("Corte", back_populates="categoria")
+
+    __table_args__ = (UniqueConstraint("sede_id", "nombre", name="uq_categoria_sede_nombre"),)
 
 class Corte(Base):
     __tablename__ = "cortes"
     id = Column(Integer, primary_key=True, index=True)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=False, index=True)
     categoria_id = Column(Integer, ForeignKey("categorias.id"))
     nombre = Column(String, index=True)
     imagen_url = Column(String, nullable=True)
 
+    sede = relationship("Sede", backref="cortes")
     categoria = relationship("Categoria", back_populates="cortes")
     detalles = relationship("DetallePedido", back_populates="corte")
     tipos_corte = relationship("TipoCorte", secondary=corte_tipocorte_association, backref="cortes")
@@ -99,9 +105,13 @@ class Corte(Base):
 class TipoCorte(Base):
     __tablename__ = "tipos_corte"
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=False, index=True)
+    nombre = Column(String, index=True)
 
+    sede = relationship("Sede", backref="tipos_corte")
     detalles = relationship("DetallePedido", back_populates="tipo_corte")
+
+    __table_args__ = (UniqueConstraint("sede_id", "nombre", name="uq_tipo_corte_sede_nombre"),)
 
 class Pedido(Base):
     __tablename__ = "pedidos"

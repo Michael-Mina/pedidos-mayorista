@@ -1,0 +1,197 @@
+.catalogIntro {
+    margin: 0 0 20px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: rgba(46, 204, 113, 0.08);
+    border: 1px solid rgba(46, 204, 113, 0.2);
+    color: var(--text-light);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.catalogIntro strong {
+    color: var(--primary-color);
+}
+
+.productsGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.column h2 {
+    font-size: 1.1rem;
+    margin: 0;
+    color: var(--text-light);
+}
+
+.managementHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.searchBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+}
+
+.searchBar input {
+    flex: 1;
+}
+
+.sectionScroll {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    max-height: min(420px, calc((100vh - 300px) / 2));
+}
+
+.catalogListScroll {
+    max-height: min(840px, calc(100vh - 300px));
+}
+
+.productFilters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+    gap: 12px;
+    margin-bottom: 14px;
+    align-items: end;
+}
+
+.productFilters .searchBar {
+    margin-bottom: 0;
+}
+
+.productCategoryFilter {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.productCategoryFilter label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.productCategoryFilter select {
+    width: 100%;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th {
+    text-align: left;
+    padding: 18px 20px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table td {
+    padding: 22px 20px;
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+}
+
+.table tbody tr {
+    min-height: 76px;
+}
+
+.productCell {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.productCell span {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.tableImg {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 12000;
+    padding: 20px;
+}
+
+.modal {
+    width: min(480px, 100%);
+    padding: 28px;
+    border-radius: 16px;
+}
+
+.modal h3 {
+    margin: 0 0 20px;
+    color: var(--text-light);
+}
+
+.modalActions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.tiposGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+}
+
+.tipoCheck {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-light);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .productFilters {
+        grid-template-columns: 1fr;
+    }
+
+    .sectionScroll,
+    .catalogListScroll {
+        max-height: none;
+    }
+}

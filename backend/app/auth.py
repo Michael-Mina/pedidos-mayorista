@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 
-from . import crud, models
+from . import crud, models, role_catalog
 from .database import get_db
 
 load_dotenv()
@@ -79,5 +79,38 @@ def require_master(current_user: models.User = Depends(get_current_user)) -> mod
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el usuario master puede realizar esta acción",
+        )
+    return current_user
+
+
+def is_jefe_panel_user(db: Session, user: models.User) -> bool:
+    panel = role_catalog.get_role_panel(db, user.role)
+    return panel == "jefe"
+
+
+def require_catalog_manager(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.User:
+    if not is_jefe_panel_user(db, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el supervisor de carnes puede gestionar el catálogo de productos",
+        )
+    if not current_user.sede_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El supervisor no tiene sede asignada",
+        )
+    return current_user
+
+
+def require_catalog_reader(
+    current_user: models.User = Depends(get_current_user),
+) -> models.User:
+    if not current_user.sede_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario sin sede asignada",
         )
     return current_user

@@ -116,6 +116,11 @@ def get_role_row(db: Session, code: str) -> models.AppRole | None:
         return None
 
 
+def get_role_panel(db: Session, code: str) -> str | None:
+    row = get_role_row(db, code)
+    return row.panel if row else None
+
+
 def role_is_enabled(db: Session, role_code: str) -> bool:
     row = get_role_row(db, role_code)
     if not row:

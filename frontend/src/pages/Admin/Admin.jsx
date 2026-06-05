@@ -4,7 +4,7 @@ import { useAppDialog } from '../../context/AppDialogContext';
 import styles from './Admin.module.css';
 import api, { downloadAdminBackupPart, downloadAdminReport } from '../../services/api';
 import {
-    LayoutDashboard, Users, MapPin, Package, LogOut,
+    LayoutDashboard, Users, MapPin, LogOut,
     TrendingUp, BarChart3, Plus, RefreshCw, Search, Menu, X,
     HardDriveDownload, AlertCircle, CheckCircle2, Calendar, Filter, FileSpreadsheet, Shield, Trash2, Edit2, Ban, Check
 } from 'lucide-react';
@@ -131,7 +131,6 @@ const Admin = () => {
     });
     const [usersList, setUsersList] = useState([]);
     const [sedesList, setSedesList] = useState([]);
-    const [products, setProducts] = useState({ categories: [], cuts: [], tiposCorte: [] });
     const [loading, setLoading] = useState(true);
 
     // UI State for Modals
@@ -139,9 +138,6 @@ const Admin = () => {
     const [modalType, setModalType] = useState(null); // 'user', 'sede', 'category', 'cut', 'tipoCorte'
     const [editItem, setEditItem] = useState(null);
     const [formData, setFormData] = useState({});
-    const [categorySearch, setCategorySearch] = useState('');
-    const [productSearch, setProductSearch] = useState('');
-    const [productCategoryFilter, setProductCategoryFilter] = useState('');
     const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userSedeFilter, setUserSedeFilter] = useState('');
@@ -173,7 +169,6 @@ const Admin = () => {
         const tabs = [
             { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
             { id: 'users', label: 'Usuarios', icon: Users },
-            { id: 'products', label: 'Productos', icon: Package },
         ];
         if (isMaster) {
             tabs.splice(2, 0,
@@ -261,11 +256,6 @@ const Admin = () => {
     }, [activeTab, dashboardPeriodFilter, dashboardCompareMode, dashboardSelectedSedes, dashboardDateFrom, dashboardDateTo]);
 
     useEffect(() => {
-        if (activeTab !== 'products') {
-            setCategorySearch('');
-            setProductSearch('');
-            setProductCategoryFilter('');
-        }
         if (activeTab !== 'users') {
             setUserSearch('');
             setUserRoleFilter('');
@@ -347,13 +337,6 @@ const Admin = () => {
             } else if (activeTab === 'sedes') {
                 const res = await api.get('/sedes');
                 setSedesList(res.data);
-            } else if (activeTab === 'products') {
-                const [resCats, resCortes, resTipos] = await Promise.all([
-                    api.get('/categorias'),
-                    api.get('/cortes'),
-                    api.get('/tipos-corte')
-                ]);
-                setProducts({ categories: resCats.data, cuts: resCortes.data, tiposCorte: resTipos.data });
             } else if (activeTab === 'backup' && isMaster) {
                 const res = await api.get('/admin/backup/status');
                 setBackupStatus(res.data);
@@ -369,9 +352,7 @@ const Admin = () => {
     const handleOpenModal = (type, item = null) => {
         setModalType(type);
         setEditItem(item);
-        if (type === 'cut' && item) {
-            setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map(t => t.id) || [] });
-        } else if (type === 'user' && item) {
+        if (type === 'user' && item) {
             setFormData({
                 username: item.username,
                 role: item.role,
@@ -411,25 +392,6 @@ const Admin = () => {
                     id: formData.id,
                     nombre: formData.nombre,
                     password: formData.password || null
-                };
-            } else if (modalType === 'category') {
-                endpoint = '/categorias';
-                dataToSend = {
-                    nombre: formData.nombre,
-                    imagen_url: formData.imagen_url || null
-                };
-            } else if (modalType === 'cut') {
-                endpoint = '/cortes';
-                dataToSend = {
-                    nombre: formData.nombre,
-                    categoria_id: parseInt(formData.categoria_id),
-                    imagen_url: formData.imagen_url || null,
-                    tipos_corte_ids: formData.tipos_corte_ids || []
-                };
-            } else if (modalType === 'tipoCorte') {
-                endpoint = '/tipos-corte';
-                dataToSend = {
-                    nombre: formData.nombre
                 };
             }
 
@@ -480,10 +442,6 @@ const Admin = () => {
             let endpoint = '';
             if (type === 'user') endpoint = '/users';
             if (type === 'sede') endpoint = '/sedes';
-            if (type === 'category') endpoint = '/categorias';
-            if (type === 'cut') endpoint = '/cortes';
-            if (type === 'tipoCorte') endpoint = '/tipos-corte';
-
             await api.delete(`${endpoint}/${id}`);
             fetchData();
         } catch (error) {
@@ -779,19 +737,6 @@ const Admin = () => {
             borderWidth: 0
         }]
     };
-
-    const filteredCategories = products.categories.filter((cat) =>
-        cat.nombre.toLowerCase().includes(categorySearch.trim().toLowerCase())
-    );
-
-    const filteredCuts = products.cuts.filter((cut) => {
-        if (productCategoryFilter && String(cut.categoria_id) !== productCategoryFilter) {
-            return false;
-        }
-        const term = productSearch.trim().toLowerCase();
-        if (!term) return true;
-        return cut.nombre.toLowerCase().includes(term);
-    });
 
     const rolesForUserFilter = useMemo(
         () => [...assignableRoles, ...rolesCatalog],
@@ -1430,126 +1375,6 @@ const Admin = () => {
                     </>
                 )}
 
-                {activeTab === 'products' && (
-                    <div className={styles.productsGrid}>
-                        <div className={styles.column}>
-                            <div className={styles.managementHeader}>
-                                <h2>Categorías</h2>
-                                <button className="premium-button" onClick={() => handleOpenModal('category')}><Plus size={14} /></button>
-                            </div>
-                            <div className={styles.searchBar}>
-                                <Search size={16} />
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Buscar categoría..."
-                                    value={categorySearch}
-                                    onChange={(e) => setCategorySearch(e.target.value)}
-                                />
-                            </div>
-                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
-                                <table className={styles.table}>
-                                    <tbody>
-                                        {filteredCategories.map(cat => (
-                                            <tr key={cat.id}>
-                                                <td className={styles.productCell}>
-                                                    {cat.imagen_url && <img src={cat.imagen_url} alt={cat.nombre} className={styles.tableImg} />}
-                                                    <span>{cat.nombre}</span>
-                                                </td>
-                                                <td style={{ textAlign: 'right' }}>
-                                                    <button onClick={() => handleOpenModal('category', cat)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '5px' }}>✎</button>
-                                                    <button onClick={() => handleDelete('category', cat.id)} style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}>✕</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div className={styles.column}>
-                            <div className={styles.managementHeader}>
-                                <h2>Productos</h2>
-                                <button className="premium-button" onClick={() => handleOpenModal('cut')}><Plus size={14} /></button>
-                            </div>
-                            <div className={styles.productFilters}>
-                                <div className={styles.searchBar}>
-                                    <Search size={16} />
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        placeholder="Buscar producto..."
-                                        value={productSearch}
-                                        onChange={(e) => setProductSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div className={styles.productCategoryFilter}>
-                                    <label htmlFor="product-category-filter">Filtrar por categoría</label>
-                                    <select
-                                        id="product-category-filter"
-                                        className="input-field"
-                                        value={productCategoryFilter}
-                                        onChange={(e) => setProductCategoryFilter(e.target.value)}
-                                    >
-                                        <option value="">Todas las categorías</option>
-                                        {products.categories.map((cat) => (
-                                            <option key={cat.id} value={String(cat.id)}>{cat.nombre}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
-                                <table className={styles.table}>
-                                    <thead>
-                                        <tr>
-                                            <th>Nombre</th>
-                                            <th>Categoría</th>
-                                            <th>Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredCuts.map(cut => (
-                                            <tr key={cut.id}>
-                                                <td className={styles.productCell}>
-                                                    {cut.imagen_url && <img src={cut.imagen_url} alt={cut.nombre} className={styles.tableImg} />}
-                                                    <span>{cut.nombre}</span>
-                                                </td>
-                                                <td>{products.categories.find(c => c.id === cut.categoria_id)?.nombre}</td>
-                                                <td>
-                                                    <button onClick={() => handleOpenModal('cut', cut)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '5px' }}>✎</button>
-                                                    <button onClick={() => handleDelete('cut', cut.id)} style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}>✕</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div className={styles.column}>
-                            <div className={styles.managementHeader}>
-                                <h2>Cortes (Preparaciones)</h2>
-                                <button className="premium-button" onClick={() => handleOpenModal('tipoCorte')}><Plus size={14} /></button>
-                            </div>
-                            <div className={`glass-card ${styles.sectionScroll} ${styles.catalogListScroll}`} style={{ padding: '0px' }}>
-                                <table className={styles.table}>
-                                    <tbody>
-                                        {products.tiposCorte && products.tiposCorte.map(tipo => (
-                                            <tr key={tipo.id}>
-                                                <td className={styles.productCell}>
-                                                    <span>{tipo.nombre}</span>
-                                                </td>
-                                                <td style={{ textAlign: 'right' }}>
-                                                    <button onClick={() => handleOpenModal('tipoCorte', tipo)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '5px' }}>✎</button>
-                                                    <button onClick={() => handleDelete('tipoCorte', tipo.id)} style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}>✕</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {isMaster && activeTab === 'backup' && (
                     <div className={styles.backupWrapper}>
                         <div className={styles.topBanner}>
@@ -1697,10 +1522,7 @@ const Admin = () => {
                     <div className={`${styles.modal} glass-card`}>
                         <h3>{editItem ? 'Editar' : 'Crear'} {
                             modalType === 'user' ? 'Usuario' :
-                                modalType === 'sede' ? 'Sede' :
-                                    modalType === 'category' ? 'Categoría' :
-                                        modalType === 'cut' ? 'Producto' :
-                                            modalType === 'tipoCorte' ? 'Corte' : modalType
+                                modalType === 'sede' ? 'Sede' : modalType
                         }</h3>
                         <form onSubmit={handleSubmit}>
                             {modalType === 'user' && (
@@ -1732,52 +1554,6 @@ const Admin = () => {
                                     <input type="text" placeholder="Centro de Operación (C.O)" className="input-field" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value })} disabled={!!editItem} required />
                                     <input placeholder="Nombre de la sede" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
                                     <input placeholder={editItem ? "Nueva Contraseña (dejar vacío si no cambia)" : "Contraseña de acceso"} type="password" className="input-field" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editItem} />
-                                </>
-                            )}
-                            {modalType === 'category' && (
-                                <>
-                                    <input placeholder="Nombre Categoría" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
-                                    <input placeholder="Imagen URL (opcional)" className="input-field" value={formData.imagen_url || ''} onChange={e => setFormData({ ...formData, imagen_url: e.target.value })} />
-                                </>
-                            )}
-                            {modalType === 'cut' && (
-                                <>
-                                    <input placeholder="Nombre del Producto" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
-                                    <input placeholder="Imagen URL (opcional)" className="input-field" value={formData.imagen_url || ''} onChange={e => setFormData({ ...formData, imagen_url: e.target.value })} />
-                                    <select className="input-field" value={formData.categoria_id || ''} onChange={e => {
-                                        const val = e.target.value;
-                                        setFormData({ ...formData, categoria_id: val ? parseInt(val) : '' });
-                                    }} required>
-                                        <option value="">Seleccionar Categoría</option>
-                                        {products.categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                    </select>
-                                    <div style={{ marginTop: '10px' }}>
-                                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Cortes permitidos (opcional):</label>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', maxHeight: '150px', overflowY: 'auto', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px' }}>
-                                            {products.tiposCorte.map(tc => (
-                                                <label key={tc.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-light)', fontSize: '0.9rem', cursor: 'pointer' }}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={(formData.tipos_corte_ids || []).includes(tc.id)}
-                                                        onChange={(e) => {
-                                                            const currentIds = formData.tipos_corte_ids || [];
-                                                            if (e.target.checked) {
-                                                                setFormData({...formData, tipos_corte_ids: [...currentIds, tc.id]});
-                                                            } else {
-                                                                setFormData({...formData, tipos_corte_ids: currentIds.filter(id => id !== tc.id)});
-                                                            }
-                                                        }}
-                                                    />
-                                                    {tc.nombre}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                            {modalType === 'tipoCorte' && (
-                                <>
-                                    <input placeholder="Nombre del Corte (Ej: Mariposa)" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
                                 </>
                             )}
                             <div className={styles.modalActions}>

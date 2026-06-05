@@ -49,6 +49,7 @@ import {
 } from '../../utils/reporteMensajes';
 import { requestNotificationPermission, notifyBrowserMessage } from '../../utils/pushNotification';
 import ReportChatModal from '../../components/ReportChatModal/ReportChatModal';
+import ProductCatalog from '../../components/ProductCatalog/ProductCatalog';
 
 const SEEN_REPORT_COUNTS_KEY = 'jefe_seen_report_msg_counts';
 
@@ -67,7 +68,8 @@ const JefeCarnes = () => {
     const { user, logout } = useAuth();
     const [globalOrders, setGlobalOrders] = useState([]);
     const globalOrdersRef = useRef([]);
-    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'historial', 'reportes', 'personal'
+    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'historial', 'reportes', 'personal', 'productos'
+    const [sedeNombre, setSedeNombre] = useState('');
     const [loading, setLoading] = useState(false);
 
     // Personal / Carniceros State
@@ -276,6 +278,7 @@ const JefeCarnes = () => {
         { id: 'monitor', label: 'Monitor Real-Time', icon: Monitor },
         { id: 'historial', label: 'Historial', icon: History },
         { id: 'reportes', label: 'Reportes', icon: MessageSquare },
+        { id: 'productos', label: 'Productos', icon: Package },
         { id: 'personal', label: 'Personal', icon: Users },
     ];
 
@@ -286,6 +289,19 @@ const JefeCarnes = () => {
         setReportesPage(1);
         setCurrentPage(1);
     };
+
+    useEffect(() => {
+        if (!user?.sede_id) {
+            setSedeNombre('');
+            return;
+        }
+        api.get('/sedes')
+            .then((res) => {
+                const sede = res.data.find((s) => s.id === user.sede_id);
+                setSedeNombre(sede?.nombre || '');
+            })
+            .catch(() => setSedeNombre(''));
+    }, [user?.sede_id]);
 
     useEffect(() => {
         if (!menuOpen) return;
@@ -614,6 +630,7 @@ const JefeCarnes = () => {
                         activeTab === 'monitor' ? 'Monitor Global' :
                         activeTab === 'personal' ? 'Gestión de Personal' :
                         activeTab === 'reportes' ? 'Reportes' :
+                        activeTab === 'productos' ? 'Catálogo de Productos' :
                         'Historial'
                     }</h1>
                     {activeTab === 'monitor' && (
@@ -1019,7 +1036,16 @@ const JefeCarnes = () => {
                     )}
                 </div>
 
-                
+                    {activeTab === 'productos' && (
+                        user?.sede_id ? (
+                            <ProductCatalog sedeNombre={sedeNombre} />
+                        ) : (
+                            <p className={styles.emptyMsg}>
+                                Su usuario no tiene sede asignada. Contacte al administrador para gestionar el catálogo.
+                            </p>
+                        )
+                    )}
+
                     {activeTab === 'personal' && (
                         <div className={styles.personalWrapper}>
                             <div className={styles.personalHeaderActions}>

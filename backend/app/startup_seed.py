@@ -130,10 +130,17 @@ def run_if_enabled() -> None:
             db.commit()
             db.refresh(sede)
 
-        if db.query(models.TipoCorte).count() == 0:
-            for name in ("Mariposa", "Delgado", "Grueso"):
-                db.add(models.TipoCorte(nombre=name))
-            db.commit()
+        sedes = db.query(models.Sede).all()
+        for sede_row in sedes:
+            if (
+                db.query(models.TipoCorte)
+                .filter(models.TipoCorte.sede_id == sede_row.id)
+                .count()
+                == 0
+            ):
+                for name in ("Mariposa", "Delgado", "Grueso"):
+                    db.add(models.TipoCorte(nombre=name, sede_id=sede_row.id))
+        db.commit()
 
         _upsert_user(
             db,

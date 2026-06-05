@@ -169,13 +169,23 @@ def _url_imagen_local(base_url: str, archivo: str) -> str:
     return f"{base_url}/static/cortes/res/{archivo}"
 
 
-def _tipos_corte_ids(db: Session) -> list[int]:
-    return [t.id for t in db.query(models.TipoCorte).order_by(models.TipoCorte.id).all()]
+def _tipos_corte_ids(db: Session, sede_id: int) -> list[int]:
+    return [
+        t.id
+        for t in db.query(models.TipoCorte)
+        .filter(models.TipoCorte.sede_id == sede_id)
+        .order_by(models.TipoCorte.id)
+        .all()
+    ]
 
 
-def ensure_categoria_res(db: Session, base_url: str | None = None) -> models.Categoria:
+def ensure_categoria_res(db: Session, sede_id: int, base_url: str | None = None) -> models.Categoria:
     base = base_url or public_api_base()
-    cat = db.query(models.Categoria).filter(models.Categoria.nombre == "Res").first()
+    cat = (
+        db.query(models.Categoria)
+        .filter(models.Categoria.nombre == "Res", models.Categoria.sede_id == sede_id)
+        .first()
+    )
     archivo = CATEGORIA_RES_IMAGEN["archivo"]
     destino = STATIC_CORTES_RES_DIR / archivo
     _asegurar_archivo_imagen(destino, "Res", CATEGORIA_RES_IMAGEN["origen"], 0)
@@ -185,6 +195,7 @@ def ensure_categoria_res(db: Session, base_url: str | None = None) -> models.Cat
         cat = crud.create_category(
             db,
             schemas.CategoriaBase(nombre="Res", imagen_url=imagen),
+            sede_id,
         )
         print(f"[catalogo_res] Categoría Res creada (id={cat.id})")
     elif imagen and cat.imagen_url != imagen:
@@ -194,14 +205,19 @@ def ensure_categoria_res(db: Session, base_url: str | None = None) -> models.Cat
     return cat
 
 
-def ensure_cortes_res(db: Session, base_url: str | None = None, actualizar_imagenes: bool = False) -> list[models.Corte]:
+def ensure_cortes_res(
+    db: Session,
+    sede_id: int,
+    base_url: str | None = None,
+    actualizar_imagenes: bool = False,
+) -> list[models.Corte]:
     """
     Inserta cortes de res faltantes y guarda imágenes en el servidor.
-    Idempotente: no duplica por nombre dentro de la categoría Res.
+    Idempotente: no duplica por nombre dentro de la categoría Res de la sede.
     """
     base = base_url or public_api_base()
-    cat = ensure_categoria_res(db, base)
-    tipos_ids = _tipos_corte_ids(db)
+    cat = ensure_categoria_res(db, sede_id, base)
+    tipos_ids = _tipos_corte_ids(db, sede_id)
     creados: list[models.Corte] = []
 
     for item in CORTES_RES_CATALOGO:
@@ -212,6 +228,7 @@ def ensure_cortes_res(db: Session, base_url: str | None = None, actualizar_image
         existente = (
             db.query(models.Corte)
             .filter(
+                models.Corte.sede_id == sede_id,
                 models.Corte.categoria_id == cat.id,
                 models.Corte.nombre == item["nombre"],
             )
@@ -234,6 +251,7 @@ def ensure_cortes_res(db: Session, base_url: str | None = None, actualizar_image
                 imagen_url=imagen_url,
                 tipos_corte_ids=tipos_ids,
             ),
+            sede_id,
         )
         creados.append(nuevo)
         print(f"[catalogo_res] Corte creado: {nuevo.nombre} (id={nuevo.id})")
@@ -241,13 +259,17 @@ def ensure_cortes_res(db: Session, base_url: str | None = None, actualizar_image
     return creados
 
 
-def migrar_cortes_res_existentes_a_local(db: Session, base_url: str | None = None) -> int:
+def migrar_cortes_res_existentes_a_local(db: Session, sede_id: int, base_url: str | None = None) -> int:
     """
     Reasigna imágenes locales a cortes ya existentes (Lomo, Picaña, etc.) usando el catálogo
     cuando el nombre coincide o hay entrada explícita.
     """
     base = base_url or public_api_base()
-    cat = db.query(models.Categoria).filter(models.Categoria.nombre == "Res").first()
+    cat = (
+        db.query(models.Categoria)
+        .filter(models.Categoria.nombre == "Res", models.Categoria.sede_id == sede_id)
+        .first()
+    )
     if not cat:
         return 0
 

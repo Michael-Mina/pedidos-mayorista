@@ -64,19 +64,34 @@ def delete_sede(db: Session, sede_id: int):
         db.commit()
     return db_sede
 
-# Category CRUD
-def get_categories(db: Session):
-    return db.query(models.Categoria).order_by(models.Categoria.popularidad_score.desc()).all()
+# Category CRUD (por sede)
+def get_categories(db: Session, sede_id: int):
+    return (
+        db.query(models.Categoria)
+        .filter(models.Categoria.sede_id == sede_id)
+        .order_by(models.Categoria.popularidad_score.desc())
+        .all()
+    )
 
-def create_category(db: Session, cat: schemas.CategoriaBase):
-    db_cat = models.Categoria(**cat.model_dump())
+
+def get_category_for_sede(db: Session, cat_id: int, sede_id: int):
+    return (
+        db.query(models.Categoria)
+        .filter(models.Categoria.id == cat_id, models.Categoria.sede_id == sede_id)
+        .first()
+    )
+
+
+def create_category(db: Session, cat: schemas.CategoriaBase, sede_id: int):
+    db_cat = models.Categoria(**cat.model_dump(), sede_id=sede_id)
     db.add(db_cat)
     db.commit()
     db.refresh(db_cat)
     return db_cat
 
-def update_category(db: Session, cat_id: int, cat: schemas.CategoriaBase):
-    db_cat = db.query(models.Categoria).filter(models.Categoria.id == cat_id).first()
+
+def update_category(db: Session, cat_id: int, cat: schemas.CategoriaBase, sede_id: int):
+    db_cat = get_category_for_sede(db, cat_id, sede_id)
     if db_cat:
         db_cat.nombre = cat.nombre
         db_cat.imagen_url = cat.imagen_url
@@ -84,79 +99,145 @@ def update_category(db: Session, cat_id: int, cat: schemas.CategoriaBase):
         db.refresh(db_cat)
     return db_cat
 
-def delete_category(db: Session, cat_id: int):
-    db_cat = db.query(models.Categoria).filter(models.Categoria.id == cat_id).first()
+
+def delete_category(db: Session, cat_id: int, sede_id: int):
+    db_cat = get_category_for_sede(db, cat_id, sede_id)
     if db_cat:
         db.delete(db_cat)
         db.commit()
     return db_cat
 
-# Cuts CRUD
-def get_cortes(db: Session, categoria_id: int = None):
-    query = db.query(models.Corte).options(joinedload(models.Corte.tipos_corte))
+
+# Cuts CRUD (por sede)
+def get_cortes(db: Session, sede_id: int, categoria_id: int = None):
+    query = (
+        db.query(models.Corte)
+        .options(joinedload(models.Corte.tipos_corte))
+        .filter(models.Corte.sede_id == sede_id)
+    )
     if categoria_id:
         query = query.filter(models.Corte.categoria_id == categoria_id)
     return query.all()
 
-def create_corte(db: Session, corte: schemas.CorteBase):
+
+def get_corte_for_sede(db: Session, corte_id: int, sede_id: int):
+    return (
+        db.query(models.Corte)
+        .options(joinedload(models.Corte.tipos_corte))
+        .filter(models.Corte.id == corte_id, models.Corte.sede_id == sede_id)
+        .first()
+    )
+
+
+def _tipos_corte_for_sede(db: Session, sede_id: int, tipo_ids: list[int]):
+    if not tipo_ids:
+        return []
+    tipos = (
+        db.query(models.TipoCorte)
+        .filter(models.TipoCorte.id.in_(tipo_ids), models.TipoCorte.sede_id == sede_id)
+        .all()
+    )
+    if len(tipos) != len(set(tipo_ids)):
+        raise ValueError("Uno o más tipos de corte no pertenecen a esta sede")
+    return tipos
+
+
+def create_corte(db: Session, corte: schemas.CorteBase, sede_id: int):
+    categoria = get_category_for_sede(db, corte.categoria_id, sede_id)
+    if not categoria:
+        raise ValueError("La categoría no pertenece a esta sede")
+
     corte_data = corte.model_dump(exclude={"tipos_corte_ids"})
-    db_corte = models.Corte(**corte_data)
-    
+    db_corte = models.Corte(**corte_data, sede_id=sede_id)
+
     if corte.tipos_corte_ids:
-        tipos = db.query(models.TipoCorte).filter(models.TipoCorte.id.in_(corte.tipos_corte_ids)).all()
-        db_corte.tipos_corte = tipos
-        
+        db_corte.tipos_corte = _tipos_corte_for_sede(db, sede_id, corte.tipos_corte_ids)
+
     db.add(db_corte)
     db.commit()
     db.refresh(db_corte)
     return db_corte
 
-def update_corte(db: Session, corte_id: int, corte: schemas.CorteBase):
-    db_corte = db.query(models.Corte).filter(models.Corte.id == corte_id).first()
-    if db_corte:
-        db_corte.nombre = corte.nombre
-        db_corte.categoria_id = corte.categoria_id
-        db_corte.imagen_url = corte.imagen_url
-        
-        if corte.tipos_corte_ids is not None:
-            tipos = db.query(models.TipoCorte).filter(models.TipoCorte.id.in_(corte.tipos_corte_ids)).all()
-            db_corte.tipos_corte = tipos
-            
-        db.commit()
-        db.refresh(db_corte)
+
+def update_corte(db: Session, corte_id: int, corte: schemas.CorteBase, sede_id: int):
+    db_corte = get_corte_for_sede(db, corte_id, sede_id)
+    if not db_corte:
+        return None
+
+    categoria = get_category_for_sede(db, corte.categoria_id, sede_id)
+    if not categoria:
+        raise ValueError("La categoría no pertenece a esta sede")
+
+    db_corte.nombre = corte.nombre
+    db_corte.categoria_id = corte.categoria_id
+    db_corte.imagen_url = corte.imagen_url
+
+    if corte.tipos_corte_ids is not None:
+        db_corte.tipos_corte = _tipos_corte_for_sede(db, sede_id, corte.tipos_corte_ids)
+
+    db.commit()
+    db.refresh(db_corte)
     return db_corte
 
-def delete_corte(db: Session, corte_id: int):
-    db_corte = db.query(models.Corte).filter(models.Corte.id == corte_id).first()
+
+def delete_corte(db: Session, corte_id: int, sede_id: int):
+    db_corte = get_corte_for_sede(db, corte_id, sede_id)
     if db_corte:
         db.delete(db_corte)
         db.commit()
     return db_corte
 
-def get_tipos_corte(db: Session):
-    return db.query(models.TipoCorte).all()
 
-def create_tipo_corte(db: Session, tipo: schemas.TipoCorteBase):
-    db_tipo = models.TipoCorte(**tipo.model_dump())
+def get_tipos_corte(db: Session, sede_id: int):
+    return (
+        db.query(models.TipoCorte)
+        .filter(models.TipoCorte.sede_id == sede_id)
+        .order_by(models.TipoCorte.nombre)
+        .all()
+    )
+
+
+def get_tipo_corte_for_sede(db: Session, tipo_id: int, sede_id: int):
+    return (
+        db.query(models.TipoCorte)
+        .filter(models.TipoCorte.id == tipo_id, models.TipoCorte.sede_id == sede_id)
+        .first()
+    )
+
+
+def create_tipo_corte(db: Session, tipo: schemas.TipoCorteBase, sede_id: int):
+    db_tipo = models.TipoCorte(**tipo.model_dump(), sede_id=sede_id)
     db.add(db_tipo)
     db.commit()
     db.refresh(db_tipo)
     return db_tipo
 
-def update_tipo_corte(db: Session, tipo_id: int, tipo: schemas.TipoCorteBase):
-    db_tipo = db.query(models.TipoCorte).filter(models.TipoCorte.id == tipo_id).first()
+
+def update_tipo_corte(db: Session, tipo_id: int, tipo: schemas.TipoCorteBase, sede_id: int):
+    db_tipo = get_tipo_corte_for_sede(db, tipo_id, sede_id)
     if db_tipo:
         db_tipo.nombre = tipo.nombre
         db.commit()
         db.refresh(db_tipo)
     return db_tipo
 
-def delete_tipo_corte(db: Session, tipo_id: int):
-    db_tipo = db.query(models.TipoCorte).filter(models.TipoCorte.id == tipo_id).first()
+
+def delete_tipo_corte(db: Session, tipo_id: int, sede_id: int):
+    db_tipo = get_tipo_corte_for_sede(db, tipo_id, sede_id)
     if db_tipo:
         db.delete(db_tipo)
         db.commit()
     return db_tipo
+
+
+def validate_pedido_detalles_for_sede(db: Session, sede_id: int, detalles: list) -> None:
+    for detalle in detalles:
+        corte = get_corte_for_sede(db, detalle.corte_id, sede_id)
+        if not corte:
+            raise ValueError(f"El producto {detalle.corte_id} no está disponible en esta sede")
+        tipo = get_tipo_corte_for_sede(db, detalle.tipo_corte_id, sede_id)
+        if not tipo:
+            raise ValueError(f"El tipo de preparación {detalle.tipo_corte_id} no está disponible en esta sede")
 
 # Analytics
 def _pedido_timestamp_bounds(date_from: date | None, date_to: date | None) -> tuple[datetime | None, datetime | None]:
@@ -523,6 +604,7 @@ def _next_numero_pedido(db: Session, sede_id: int) -> str:
     return str(max_seq + 1)
 
 def create_pedido(db: Session, pedido: schemas.PedidoCreate):
+    validate_pedido_detalles_for_sede(db, pedido.sede_id, pedido.detalles)
     numero_pedido = _next_numero_pedido(db, pedido.sede_id)
 
     db_pedido = models.Pedido(

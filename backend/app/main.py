@@ -73,6 +73,42 @@ def _ensure_pedidos_columns():
 _ensure_pedidos_columns()
 
 
+def _ensure_catalog_sede_columns():
+    """Catálogo por sede: categorías, cortes y tipos de corte."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sede_id INTEGER REFERENCES sedes(id);"))
+            conn.execute(text("ALTER TABLE cortes ADD COLUMN IF NOT EXISTS sede_id INTEGER REFERENCES sedes(id);"))
+            conn.execute(text("ALTER TABLE tipos_corte ADD COLUMN IF NOT EXISTS sede_id INTEGER REFERENCES sedes(id);"))
+            conn.execute(text(
+                "UPDATE categorias SET sede_id = (SELECT MIN(id) FROM sedes) "
+                "WHERE sede_id IS NULL AND EXISTS (SELECT 1 FROM sedes);"
+            ))
+            conn.execute(text(
+                "UPDATE cortes SET sede_id = (SELECT MIN(id) FROM sedes) "
+                "WHERE sede_id IS NULL AND EXISTS (SELECT 1 FROM sedes);"
+            ))
+            conn.execute(text(
+                "UPDATE tipos_corte SET sede_id = (SELECT MIN(id) FROM sedes) "
+                "WHERE sede_id IS NULL AND EXISTS (SELECT 1 FROM sedes);"
+            ))
+            conn.execute(text("ALTER TABLE categorias DROP CONSTRAINT IF EXISTS categorias_nombre_key;"))
+            conn.execute(text("ALTER TABLE tipos_corte DROP CONSTRAINT IF EXISTS tipos_corte_nombre_key;"))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_categoria_sede_nombre "
+                "ON categorias (sede_id, nombre) WHERE sede_id IS NOT NULL;"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_tipo_corte_sede_nombre "
+                "ON tipos_corte (sede_id, nombre) WHERE sede_id IS NOT NULL;"
+            ))
+    except Exception as exc:
+        print(f"[migrations] Aviso al asegurar catálogo por sede: {exc}")
+
+
+_ensure_catalog_sede_columns()
+
+
 def _ensure_app_roles_columns() -> None:
     """Migraciones app_roles en transacciones separadas (evita rollback si falla users.role)."""
     stmts = [
@@ -148,8 +184,9 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_ROOT)), name="static")
 if os.getenv("SEED_CATALOGO", "").lower() in ("1", "true", "yes"):
     try:
         with SessionLocal() as _db:
-            catalogo_res.ensure_cortes_res(_db)
-            catalogo_res.migrar_cortes_res_existentes_a_local(_db)
+            for sede in _db.query(models.Sede).all():
+                catalogo_res.ensure_cortes_res(_db, sede_id=sede.id)
+                catalogo_res.migrar_cortes_res_existentes_a_local(_db, sede_id=sede.id)
     except Exception as _seed_err:
         print(f"[catalogo_res] Aviso al sincronizar catálogo: {_seed_err}")
 
@@ -364,52 +401,125 @@ def delete_sede(
     return crud.delete_sede(db, sede_id)
 
 @app.get("/categorias", response_model=List[schemas.Categoria])
-def read_categories(db: Session = Depends(get_db)):
-    return crud.get_categories(db)
+def read_categories(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_reader),
+):
+    return crud.get_categories(db, current_user.sede_id)
 
 @app.post("/categorias", response_model=schemas.Categoria)
-def create_category(cat: schemas.CategoriaBase, db: Session = Depends(get_db)):
-    return crud.create_category(db, cat)
+def create_category(
+    cat: schemas.CategoriaBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    return crud.create_category(db, cat, current_user.sede_id)
 
 @app.put("/categorias/{cat_id}", response_model=schemas.Categoria)
-def update_category(cat_id: int, cat: schemas.CategoriaBase, db: Session = Depends(get_db)):
-    return crud.update_category(db, cat_id, cat)
+def update_category(
+    cat_id: int,
+    cat: schemas.CategoriaBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    updated = crud.update_category(db, cat_id, cat, current_user.sede_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada en esta sede")
+    return updated
 
 @app.delete("/categorias/{cat_id}")
-def delete_category(cat_id: int, db: Session = Depends(get_db)):
-    return crud.delete_category(db, cat_id)
+def delete_category(
+    cat_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    deleted = crud.delete_category(db, cat_id, current_user.sede_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada en esta sede")
+    return {"ok": True}
 
 @app.get("/cortes", response_model=List[schemas.Corte])
-def read_cortes(categoria_id: int = None, db: Session = Depends(get_db)):
-    return crud.get_cortes(db, categoria_id)
+def read_cortes(
+    categoria_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_reader),
+):
+    return crud.get_cortes(db, current_user.sede_id, categoria_id)
 
 @app.post("/cortes", response_model=schemas.Corte)
-def create_corte(corte: schemas.CorteBase, db: Session = Depends(get_db)):
-    return crud.create_corte(db, corte)
+def create_corte_endpoint(
+    corte: schemas.CorteBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    try:
+        return crud.create_corte(db, corte, current_user.sede_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 @app.put("/cortes/{corte_id}", response_model=schemas.Corte)
-def update_corte(corte_id: int, corte: schemas.CorteBase, db: Session = Depends(get_db)):
-    return crud.update_corte(db, corte_id, corte)
+def update_corte_endpoint(
+    corte_id: int,
+    corte: schemas.CorteBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    try:
+        updated = crud.update_corte(db, corte_id, corte, current_user.sede_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en esta sede")
+    return updated
 
 @app.delete("/cortes/{corte_id}")
-def delete_corte(corte_id: int, db: Session = Depends(get_db)):
-    return crud.delete_corte(db, corte_id)
+def delete_corte_endpoint(
+    corte_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    deleted = crud.delete_corte(db, corte_id, current_user.sede_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en esta sede")
+    return {"ok": True}
 
 @app.get("/tipos-corte", response_model=List[schemas.TipoCorte])
-def read_tipos_corte(db: Session = Depends(get_db)):
-    return crud.get_tipos_corte(db)
+def read_tipos_corte(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_reader),
+):
+    return crud.get_tipos_corte(db, current_user.sede_id)
 
 @app.post("/tipos-corte", response_model=schemas.TipoCorte)
-def create_tipo_corte(tipo: schemas.TipoCorteBase, db: Session = Depends(get_db)):
-    return crud.create_tipo_corte(db, tipo)
+def create_tipo_corte_endpoint(
+    tipo: schemas.TipoCorteBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    return crud.create_tipo_corte(db, tipo, current_user.sede_id)
 
 @app.put("/tipos-corte/{tipo_id}", response_model=schemas.TipoCorte)
-def update_tipo_corte(tipo_id: int, tipo: schemas.TipoCorteBase, db: Session = Depends(get_db)):
-    return crud.update_tipo_corte(db, tipo_id, tipo)
+def update_tipo_corte_endpoint(
+    tipo_id: int,
+    tipo: schemas.TipoCorteBase,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    updated = crud.update_tipo_corte(db, tipo_id, tipo, current_user.sede_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Tipo de corte no encontrado en esta sede")
+    return updated
 
 @app.delete("/tipos-corte/{tipo_id}")
-def delete_tipo_corte(tipo_id: int, db: Session = Depends(get_db)):
-    return crud.delete_tipo_corte(db, tipo_id)
+def delete_tipo_corte_endpoint(
+    tipo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_catalog_manager),
+):
+    deleted = crud.delete_tipo_corte(db, tipo_id, current_user.sede_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Tipo de corte no encontrado en esta sede")
+    return {"ok": True}
 
 @app.get("/users/carniceros/{sede_id}", response_model=List[schemas.User])
 def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
@@ -668,7 +778,10 @@ def read_pedidos(sede_id: str = None, db: Session = Depends(get_db)):
 
 @app.post("/pedidos", response_model=schemas.Pedido)
 async def create_pedido_endpoint(pedido: schemas.PedidoCreate, db: Session = Depends(get_db)):
-    db_pedido = crud.create_pedido(db=db, pedido=pedido)
+    try:
+        db_pedido = crud.create_pedido(db=db, pedido=pedido)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     # Notify Butcher in the same sede
     payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode='json')
     await _emit_pedido_rooms("new_order", payload, db_pedido.sede_id)
