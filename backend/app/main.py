@@ -92,8 +92,15 @@ def _ensure_catalog_sede_columns():
                 "UPDATE tipos_corte SET sede_id = (SELECT MIN(id) FROM sedes) "
                 "WHERE sede_id IS NULL AND EXISTS (SELECT 1 FROM sedes);"
             ))
+            # Compatibilidad con installs previos: antes la unicidad estaba mal definida como global (nombre).
+            # Esto genera errores al importar/crear con mismo nombre en otra sede.
             conn.execute(text("ALTER TABLE categorias DROP CONSTRAINT IF EXISTS categorias_nombre_key;"))
+            conn.execute(text("ALTER TABLE categorias DROP CONSTRAINT IF EXISTS ix_categorias_nombre;"))
+            conn.execute(text("DROP INDEX IF EXISTS ix_categorias_nombre;"))
+
             conn.execute(text("ALTER TABLE tipos_corte DROP CONSTRAINT IF EXISTS tipos_corte_nombre_key;"))
+            conn.execute(text("ALTER TABLE tipos_corte DROP CONSTRAINT IF EXISTS ix_tipos_corte_nombre;"))
+            conn.execute(text("DROP INDEX IF EXISTS ix_tipos_corte_nombre;"))
             conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_categoria_sede_nombre "
                 "ON categorias (sede_id, nombre) WHERE sede_id IS NOT NULL;"

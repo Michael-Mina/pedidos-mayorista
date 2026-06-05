@@ -254,6 +254,9 @@ def import_catalog_from_excel(db: Session, sede_id: int, content: bytes) -> dict
                 tipo_cache[_norm_key(nuevo.nombre)] = nuevo
                 created["tipos_corte"].append({"nombre": nuevo.nombre, "id": nuevo.id})
             except Exception as exc:
+                # Importación debe continuar: cuando SQLAlchemy falla en COMMIT, la sesión queda
+                # en estado "invalid/rollback only" hasta que se haga rollback.
+                db.rollback()
                 errors.append(_entry("tipo_corte", nombre, str(exc), idx))
 
     # --- Categorías ---
@@ -283,6 +286,7 @@ def import_catalog_from_excel(db: Session, sede_id: int, content: bytes) -> dict
                 cat_cache[_norm_key(nuevo.nombre)] = nuevo
                 created["categorias"].append({"nombre": nuevo.nombre, "id": nuevo.id})
             except Exception as exc:
+                db.rollback()
                 errors.append(_entry("categoria", nombre, str(exc), idx, imagen_url=imagen_url or ""))
 
     # --- Productos ---
@@ -359,6 +363,7 @@ def import_catalog_from_excel(db: Session, sede_id: int, content: bytes) -> dict
                     "id": nuevo.id,
                 })
             except Exception as exc:
+                db.rollback()
                 errors.append(_entry(
                     "corte", nombre, str(exc), idx,
                     categoria=categoria_nombre,
