@@ -125,6 +125,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class PasswordVerifyRequest(BaseModel):
+    password: str
+
 class CategoriaBase(BaseModel):
     nombre: str
     imagen_url: Optional[str] = None

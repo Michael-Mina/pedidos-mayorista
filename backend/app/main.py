@@ -411,6 +411,16 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
         "user": _user_api(db, user),
     }
 
+@app.post("/auth/verify-password")
+def verify_current_password(
+    body: schemas.PasswordVerifyRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    if not auth.verify_password(body.password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+    return {"ok": True}
+
+
 @app.post("/logout")
 async def logout(user_id: int, db: Session = Depends(get_db)):
     """Logout endpoint that revokes session for sedes"""

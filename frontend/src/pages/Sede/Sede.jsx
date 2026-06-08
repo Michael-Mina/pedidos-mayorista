@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
@@ -12,9 +12,11 @@ import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
 import { panelLabel } from '../../utils/rolePanels';
 import publicClientService from '../../services/api/publicClient';
+import { hasSedeTabletAccess } from '../../utils/sedeTabletAccess';
 
 const Sede = () => {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
     const [pedidos, setPedidos] = useState([]);
     const [allCarniceros, setAllCarniceros] = useState([]);
     const [selectedPedidoId, setSelectedPedidoId] = useState(null);
@@ -28,6 +30,12 @@ const Sede = () => {
     
     // Audio for notifications
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+
+    useEffect(() => {
+        if (!user?.id || !hasSedeTabletAccess(user.id)) {
+            navigate('/sede', { replace: true });
+        }
+    }, [user?.id, navigate]);
 
     // Derive selected order
     const selectedPedido = pedidos.find(p => p.id === selectedPedidoId) || null;

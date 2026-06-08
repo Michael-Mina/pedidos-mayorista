@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getApiBaseUrl } from '../config/api';
+import { clearSedeTabletAccess } from '../utils/sedeTabletAccess';
 
 const AuthContext = createContext(null);
 
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
+        clearSedeTabletAccess();
         setUser(null);
         localStorage.removeItem('user');
         localStorage.removeItem('token');
