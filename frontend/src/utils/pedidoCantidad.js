@@ -115,16 +115,17 @@ export function resolveTipoCortePorciones(tiposCorte) {
     return tiposCorte?.[0]?.id ?? null;
 }
 
-/** Ítem de carrito — panel clientes (libras). */
-export function buildCartItemCliente({
+/** Ítem de carrito — flujo preparación/porciones (clientes lb, mayorista kg). */
+export function buildCartItemFlujo({
     selection,
     pedidoModo,
     modoCantidad,
     tempPorciones,
     tempGramosPorcion,
-    tempQtyLb,
+    tempPesoTotal,
     tempObs,
     tiposCorte,
+    pesoUnidad = 'lb',
 }) {
     if (pedidoModo === 'preparacion') {
         return {
@@ -134,10 +135,10 @@ export function buildCartItemCliente({
             type: selection.tipoCorte.nombre,
             pedidoModo: 'preparacion',
             modo_cantidad: null,
-            pesoUnidad: 'lb',
+            pesoUnidad,
             num_porciones: null,
             gramos_porcion: null,
-            qty: tempQtyLb,
+            qty: tempPesoTotal,
             observaciones: tempObs,
         };
     }
@@ -150,35 +151,29 @@ export function buildCartItemCliente({
         type: 'Por porciones',
         pedidoModo: 'porciones',
         modo_cantidad: modoCantidad,
-        pesoUnidad: 'lb',
+        pesoUnidad,
         pesoPorcionUnidad: 'g',
         num_porciones: modoCantidad === 'porciones' ? tempPorciones : null,
         gramos_porcion: tempGramosPorcion,
-        qty: modoCantidad === 'kg' ? tempQtyLb : 0,
+        qty: modoCantidad === 'kg' ? tempPesoTotal : 0,
         observaciones: tempObs,
     };
 }
 
-/** Ítem de carrito desde formulario de preparación (mayorista). */
-export function buildCartItem({
-    selection,
-    modoCantidad,
-    tempPorciones,
-    tempGramosPorcion,
-    tempQty,
-    tempObs,
-    pesoUnidad = 'kg',
-}) {
-    return {
-        corte_id: selection.corte.id,
-        tipo_corte_id: selection.tipoCorte.id,
-        name: selection.corte.nombre,
-        type: selection.tipoCorte.nombre,
-        modo_cantidad: modoCantidad,
-        pesoUnidad,
-        num_porciones: modoCantidad === 'porciones' ? tempPorciones : null,
-        gramos_porcion: tempGramosPorcion,
-        qty: modoCantidad === 'kg' ? tempQty : 0,
-        observaciones: tempObs,
-    };
+/** Ítem de carrito — panel clientes (libras). */
+export function buildCartItemCliente(props) {
+    return buildCartItemFlujo({
+        ...props,
+        tempPesoTotal: props.tempPesoTotal ?? props.tempQtyLb,
+        pesoUnidad: 'lb',
+    });
+}
+
+/** Ítem de carrito — panel mayorista (kilogramos). */
+export function buildCartItemMayorista(props) {
+    return buildCartItemFlujo({
+        ...props,
+        tempPesoTotal: props.tempPesoTotal ?? props.tempQty,
+        pesoUnidad: 'kg',
+    });
 }

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, ShoppingCart, Trash2, Package, Pencil, Search, Edit2, X, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Trash2, Package, Pencil, Edit2, X, AlertCircle } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
-import ClientePedidoSelector from '../../components/ClientePedidoSelector/ClientePedidoSelector';
-import { buildCartItemCliente, buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
+import PedidoProductoFlow from '../../components/PedidoProductoFlow/PedidoProductoFlow';
+import { usePedidoProductoFlow } from '../../components/PedidoProductoFlow/usePedidoProductoFlow';
+import { buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
 import mayoristaStyles from '../Mayorista/Mayorista.module.css';
 import styles from './Clientes.module.css';
 
@@ -13,24 +14,28 @@ const ClientesPedido = () => {
     const [showContactModal, setShowContactModal] = useState(true);
     const [contactModalMode, setContactModalMode] = useState('initial');
     const [contact, setContact] = useState({ nombre: '', telefono: '' });
-    const [step, setStep] = useState(1);
     const [categories, setCategories] = useState([]);
     const [cortes, setCortes] = useState([]);
     const [tiposCorte, setTiposCorte] = useState([]);
-    const [selection, setSelection] = useState({ category: null, corte: null, tipoCorte: null });
     const [items, setItems] = useState([]);
-    const [pedidoModo, setPedidoModo] = useState(null);
-    const [modoCantidad, setModoCantidad] = useState(null);
-    const [tempQtyLb, setTempQtyLb] = useState(1.0);
-    const [tempObs, setTempObs] = useState('');
-    const [tempPorciones, setTempPorciones] = useState(1);
-    const [tempGramosPorcion, setTempGramosPorcion] = useState(100);
-    const [editingIndex, setEditingIndex] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [confirmed, setConfirmed] = useState(null);
     const [error, setError] = useState('');
-    const [productSearch, setProductSearch] = useState('');
+
+    const handleItemAdded = useCallback((item, editingIndex) => {
+        if (editingIndex !== null) {
+            setItems((prev) => prev.map((it, i) => (i === editingIndex ? item : it)));
+        } else {
+            setItems((prev) => [...prev, item]);
+        }
+    }, []);
+
+    const flow = usePedidoProductoFlow({
+        tiposCorte,
+        pesoUnidad: 'lb',
+        onItemAdded: handleItemAdded,
+    });
 
     useEffect(() => {
         sessionStorage.removeItem(`cliente_pedido_${slug}`);
@@ -71,132 +76,30 @@ const ClientesPedido = () => {
     };
 
     const handleCategoryClick = async (cat) => {
-        setSelection({ ...selection, category: cat });
+        flow.setSelection({ ...flow.selection, category: cat });
         const res = await publicClientService.getCortes(slug, cat.id);
         setCortes(res);
-        setStep(2);
+        flow.setStep(2);
     };
 
-    const filterProductItems = useCallback((items) => {
-        const q = productSearch.trim().toLowerCase();
-        if (!q) return items;
-        return items.filter((item) => (item.nombre || '').toLowerCase().includes(q));
-    }, [productSearch]);
-
-    const filteredCategories = useMemo(() => filterProductItems(categories), [categories, filterProductItems]);
-    const filteredCortes = useMemo(() => filterProductItems(cortes), [cortes, filterProductItems]);
-    const filteredTiposCorte = useMemo(() => {
-        const base = selection.corte?.tipos_corte?.length ? selection.corte.tipos_corte : tiposCorte;
-        return filterProductItems(base);
-    }, [selection.corte, tiposCorte, filterProductItems]);
-
-    const productSearchPlaceholder = step === 1
-        ? 'Buscar proteína...'
-        : step === 2
-          ? 'Buscar parte...'
-          : 'Buscar preparación...';
-
-    const showProductSearch = step <= 2 || (step === 4 && pedidoModo === 'preparacion');
-
-    const resetCantidadForm = () => {
-        setPedidoModo(null);
-        setModoCantidad(null);
-        setTempPorciones(1);
-        setTempGramosPorcion(100);
-        setTempQtyLb(1.0);
-        setTempObs('');
-    };
-
-    const resetAndGoHome = () => {
-        setStep(1);
-        setSelection({ category: null, corte: null, tipoCorte: null });
-        resetCantidadForm();
-    };
-
-    const handleSelectPedidoModo = (modo) => {
-        setPedidoModo(modo);
-        setModoCantidad(null);
-        setSelection((s) => ({ ...s, tipoCorte: null }));
-        setStep(4);
-    };
-
-    const handleSelectTipoCorte = (tipo) => {
-        setSelection((s) => ({ ...s, tipoCorte: tipo }));
-        setStep(5);
-    };
-
-    const handleSelectSubmodoPorciones = (submodo) => {
-        setModoCantidad(submodo);
-        setStep(5);
-    };
-
-    const handleSelectorBack = (targetStep) => {
-        if (targetStep === 3) {
-            setPedidoModo(null);
-            setModoCantidad(null);
-            setSelection((s) => ({ ...s, tipoCorte: null }));
-            setEditingIndex(null);
-        }
-        if (targetStep === 4 && pedidoModo === 'porciones') {
-            setModoCantidad(null);
-        }
-        setStep(targetStep);
-    };
+    const filteredCategories = useMemo(
+        () => flow.filterProductItems(categories),
+        [categories, flow.filterProductItems]
+    );
+    const filteredCortes = useMemo(
+        () => flow.filterProductItems(cortes),
+        [cortes, flow.filterProductItems]
+    );
 
     const handleEditItem = (index) => {
-        const item = items[index];
-        setSelection({
-            category: null,
-            corte: { id: item.corte_id, nombre: item.name },
-            tipoCorte: item.pedidoModo === 'preparacion'
-                ? { id: item.tipo_corte_id, nombre: item.type }
-                : null,
-        });
-        setPedidoModo(item.pedidoModo);
-        setModoCantidad(item.modo_cantidad || null);
-        setTempQtyLb(item.qty || 1);
-        setTempGramosPorcion(item.gramos_porcion || 100);
-        setTempPorciones(item.num_porciones || 1);
-        setTempObs(item.observaciones || '');
-        setEditingIndex(index);
-        setStep(5);
+        flow.hydrateFromCartItem(items[index], index);
         setError('');
     };
 
     const handleAddToCart = () => {
-        if (pedidoModo === 'preparacion') {
-            if (!selection.tipoCorte || !tempQtyLb || tempQtyLb <= 0) return;
-        } else if (pedidoModo === 'porciones') {
-            if (!tempGramosPorcion || tempGramosPorcion <= 0) return;
-            if (modoCantidad === 'porciones' && (!tempPorciones || tempPorciones < 1)) return;
-            if (modoCantidad === 'kg' && (!tempQtyLb || tempQtyLb <= 0)) return;
-        } else {
-            return;
-        }
-
-        const newItem = buildCartItemCliente({
-            selection,
-            pedidoModo,
-            modoCantidad,
-            tempPorciones,
-            tempGramosPorcion,
-            tempQtyLb,
-            tempObs,
-            tiposCorte,
-        });
-
-        if (!newItem.tipo_corte_id) {
-            setError('No hay tipos de preparación configurados en esta sede.');
-            return;
-        }
-
-        if (editingIndex !== null) {
-            setItems((prev) => prev.map((it, i) => (i === editingIndex ? newItem : it)));
-            setEditingIndex(null);
-        } else {
-            setItems((prev) => [...prev, newItem]);
-        }
-        resetAndGoHome();
+        const result = flow.submitPedidoItem();
+        if (!result.ok && result.error) setError(result.error);
+        else if (result.ok) setError('');
     };
 
     const submitOrder = async () => {
@@ -409,78 +312,40 @@ const ClientesPedido = () => {
                 </aside>
 
                 <section className={`${styles.pedidoColumn} ${styles.pedidoSelector} glass-card`}>
-                    <div className={mayoristaStyles.selectorHeader}>
-                        <h2 className={mayoristaStyles.colTitle}><Package size={20} /> Seleccionar productos</h2>
-                        {showProductSearch && (
-                            <div className={mayoristaStyles.selectorSearch}>
-                                <Search size={16} />
-                                <input
-                                    type="search"
-                                    placeholder={productSearchPlaceholder}
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                    aria-label={productSearchPlaceholder}
-                                />
-                            </div>
-                        )}
-                    </div>
-                    <div className={styles.pedidoSelectorBody}>
-                    {step === 1 && (
-                        <div className={styles.pedidoGrid}>
-                            {filteredCategories.map((cat) => (
-                                <button key={cat.id} type="button" className={mayoristaStyles.card} onClick={() => handleCategoryClick(cat)}>
-                                    {cat.imagen_url ? <img src={cat.imagen_url} alt={cat.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥩</span>}
-                                    <h3>{cat.nombre}</h3>
-                                </button>
-                            ))}
-                            {!filteredCategories.length && (
-                                <p className={mayoristaStyles.emptyMsg}>No se encontraron categorías.</p>
-                            )}
-                        </div>
-                    )}
-                    {step === 2 && (
-                        <div>
-                            <button type="button" onClick={() => setStep(1)} className={mayoristaStyles.backBtn}>← Categorías</button>
-                            <div className={styles.pedidoGrid}>
-                                {filteredCortes.map((corte) => (
-                                    <button key={corte.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, corte, tipoCorte: null }); resetCantidadForm(); setStep(3); }}>
-                                        {corte.imagen_url ? <img src={corte.imagen_url} alt={corte.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥓</span>}
-                                        <h3>{corte.nombre}</h3>
-                                    </button>
-                                ))}
-                            </div>
-                            {!filteredCortes.length && (
-                                <p className={mayoristaStyles.emptyMsg}>No se encontraron productos.</p>
-                            )}
-                        </div>
-                    )}
-                    {step >= 3 && (
-                        <ClientePedidoSelector
-                            step={step}
-                            selection={selection}
-                            pedidoModo={pedidoModo}
-                            modoCantidad={modoCantidad}
-                            tiposCorte={tiposCorte}
-                            filteredTiposCorte={filteredTiposCorte}
-                            onSelectPedidoModo={handleSelectPedidoModo}
-                            onSelectTipoCorte={handleSelectTipoCorte}
-                            onSelectSubmodoPorciones={handleSelectSubmodoPorciones}
-                            onBack={handleSelectorBack}
-                            tempPorciones={tempPorciones}
-                            setTempPorciones={setTempPorciones}
-                            tempGramosPorcion={tempGramosPorcion}
-                            setTempGramosPorcion={setTempGramosPorcion}
-                            tempQtyLb={tempQtyLb}
-                            setTempQtyLb={setTempQtyLb}
-                            tempObs={tempObs}
-                            setTempObs={setTempObs}
-                            onSubmit={handleAddToCart}
-                            isEditing={editingIndex !== null}
-                            styles={mayoristaStyles}
-                            gridClassName={styles.pedidoGrid}
-                        />
-                    )}
-                    </div>
+                    <PedidoProductoFlow
+                        step={flow.step}
+                        tiposCorte={tiposCorte}
+                        selection={flow.selection}
+                        pedidoModo={flow.pedidoModo}
+                        modoCantidad={flow.modoCantidad}
+                        filteredCategories={filteredCategories}
+                        filteredCortes={filteredCortes}
+                        filteredTiposCorte={flow.filteredTiposCorte}
+                        productSearch={flow.productSearch}
+                        setProductSearch={flow.setProductSearch}
+                        productSearchPlaceholder={flow.productSearchPlaceholder}
+                        showProductSearch={flow.showProductSearch}
+                        onCategoryClick={handleCategoryClick}
+                        onCorteSelect={flow.handleCorteSelect}
+                        onSelectPedidoModo={flow.handleSelectPedidoModo}
+                        onSelectTipoCorte={flow.handleSelectTipoCorte}
+                        onSelectSubmodoPorciones={flow.handleSelectSubmodoPorciones}
+                        onSelectorBack={flow.handleSelectorBack}
+                        tempPorciones={flow.tempPorciones}
+                        setTempPorciones={flow.setTempPorciones}
+                        tempGramosPorcion={flow.tempGramosPorcion}
+                        setTempGramosPorcion={flow.setTempGramosPorcion}
+                        tempPesoTotal={flow.tempPesoTotal}
+                        setTempPesoTotal={flow.setTempPesoTotal}
+                        tempObs={flow.tempObs}
+                        setTempObs={flow.setTempObs}
+                        onSubmit={handleAddToCart}
+                        isEditing={flow.editingIndex !== null}
+                        pesoUnidad="lb"
+                        styles={mayoristaStyles}
+                        gridClassName={styles.pedidoGrid}
+                        bodyClassName={styles.pedidoSelectorBody}
+                    />
                 </section>
             </main>
         </div>

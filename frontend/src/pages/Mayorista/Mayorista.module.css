@@ -161,8 +161,22 @@
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 15px;
+}
+
+button.card {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    appearance: none;
+}
+
+.selectorBody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .card {
