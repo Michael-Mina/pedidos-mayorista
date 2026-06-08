@@ -36,6 +36,7 @@ import {
     formatMayoristaLabel,
     formatCarniceroLabel,
     getPedidoTiemposMonitor,
+    getPedidoOrigen,
     pedidoVisibleEnMonitorGlobal,
     pedidoFinalizadoHoy,
     todayLocalIsoDate,
@@ -86,6 +87,7 @@ const JefeCarnes = () => {
     });
 
     // Filters & Pagination
+    const [monitorOrigen, setMonitorOrigen] = useState('mayorista');
     const [filterText, setFilterText] = useState('');
     const [historialFilterText, setHistorialFilterText] = useState('');
     const [historialFilterDate, setHistorialFilterDate] = useState('');
@@ -334,9 +336,24 @@ const JefeCarnes = () => {
 
     const monitorTodayKey = todayLocalIsoDate();
 
-    const filteredOrders = globalOrders
+    const monitorOrdersSede = useMemo(
+        () => globalOrders.filter((order) => !user?.sede_id || order.sede_id === user.sede_id),
+        [globalOrders, user?.sede_id]
+    );
+
+    const monitorOrdersOrigen = useMemo(
+        () => monitorOrdersSede.filter((order) => getPedidoOrigen(order) === monitorOrigen),
+        [monitorOrdersSede, monitorOrigen]
+    );
+
+    const monitorStats = useMemo(() => ({
+        pendientes: monitorOrdersOrigen.filter((o) => o.estado === 'pendiente').length,
+        enProceso: monitorOrdersOrigen.filter((o) => o.estado === 'en_proceso').length,
+        finalizadosHoy: monitorOrdersOrigen.filter((o) => pedidoFinalizadoHoy(o, monitorTodayKey)).length,
+    }), [monitorOrdersOrigen, monitorTodayKey]);
+
+    const filteredOrders = monitorOrdersOrigen
         .filter((order) => {
-            if (user.sede_id && order.sede_id !== user.sede_id) return false;
             if (!pedidoVisibleEnMonitorGlobal(order, monitorTodayKey)) return false;
 
             if (filterText) {
@@ -346,7 +363,18 @@ const JefeCarnes = () => {
                     (order.numero_pedido && order.numero_pedido.toLowerCase().includes(search)) ||
                     formatPedidoNumero(order).toLowerCase().includes(search);
                 const matchesClient = order.cliente_nombre?.toLowerCase().includes(search);
-                if (!matchesId && !matchesClient) return false;
+                const mayoristaText = order.mayorista
+                    ? [
+                          formatMayoristaLabel(order.mayorista),
+                          order.mayorista.username,
+                          order.mayorista.nombre,
+                          order.mayorista.apellido,
+                      ]
+                          .filter(Boolean)
+                          .join(' ')
+                          .toLowerCase()
+                    : '';
+                if (!matchesId && !matchesClient && !mayoristaText.includes(search)) return false;
             }
 
             return true;
@@ -359,13 +387,14 @@ const JefeCarnes = () => {
     );
 
     const monitorNeedsLiveTick = useMemo(
-        () =>
-            globalOrders.some((o) => {
-                if (user?.sede_id && o.sede_id !== user.sede_id) return false;
-                return o.estado === 'pendiente' || o.estado === 'en_proceso';
-            }),
-        [globalOrders, user?.sede_id]
+        () => monitorOrdersOrigen.some((o) => o.estado === 'pendiente' || o.estado === 'en_proceso'),
+        [monitorOrdersOrigen]
     );
+
+    const switchMonitorOrigen = (origen) => {
+        setMonitorOrigen(origen);
+        setCurrentPage(1);
+    };
 
     useEffect(() => {
         if (activeTab !== 'monitor' || !monitorNeedsLiveTick) return;
@@ -651,31 +680,46 @@ const JefeCarnes = () => {
 
                     {activeTab === 'monitor' && (
                         <div className={styles.monitorView}>
+                            <div className={styles.monitorOrigenToggle} role="tablist" aria-label="Origen de pedidos">
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={monitorOrigen === 'mayorista'}
+                                    className={`${styles.monitorOrigenBtn} ${monitorOrigen === 'mayorista' ? styles.monitorOrigenBtnActive : ''} ${styles.monitorOrigenMayorista}`}
+                                    onClick={() => switchMonitorOrigen('mayorista')}
+                                >
+                                    Mayorista
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={monitorOrigen === 'cliente'}
+                                    className={`${styles.monitorOrigenBtn} ${monitorOrigen === 'cliente' ? styles.monitorOrigenBtnActive : ''} ${styles.monitorOrigenCliente}`}
+                                    onClick={() => switchMonitorOrigen('cliente')}
+                                >
+                                    Clientes
+                                </button>
+                            </div>
+
                             <div className={styles.statsRow}>
                                 <div className={`${styles.statCard} glass-card`}>
                                     <Clock size={24} color="#3498db" />
                                     <div>
-                                        <strong>{globalOrders.filter(o => o.estado === 'pendiente' && (!user.sede_id || o.sede_id === user.sede_id)).length}</strong>
-                                        <span>Pendientes Sede</span>
+                                        <strong>{monitorStats.pendientes}</strong>
+                                        <span>Pendientes {monitorOrigen === 'cliente' ? 'Clientes' : 'Mayorista'}</span>
                                     </div>
                                 </div>
                                 <div className={`${styles.statCard} glass-card`}>
                                     <Activity size={24} color="#f39c12" />
                                     <div>
-                                        <strong>{globalOrders.filter(o => o.estado === 'en_proceso' && (!user.sede_id || o.sede_id === user.sede_id)).length}</strong>
+                                        <strong>{monitorStats.enProceso}</strong>
                                         <span>En Preparación</span>
                                     </div>
                                 </div>
                                 <div className={`${styles.statCard} glass-card`}>
                                     <CheckCircle size={24} color="var(--primary-color)" />
                                     <div>
-                                        <strong>
-                                            {globalOrders.filter(
-                                                (o) =>
-                                                    (!user.sede_id || o.sede_id === user.sede_id) &&
-                                                    pedidoFinalizadoHoy(o, monitorTodayKey)
-                                            ).length}
-                                        </strong>
+                                        <strong>{monitorStats.finalizadosHoy}</strong>
                                         <span>Finalizados Hoy</span>
                                     </div>
                                 </div>
@@ -717,7 +761,7 @@ const JefeCarnes = () => {
                                         return (
                                         <tr
                                             key={order.id}
-                                            className={styles.orderRow}
+                                            className={`${styles.orderRow} ${monitorOrigen === 'cliente' ? styles.orderRowCliente : styles.orderRowMayorista}`}
                                             onClick={() => openOrderDetails(order)}
                                         >
                                             <td>{formatPedidoNumero(order)}</td>
@@ -750,6 +794,13 @@ const JefeCarnes = () => {
                                         </tr>
                                         );
                                     })}
+                                    {!paginatedOrders.length && (
+                                        <tr>
+                                            <td colSpan={8} className={styles.emptyMonitorRow}>
+                                                No hay pedidos de {monitorOrigen === 'cliente' ? 'clientes' : 'mayorista'} para mostrar.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                             </div>

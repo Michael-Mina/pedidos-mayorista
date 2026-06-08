@@ -9,7 +9,7 @@ import {
     Ticket, ArrowLeft
 } from 'lucide-react';
 import styles from './Sede.module.css';
-import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
+import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount, getPedidoOrigen } from '../../utils/pedidos';
 import { formatDetalleCantidad } from '../../utils/pedidoCantidad';
 import { panelLabel } from '../../utils/rolePanels';
 import publicClientService from '../../services/api/publicClient';
@@ -195,6 +195,10 @@ const Sede = () => {
         }
     };
 
+    const getOrigenCardClass = (pedido) => (
+        getPedidoOrigen(pedido) === 'cliente' ? styles.origenCliente : styles.origenMayorista
+    );
+
     const pedidosPendientes = pedidos.filter(p => p.estado === 'pendiente');
     const pedidosEnProceso = pedidos.filter(p => p.estado === 'en_proceso');
 
@@ -259,11 +263,22 @@ const Sede = () => {
                         <BellRing size={18} className={pedidosPendientes.length > 0 ? styles.pulse : ''} />
                         <h3>PENDIENTES ({pedidosPendientes.length})</h3>
                     </div>
+                    <div className={styles.origenLegend} aria-label="Leyenda de origen de pedidos">
+                        <span className={styles.origenLegendItem}>
+                            <span className={`${styles.origenDot} ${styles.origenDotMayorista}`} aria-hidden />
+                            Mayorista
+                        </span>
+                        <span className={styles.origenLegendItem}>
+                            <span className={`${styles.origenDot} ${styles.origenDotCliente}`} aria-hidden />
+                            Cliente
+                        </span>
+                    </div>
                     <div className={styles.orderList}>
                         {pedidosPendientes.map(pedido => (
                             <div
                                 key={pedido.id}
-                                className={`${styles.orderCard} ${selectedPedidoId === pedido.id ? styles.active : ''} ${newOrderIds.has(pedido.id) ? styles.isNew : ''}`}
+                                className={`${styles.orderCard} ${getOrigenCardClass(pedido)} ${selectedPedidoId === pedido.id ? styles.active : ''} ${newOrderIds.has(pedido.id) ? styles.isNew : ''}`}
+                                title={getPedidoOrigen(pedido) === 'cliente' ? 'Pedido desde panel de clientes' : 'Pedido desde panel mayorista'}
                                 onClick={() => handleSelectPedido(pedido.id)}
                             >
                                 <div className={styles.orderCardTop}>
@@ -377,7 +392,7 @@ const Sede = () => {
                         <div className={styles.welcomeState}>
                             <Monitor size={80} strokeWidth={1} />
                             <h2>Monitor de Sede Activo</h2>
-                            <p>Los pedidos de Mayorista aparecerán en el panel izquierdo automáticamente.</p>
+                            <p>Los pedidos de Mayorista y de Clientes aparecerán en el panel izquierdo automáticamente.</p>
                         </div>
                     )}
                 </section>
@@ -392,9 +407,9 @@ const Sede = () => {
                         {pedidosEnProceso.map(pedido => (
                             <div
                                 key={pedido.id}
-                                className={`${styles.orderCard} ${selectedPedidoId === pedido.id ? styles.active : ''}`}
+                                className={`${styles.orderCard} ${getOrigenCardClass(pedido)} ${styles.orderCardEnProceso} ${selectedPedidoId === pedido.id ? styles.active : ''}`}
                                 onClick={() => handleSelectPedido(pedido.id)}
-                                style={{ borderLeft: '4px solid var(--warning)' }}
+                                title={getPedidoOrigen(pedido) === 'cliente' ? 'Pedido desde panel de clientes' : 'Pedido desde panel mayorista'}
                             >
                                 <div className={styles.orderCardTop}>
                                     <span className={styles.orderId}>{formatPedidoNumero(pedido)}</span>

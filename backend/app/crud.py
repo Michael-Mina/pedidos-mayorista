@@ -619,12 +619,13 @@ def _parse_numero_pedido(value: str | None) -> int | None:
     except (TypeError, ValueError):
         return None
 
-def _next_numero_pedido(db: Session, sede_id: int) -> str:
-    """Consecutivo global por sede (no se reinicia cada día)."""
+def _next_numero_pedido(db: Session, sede_id: int, origen: str = "mayorista") -> str:
+    """Consecutivo por sede y origen (mayorista / cliente), sin reinicio diario."""
     numeros = (
         db.query(models.Pedido.numero_pedido)
         .filter(
             models.Pedido.sede_id == sede_id,
+            models.Pedido.origen == origen,
             models.Pedido.numero_pedido.isnot(None),
         )
         .all()
@@ -640,13 +641,14 @@ def _next_numero_pedido(db: Session, sede_id: int) -> str:
 
 def create_pedido(db: Session, pedido: schemas.PedidoCreate):
     validate_pedido_detalles_for_sede(db, pedido.sede_id, pedido.detalles)
-    numero_pedido = _next_numero_pedido(db, pedido.sede_id)
+    numero_pedido = _next_numero_pedido(db, pedido.sede_id, "mayorista")
 
     db_pedido = models.Pedido(
         numero_pedido=numero_pedido,
         mayorista_id=pedido.mayorista_id,
         cliente_nombre=pedido.cliente_nombre,
         sede_id=pedido.sede_id,
+        origen="mayorista",
         observaciones=pedido.observaciones,
         estado=models.PedidoEstado.PENDIENTE
     )
@@ -1060,7 +1062,7 @@ def llamar_siguiente_turno(db: Session, sede_id: int):
 
 def create_pedido_cliente(db: Session, sede_id: int, pedido: schemas.PedidoClienteCreate):
     validate_pedido_detalles_for_sede(db, sede_id, pedido.detalles)
-    numero_pedido = _next_numero_pedido(db, sede_id)
+    numero_pedido = _next_numero_pedido(db, sede_id, "cliente")
     db_pedido = models.Pedido(
         numero_pedido=numero_pedido,
         mayorista_id=None,

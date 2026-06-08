@@ -44,6 +44,18 @@ export function formatPedidoItemCount(pedido) {
     return n === 1 ? '1 ítem' : `${n} ítems`;
 }
 
+/** Origen del pedido: panel mayorista o panel clientes. */
+export function getPedidoOrigen(pedido) {
+    if (pedido?.origen === 'cliente') return 'cliente';
+    if (pedido?.origen === 'mayorista') return 'mayorista';
+    if (!pedido?.mayorista_id && pedido?.cliente_telefono) return 'cliente';
+    return 'mayorista';
+}
+
+export function getPedidoOrigenLabel(pedido) {
+    return getPedidoOrigen(pedido) === 'cliente' ? 'Cliente' : 'Mayorista';
+}
+
 export const formatPedidoNumero = (pedido) => {
     if (!pedido) return '';
 
