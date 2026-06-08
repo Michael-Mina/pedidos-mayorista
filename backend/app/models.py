@@ -44,14 +44,24 @@ class PedidoEstado(str, enum.Enum):
     EN_PROCESO = "en_proceso"
     FINALIZADO = "finalizado"
 
+
+class TurnoEstado(str, enum.Enum):
+    ESPERANDO = "esperando"
+    EN_ATENCION = "en_atencion"
+    ATENDIDO = "atendido"
+
+
 class Sede(Base):
     __tablename__ = "sedes"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, index=True)
     ciudad = Column(String)
+    slug = Column(String, unique=True, index=True, nullable=True)
+    notificacion_canal = Column(String, default="ambos", nullable=False)
 
     users = relationship("User", back_populates="sede")
     pedidos = relationship("Pedido", back_populates="sede")
+    turnos = relationship("TurnoTicket", back_populates="sede")
 
 class User(Base):
     __tablename__ = "users"
@@ -117,9 +127,11 @@ class Pedido(Base):
     __tablename__ = "pedidos"
     id = Column(Integer, primary_key=True, index=True)
     numero_pedido = Column(String, index=True, nullable=True)  # Consecutivo por sede: 1, 2, 3... (sin reinicio diario)
-    mayorista_id = Column(Integer, ForeignKey("users.id"))
+    mayorista_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     carnicero_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cliente_nombre = Column(String)
+    cliente_telefono = Column(String, nullable=True)
+    origen = Column(String, default="mayorista", nullable=False)
     estado = Column(Enum(PedidoEstado), default=PedidoEstado.PENDIENTE)
     sede_id = Column(Integer, ForeignKey("sedes.id"))
     observaciones = Column(Text, nullable=True)
@@ -167,3 +179,30 @@ class ButcherAvailability(Base):
 
     # Unique constraint: one record per butcher per date
     __table_args__ = (UniqueConstraint('butcher_id', 'date', name='_butcher_date_uc'),)
+
+
+class TurnoTicket(Base):
+    __tablename__ = "turno_tickets"
+    id = Column(Integer, primary_key=True, index=True)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False)
+    estado = Column(Enum(TurnoEstado), default=TurnoEstado.ESPERANDO, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    called_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    sede = relationship("Sede", back_populates="turnos")
+
+    __table_args__ = (UniqueConstraint("sede_id", "numero", name="uq_turno_sede_numero"),)
+
+
+class NotificationLog(Base):
+    __tablename__ = "notification_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    pedido_id = Column(Integer, ForeignKey("pedidos.id"), nullable=True, index=True)
+    canal = Column(String, nullable=False)
+    destino = Column(String, nullable=False)
+    estado_pedido = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

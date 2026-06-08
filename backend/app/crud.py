@@ -1,18 +1,38 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
-from . import models, schemas, reporte_mensajes, role_catalog
+from . import models, schemas, reporte_mensajes, role_catalog, slug_utils
 from datetime import datetime, timezone, date, time
 
 # Sede CRUD
 def get_sedes(db: Session):
     return db.query(models.Sede).all()
 
+
+def get_sede_by_slug(db: Session, slug: str):
+    return db.query(models.Sede).filter(models.Sede.slug == slug).first()
+
+
+def get_sede_by_id(db: Session, sede_id: int):
+    return db.query(models.Sede).filter(models.Sede.id == sede_id).first()
+
+
+def _apply_sede_slug(db: Session, sede: models.Sede, requested_slug: str | None = None):
+    if requested_slug and requested_slug.strip():
+        base = requested_slug.strip()
+    else:
+        base = sede.nombre or f"sede-{sede.id or ''}"
+    sede.slug = slug_utils.make_unique_slug(db, base, exclude_sede_id=sede.id)
+
+
 def create_sede(db: Session, sede: schemas.SedeCreate):
     from . import auth
-    # Create Sede
-    sede_data = sede.model_dump(exclude_none=True, exclude={"password"})
+    sede_data = sede.model_dump(exclude_none=True, exclude={"password", "slug"})
     db_sede = models.Sede(**sede_data)
+    if sede.notificacion_canal:
+        db_sede.notificacion_canal = sede.notificacion_canal
     db.add(db_sede)
+    db.flush()
+    _apply_sede_slug(db, db_sede, sede.slug)
     db.commit()
     db.refresh(db_sede)
     
@@ -34,8 +54,14 @@ def update_sede(db: Session, sede_id: int, sede: schemas.SedeUpdate):
     from . import auth
     db_sede = db.query(models.Sede).filter(models.Sede.id == sede_id).first()
     if db_sede:
-        if sede.nombre: db_sede.nombre = sede.nombre
-        if sede.ciudad: db_sede.ciudad = sede.ciudad
+        if sede.nombre:
+            db_sede.nombre = sede.nombre
+        if sede.ciudad:
+            db_sede.ciudad = sede.ciudad
+        if sede.notificacion_canal is not None:
+            db_sede.notificacion_canal = sede.notificacion_canal
+        if sede.slug is not None or sede.nombre:
+            _apply_sede_slug(db, db_sede, sede.slug)
         db.commit()
         db.refresh(db_sede)
         
@@ -632,6 +658,7 @@ def create_pedido(db: Session, pedido: schemas.PedidoCreate):
     db.commit()
     return _get_pedido_loaded(db, db_pedido.id)
 
+
 def update_pedido_estado(db: Session, pedido_id: int, estado: str, carnicero_id: int = None):
     db_pedido = _get_pedido_loaded(db, pedido_id)
         
@@ -887,3 +914,170 @@ def validate_assignable_role(db: Session, role_code: str) -> models.AppRole:
     if not row.can_assign or row.is_hidden:
         raise ValueError("Este rol no puede asignarse desde el panel")
     return row
+
+
+# --- Turnos clientes (cola mostrador) ---
+
+def _next_turno_numero(db: Session, sede_id: int) -> int:
+    max_num = (
+        db.query(func.max(models.TurnoTicket.numero))
+        .filter(models.TurnoTicket.sede_id == sede_id)
+        .scalar()
+    )
+    return int(max_num or 0) + 1
+
+
+def create_turno_ticket(db: Session, sede_id: int) -> models.TurnoTicket:
+    turno = models.TurnoTicket(
+        sede_id=sede_id,
+        numero=_next_turno_numero(db, sede_id),
+        estado=models.TurnoEstado.ESPERANDO,
+    )
+    db.add(turno)
+    db.commit()
+    db.refresh(turno)
+    return turno
+
+
+def get_turnos_by_sede(db: Session, sede_id: int, limit: int = 100):
+    return (
+        db.query(models.TurnoTicket)
+        .filter(models.TurnoTicket.sede_id == sede_id)
+        .order_by(models.TurnoTicket.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def get_turno_display(db: Session, sede_id: int) -> dict:
+    actual = (
+        db.query(models.TurnoTicket)
+        .filter(
+            models.TurnoTicket.sede_id == sede_id,
+            models.TurnoTicket.estado == models.TurnoEstado.EN_ATENCION,
+        )
+        .order_by(models.TurnoTicket.called_at.desc())
+        .first()
+    )
+    proximos = (
+        db.query(models.TurnoTicket)
+        .filter(
+            models.TurnoTicket.sede_id == sede_id,
+            models.TurnoTicket.estado == models.TurnoEstado.ESPERANDO,
+        )
+        .order_by(models.TurnoTicket.numero.asc())
+        .limit(5)
+        .all()
+    )
+    ultimo_atendido = (
+        db.query(models.TurnoTicket)
+        .filter(
+            models.TurnoTicket.sede_id == sede_id,
+            models.TurnoTicket.estado == models.TurnoEstado.ATENDIDO,
+        )
+        .order_by(models.TurnoTicket.finished_at.desc())
+        .first()
+    )
+    return {"actual": actual, "proximos": proximos, "ultimo_atendido": ultimo_atendido}
+
+
+def get_turno_for_sede(db: Session, turno_id: int, sede_id: int):
+    return (
+        db.query(models.TurnoTicket)
+        .filter(models.TurnoTicket.id == turno_id, models.TurnoTicket.sede_id == sede_id)
+        .first()
+    )
+
+
+def llamar_turno(db: Session, turno_id: int, sede_id: int):
+    turno = get_turno_for_sede(db, turno_id, sede_id)
+    if not turno:
+        return None
+    now = datetime.now(timezone.utc)
+    en_atencion = (
+        db.query(models.TurnoTicket)
+        .filter(
+            models.TurnoTicket.sede_id == sede_id,
+            models.TurnoTicket.estado == models.TurnoEstado.EN_ATENCION,
+            models.TurnoTicket.id != turno_id,
+        )
+        .all()
+    )
+    for prev in en_atencion:
+        prev.estado = models.TurnoEstado.ATENDIDO
+        prev.finished_at = now
+    turno.estado = models.TurnoEstado.EN_ATENCION
+    turno.called_at = now
+    db.commit()
+    db.refresh(turno)
+    return turno
+
+
+def atender_turno(db: Session, turno_id: int, sede_id: int):
+    turno = get_turno_for_sede(db, turno_id, sede_id)
+    if not turno:
+        return None
+    turno.estado = models.TurnoEstado.ATENDIDO
+    turno.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(turno)
+    return turno
+
+
+def llamar_siguiente_turno(db: Session, sede_id: int):
+    siguiente = (
+        db.query(models.TurnoTicket)
+        .filter(
+            models.TurnoTicket.sede_id == sede_id,
+            models.TurnoTicket.estado == models.TurnoEstado.ESPERANDO,
+        )
+        .order_by(models.TurnoTicket.numero.asc())
+        .first()
+    )
+    if not siguiente:
+        return None
+    return llamar_turno(db, siguiente.id, sede_id)
+
+
+# --- Pedidos de clientes (self-service) ---
+
+def create_pedido_cliente(db: Session, sede_id: int, pedido: schemas.PedidoClienteCreate):
+    validate_pedido_detalles_for_sede(db, sede_id, pedido.detalles)
+    numero_pedido = _next_numero_pedido(db, sede_id)
+    db_pedido = models.Pedido(
+        numero_pedido=numero_pedido,
+        mayorista_id=None,
+        cliente_nombre=pedido.cliente_nombre.strip(),
+        cliente_telefono=pedido.cliente_telefono,
+        origen="cliente",
+        sede_id=sede_id,
+        observaciones=pedido.observaciones,
+        estado=models.PedidoEstado.PENDIENTE,
+    )
+    db.add(db_pedido)
+    db.commit()
+    db.refresh(db_pedido)
+    for detalle in pedido.detalles:
+        db.add(
+            models.DetallePedido(
+                pedido_id=db_pedido.id,
+                corte_id=detalle.corte_id,
+                tipo_corte_id=detalle.tipo_corte_id,
+                cantidad_kg=detalle.cantidad_kg,
+                observaciones=detalle.observaciones,
+            )
+        )
+    db.commit()
+    return _get_pedido_loaded(db, db_pedido.id)
+
+
+def get_pedido_cliente_estado(db: Session, pedido_id: int, telefono: str):
+    digits = "".join(ch for ch in (telefono or "") if ch.isdigit())
+    pedido = _get_pedido_loaded(db, pedido_id)
+    if not pedido or pedido.origen != "cliente":
+        return None
+    pedido_digits = "".join(ch for ch in (pedido.cliente_telefono or "") if ch.isdigit())
+    if not pedido_digits or not digits or pedido_digits[-10:] != digits[-10:]:
+        return None
+    return pedido
+

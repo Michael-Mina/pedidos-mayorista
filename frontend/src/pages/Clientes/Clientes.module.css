@@ -1,0 +1,203 @@
+.page {
+    min-height: 100dvh;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.header h1 {
+    margin: 0 0 8px;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+}
+
+.header p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.loading {
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.errorBox {
+    max-width: 480px;
+    margin: 80px auto;
+    padding: 24px;
+    text-align: center;
+    color: var(--error);
+}
+
+.optionGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.optionCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 36px 28px;
+    text-decoration: none;
+    color: var(--text-light);
+    transition: transform 0.2s, border-color 0.2s;
+    min-height: 220px;
+    text-align: center;
+}
+
+.optionCard:hover {
+    transform: translateY(-4px);
+    border-color: var(--primary-color);
+}
+
+.optionCard h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.optionCard p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.backLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 24px;
+}
+
+.turnoIntro,
+.turnoResult {
+    max-width: 520px;
+    margin: 40px auto;
+    padding: 40px 32px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.bigButton {
+    font-size: 1.2rem;
+    padding: 16px 32px;
+    margin-top: 12px;
+}
+
+.turnoLabel {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.turnoNumber {
+    font-size: clamp(4rem, 18vw, 7rem);
+    font-weight: 800;
+    color: var(--primary-color);
+    line-height: 1;
+}
+
+.turnoHint {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.turnoActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.secondaryBtn {
+    background: var(--card-bg) !important;
+    box-shadow: none !important;
+}
+
+.errorText {
+    color: var(--error);
+    margin: 0;
+}
+
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+}
+
+.modal {
+    width: min(440px, 100%);
+    padding: 28px;
+    border-radius: 16px;
+}
+
+.modal h2 {
+    margin: 0 0 8px;
+}
+
+.modal p {
+    margin: 0 0 20px;
+    color: var(--text-muted);
+}
+
+.modalField {
+    margin-bottom: 14px;
+}
+
+.modalField label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.confirmBox {
+    max-width: 640px;
+    margin: 40px auto;
+    padding: 32px;
+    text-align: center;
+}
+
+.confirmNumber {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin: 16px 0;
+}
+
+@media print {
+    .backLink,
+    .turnoActions,
+    .page > :not(#ticket-print) {
+        display: none !important;
+    }
+
+    .page {
+        padding: 0;
+    }
+
+    .turnoResult {
+        box-shadow: none;
+        border: none;
+    }
+}

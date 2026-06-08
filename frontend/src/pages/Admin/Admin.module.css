@@ -1357,3 +1357,19 @@
         justify-content: center;
     }
 }
+
+.sedeLinks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+}
+
+.sedeLinks a {
+    color: var(--primary-color);
+}
+
+.sedeLinks code {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}

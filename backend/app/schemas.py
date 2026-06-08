@@ -7,6 +7,8 @@ from .models import PedidoEstado
 class SedeBase(BaseModel):
     nombre: str
     ciudad: Optional[str] = "Centro de Operación"
+    slug: Optional[str] = None
+    notificacion_canal: Optional[str] = "ambos"
 
 class SedeCreate(SedeBase):
     id: Optional[int] = None
@@ -16,9 +18,21 @@ class SedeUpdate(BaseModel):
     nombre: Optional[str] = None
     ciudad: Optional[str] = None
     password: Optional[str] = None
+    slug: Optional[str] = None
+    notificacion_canal: Optional[str] = None
 
 class Sede(SedeBase):
     id: int
+    slug: Optional[str] = None
+    notificacion_canal: str = "ambos"
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SedePublicInfo(BaseModel):
+    id: int
+    nombre: str
+    slug: str
+    ciudad: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class AppRoleBase(BaseModel):
@@ -166,6 +180,30 @@ class PedidoCreate(PedidoBase):
     mayorista_id: int
     detalles: List[DetallePedidoCreate]
 
+
+class PedidoClienteCreate(BaseModel):
+    cliente_nombre: str
+    cliente_telefono: str
+    observaciones: Optional[str] = None
+    detalles: List[DetallePedidoCreate]
+
+    @field_validator("cliente_telefono")
+    @classmethod
+    def validate_telefono(cls, v: str) -> str:
+        cleaned = "".join(ch for ch in (v or "") if ch.isdigit() or ch == "+").strip()
+        if len(cleaned.replace("+", "")) < 7:
+            raise ValueError("Ingrese un número de teléfono válido")
+        return cleaned
+
+
+class PedidoClienteEstado(BaseModel):
+    id: int
+    numero_pedido: Optional[str] = None
+    estado: PedidoEstado
+    cliente_nombre: str
+    timestamp: datetime
+    model_config = ConfigDict(from_attributes=True)
+
 class ReporteMensaje(BaseModel):
     rol: str  # mayorista | carniceria
     texto: str
@@ -175,7 +213,9 @@ class ReporteMensaje(BaseModel):
 class Pedido(PedidoBase):
     id: int
     numero_pedido: Optional[str] = None
-    mayorista_id: int
+    mayorista_id: Optional[int] = None
+    cliente_telefono: Optional[str] = None
+    origen: str = "mayorista"
     mayorista: Optional[UserBrief] = None
     carnicero_id: Optional[int] = None
     carnicero: Optional[UserBrief] = None
@@ -236,3 +276,20 @@ class ButcherAvailabilityBulkUpdate(BaseModel):
 
 class ApproveSedesRequest(BaseModel):
     sede_ids: List[int]
+
+
+class TurnoTicket(BaseModel):
+    id: int
+    sede_id: int
+    numero: int
+    estado: str
+    created_at: datetime
+    called_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TurnoDisplay(BaseModel):
+    actual: Optional[TurnoTicket] = None
+    proximos: List[TurnoTicket] = []
+    ultimo_atendido: Optional[TurnoTicket] = None

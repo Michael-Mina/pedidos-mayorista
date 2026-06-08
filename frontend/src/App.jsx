@@ -8,6 +8,10 @@ import Sede from './pages/Sede/Sede';
 import Admin from './pages/Admin/Admin';
 
 import JefeCarnes from './pages/JefeCarnes/JefeCarnes';
+import ClientesHome from './pages/Clientes/ClientesHome';
+import ClientesTurno from './pages/Clientes/ClientesTurno';
+import ClientesPedido from './pages/Clientes/ClientesPedido';
+import PanelTurnosTV from './pages/PanelTurnos/PanelTurnosTV';
 import { homePathForUser, userHasPanel } from './utils/rolePanels';
 
 const ProtectedRoute = ({ children, allowedPanels }) => {
@@ -56,6 +60,10 @@ const App = () => {
                 <JefeCarnes />
               </ProtectedRoute>
             } />
+            <Route path="/clientes/:slug" element={<ClientesHome />} />
+            <Route path="/clientes/:slug/turno" element={<ClientesTurno />} />
+            <Route path="/clientes/:slug/pedido" element={<ClientesPedido />} />
+            <Route path="/turnos/:slug" element={<PanelTurnosTV />} />
             <Route path="/" element={<HomeRedirect />} />
           </Routes>
         </div>

@@ -1,0 +1,109 @@
+.tvPage {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(160deg, #020617 0%, #0f172a 45%, #052e16 100%);
+    color: #f8fafc;
+    padding: clamp(16px, 3vw, 40px);
+    box-sizing: border-box;
+}
+
+.tvHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: clamp(20px, 4vw, 48px);
+}
+
+.tvHeader h1 {
+    margin: 0;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.tvHeader p {
+    margin: 6px 0 0;
+    color: #94a3b8;
+    font-size: clamp(1rem, 2vw, 1.4rem);
+}
+
+.tvClock {
+    font-size: clamp(2rem, 5vw, 4rem);
+    font-weight: 700;
+    color: #2ecc71;
+}
+
+.tvMain {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: clamp(20px, 4vw, 48px);
+    align-items: center;
+}
+
+.nowServing {
+    text-align: center;
+    padding: clamp(24px, 5vw, 56px);
+    border-radius: 24px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 2px solid rgba(46, 204, 113, 0.35);
+}
+
+.nowLabel {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: clamp(1rem, 2.5vw, 1.6rem);
+    color: #94a3b8;
+    margin-bottom: 16px;
+}
+
+.nowNumber {
+    font-size: clamp(6rem, 22vw, 14rem);
+    font-weight: 900;
+    line-height: 1;
+    color: #2ecc71;
+    text-shadow: 0 0 40px rgba(46, 204, 113, 0.35);
+}
+
+.nextSection h2 {
+    margin: 0 0 20px;
+    font-size: clamp(1.2rem, 2.5vw, 2rem);
+    color: #cbd5e1;
+}
+
+.nextGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 16px;
+}
+
+.nextCard {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 700;
+}
+
+.emptyNext {
+    color: #64748b;
+    font-size: 1.2rem;
+}
+
+.tvFooter {
+    margin-top: 24px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: clamp(1rem, 2vw, 1.4rem);
+}
+
+@media (max-width: 900px) {
+    .tvMain {
+        grid-template-columns: 1fr;
+    }
+}

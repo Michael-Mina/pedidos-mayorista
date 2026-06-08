@@ -13,6 +13,7 @@ const handlers = {
     session_update: null,
     approval_update: null,
     carnicero_update: null,
+    turn_update: null,
 };
 
 function bindEvent(eventName, key, callback) {
@@ -73,6 +74,12 @@ export const socketService = {
     },
     offCarniceroUpdate: () => {
         unbindEvent('carnicero_update', 'carnicero_update');
+    },
+    onTurnUpdate: (callback) => {
+        bindEvent('turn_update', 'turn_update', callback);
+    },
+    offTurnUpdate: () => {
+        unbindEvent('turn_update', 'turn_update');
     },
 };
 

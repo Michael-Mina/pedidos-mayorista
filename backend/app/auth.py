@@ -114,3 +114,28 @@ def require_catalog_reader(
             detail="Usuario sin sede asignada",
         )
     return current_user
+
+
+def require_turno_staff(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.User:
+    if is_admin_panel_user(current_user):
+        return current_user
+    panel = role_catalog.get_role_panel(db, current_user.role)
+    if panel in ("jefe", "sede") and current_user.sede_id:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tiene permiso para gestionar turnos",
+    )
+
+
+def assert_sede_access(user: models.User, sede_id: int) -> None:
+    if is_admin_panel_user(user):
+        return
+    if user.sede_id != sede_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene acceso a esta sede",
+        )

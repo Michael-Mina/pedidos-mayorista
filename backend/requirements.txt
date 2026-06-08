@@ -9,3 +9,4 @@ python-multipart
 fastapi-socketio
 Pillow
 openpyxl
+twilio

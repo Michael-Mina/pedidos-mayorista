@@ -11,7 +11,7 @@ import os
 import socketio
 import threading
 
-from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, catalog_excel, role_catalog, db_reset
+from . import models, schemas, crud, database, auth, background_tasks, catalogo_res, startup_seed, backup, report_excel, catalog_excel, role_catalog, db_reset, notifications
 from .database import engine, get_db, SessionLocal
 
 # 1. Initialize FastAPI app
@@ -114,6 +114,65 @@ def _ensure_catalog_sede_columns():
 
 
 _ensure_catalog_sede_columns()
+
+
+def _ensure_cliente_panel_columns() -> None:
+    """Slug de sede, pedidos cliente y tablas de turnos/notificaciones."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE sedes ADD COLUMN IF NOT EXISTS slug VARCHAR;"))
+            conn.execute(text("ALTER TABLE sedes ADD COLUMN IF NOT EXISTS notificacion_canal VARCHAR DEFAULT 'ambos';"))
+            conn.execute(text("UPDATE sedes SET notificacion_canal = 'ambos' WHERE notificacion_canal IS NULL;"))
+            conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS cliente_telefono VARCHAR;"))
+            conn.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS origen VARCHAR DEFAULT 'mayorista';"))
+            conn.execute(text("UPDATE pedidos SET origen = 'mayorista' WHERE origen IS NULL;"))
+            conn.execute(text("ALTER TABLE pedidos ALTER COLUMN mayorista_id DROP NOT NULL;"))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS turno_tickets (
+                    id SERIAL PRIMARY KEY,
+                    sede_id INTEGER NOT NULL REFERENCES sedes(id),
+                    numero INTEGER NOT NULL,
+                    estado VARCHAR(24) NOT NULL DEFAULT 'esperando',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    called_at TIMESTAMPTZ,
+                    finished_at TIMESTAMPTZ,
+                    CONSTRAINT uq_turno_sede_numero UNIQUE (sede_id, numero)
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS notification_logs (
+                    id SERIAL PRIMARY KEY,
+                    pedido_id INTEGER REFERENCES pedidos(id),
+                    canal VARCHAR(24) NOT NULL,
+                    destino VARCHAR(64) NOT NULL,
+                    estado_pedido VARCHAR(32) NOT NULL,
+                    status VARCHAR(24) NOT NULL,
+                    error TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            """))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_sedes_slug ON sedes (slug) WHERE slug IS NOT NULL;"
+            ))
+    except Exception as exc:
+        print(f"[migrations] Aviso al asegurar panel clientes: {exc}")
+
+    try:
+        from . import slug_utils
+        with SessionLocal() as db:
+            changed = False
+            for sede in db.query(models.Sede).all():
+                if not sede.slug:
+                    sede.slug = slug_utils.make_unique_slug(db, sede.nombre, exclude_sede_id=sede.id)
+                    changed = True
+            if changed:
+                db.commit()
+                print("[migrations] Slugs de sedes generados")
+    except Exception as exc:
+        print(f"[migrations] Aviso al backfill de slugs: {exc}")
+
+
+_ensure_cliente_panel_columns()
 
 
 def _ensure_app_roles_columns() -> None:
@@ -222,6 +281,28 @@ async def _emit_pedido_rooms(event: str, payload, sede_id: str):
     """Notifica a la sede del pedido y a la sala del jefe de carnes (manager)."""
     await sio.emit(event, payload, room=f"sede_{sede_id}")
     await sio.emit(event, payload, room="manager")
+
+
+def _turno_display_payload(db: Session, sede_id: int) -> dict:
+    data = crud.get_turno_display(db, sede_id)
+    return schemas.TurnoDisplay(
+        actual=schemas.TurnoTicket.model_validate(data["actual"]) if data["actual"] else None,
+        proximos=[schemas.TurnoTicket.model_validate(t) for t in data["proximos"]],
+        ultimo_atendido=schemas.TurnoTicket.model_validate(data["ultimo_atendido"]) if data["ultimo_atendido"] else None,
+    ).model_dump(mode="json")
+
+
+async def _emit_turn_update(db: Session, sede_id: int):
+    payload = _turno_display_payload(db, sede_id)
+    await sio.emit("turn_update", payload, room=f"sede_{sede_id}")
+    await sio.emit("turn_update", payload, room="manager")
+
+
+def _resolve_sede_by_slug(db: Session, slug: str) -> models.Sede:
+    sede = crud.get_sede_by_slug(db, slug)
+    if not sede:
+        raise HTTPException(status_code=404, detail="Sede no encontrada")
+    return sede
 
 
 async def _emit_carnicero_update(sede_id: int, action: str, carnicero: dict):
@@ -579,6 +660,142 @@ async def import_catalog_excel(
     return result
 
 
+# --- Panel público de clientes (sin auth) ---
+
+@app.get("/public/sedes/{slug}/info", response_model=schemas.SedePublicInfo)
+def public_sede_info(slug: str, db: Session = Depends(get_db)):
+    sede = _resolve_sede_by_slug(db, slug)
+    return schemas.SedePublicInfo.model_validate(sede)
+
+
+@app.get("/public/sedes/{slug}/catalogo/categorias", response_model=List[schemas.Categoria])
+def public_catalog_categorias(slug: str, db: Session = Depends(get_db)):
+    sede = _resolve_sede_by_slug(db, slug)
+    return crud.get_categories(db, sede.id)
+
+
+@app.get("/public/sedes/{slug}/catalogo/cortes", response_model=List[schemas.Corte])
+def public_catalog_cortes(
+    slug: str,
+    categoria_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    sede = _resolve_sede_by_slug(db, slug)
+    return crud.get_cortes(db, sede.id, categoria_id)
+
+
+@app.get("/public/sedes/{slug}/catalogo/tipos-corte", response_model=List[schemas.TipoCorte])
+def public_catalog_tipos_corte(slug: str, db: Session = Depends(get_db)):
+    sede = _resolve_sede_by_slug(db, slug)
+    return crud.get_tipos_corte(db, sede.id)
+
+
+@app.post("/public/sedes/{slug}/turnos", response_model=schemas.TurnoTicket)
+async def public_create_turno(slug: str, db: Session = Depends(get_db)):
+    sede = _resolve_sede_by_slug(db, slug)
+    turno = crud.create_turno_ticket(db, sede.id)
+    await _emit_turn_update(db, sede.id)
+    return turno
+
+
+@app.get("/public/sedes/{slug}/turnos/display", response_model=schemas.TurnoDisplay)
+def public_turno_display(slug: str, db: Session = Depends(get_db)):
+    sede = _resolve_sede_by_slug(db, slug)
+    data = crud.get_turno_display(db, sede.id)
+    return schemas.TurnoDisplay(
+        actual=schemas.TurnoTicket.model_validate(data["actual"]) if data["actual"] else None,
+        proximos=[schemas.TurnoTicket.model_validate(t) for t in data["proximos"]],
+        ultimo_atendido=schemas.TurnoTicket.model_validate(data["ultimo_atendido"]) if data["ultimo_atendido"] else None,
+    )
+
+
+@app.post("/public/sedes/{slug}/pedidos", response_model=schemas.Pedido)
+async def public_create_pedido_cliente(
+    slug: str,
+    pedido: schemas.PedidoClienteCreate,
+    db: Session = Depends(get_db),
+):
+    sede = _resolve_sede_by_slug(db, slug)
+    try:
+        db_pedido = crud.create_pedido_cliente(db, sede.id, pedido)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    notifications.send_pedido_status_notification(db, db_pedido, "pendiente")
+    payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode="json")
+    await _emit_pedido_rooms("new_order", payload, db_pedido.sede_id)
+    return db_pedido
+
+
+@app.get("/public/sedes/{slug}/pedidos/{pedido_id}/estado", response_model=schemas.PedidoClienteEstado)
+def public_pedido_estado(
+    slug: str,
+    pedido_id: int,
+    telefono: str = Query(..., min_length=7),
+    db: Session = Depends(get_db),
+):
+    sede = _resolve_sede_by_slug(db, slug)
+    pedido = crud.get_pedido_cliente_estado(db, pedido_id, telefono)
+    if not pedido or pedido.sede_id != sede.id:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    return schemas.PedidoClienteEstado.model_validate(pedido)
+
+
+# --- Gestión de turnos (staff) ---
+
+@app.get("/sedes/{sede_id}/turnos", response_model=List[schemas.TurnoTicket])
+def list_turnos_sede(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_turno_staff),
+):
+    auth.assert_sede_access(current_user, sede_id)
+    return crud.get_turnos_by_sede(db, sede_id)
+
+
+@app.put("/turnos/{turno_id}/llamar", response_model=schemas.TurnoTicket)
+async def llamar_turno_endpoint(
+    turno_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_turno_staff),
+):
+    turno = db.query(models.TurnoTicket).filter(models.TurnoTicket.id == turno_id).first()
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+    auth.assert_sede_access(current_user, turno.sede_id)
+    updated = crud.llamar_turno(db, turno_id, turno.sede_id)
+    await _emit_turn_update(db, turno.sede_id)
+    return updated
+
+
+@app.put("/turnos/{turno_id}/atender", response_model=schemas.TurnoTicket)
+async def atender_turno_endpoint(
+    turno_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_turno_staff),
+):
+    turno = db.query(models.TurnoTicket).filter(models.TurnoTicket.id == turno_id).first()
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+    auth.assert_sede_access(current_user, turno.sede_id)
+    updated = crud.atender_turno(db, turno_id, turno.sede_id)
+    await _emit_turn_update(db, turno.sede_id)
+    return updated
+
+
+@app.put("/turnos/sede/{sede_id}/siguiente", response_model=schemas.TurnoTicket)
+async def llamar_siguiente_turno_endpoint(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_turno_staff),
+):
+    auth.assert_sede_access(current_user, sede_id)
+    updated = crud.llamar_siguiente_turno(db, sede_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="No hay turnos en espera")
+    await _emit_turn_update(db, sede_id)
+    return updated
+
+
 @app.get("/users/carniceros/{sede_id}", response_model=List[schemas.User])
 def get_sede_carniceros(sede_id: str, db: Session = Depends(get_db)):
     return crud.get_carniceros_by_sede(db, sede_id)
@@ -847,9 +1064,13 @@ async def create_pedido_endpoint(pedido: schemas.PedidoCreate, db: Session = Dep
 
 @app.put("/pedidos/{pedido_id}/estado", response_model=schemas.Pedido)
 async def update_pedido_estado_endpoint(pedido_id: int, estado: str, carnicero_id: Optional[int] = None, db: Session = Depends(get_db)):
+    prev = crud._get_pedido_loaded(db, pedido_id)
+    prev_estado = str(prev.estado) if prev else None
     db_pedido = crud.update_pedido_estado(db=db, pedido_id=pedido_id, estado=estado, carnicero_id=carnicero_id)
     if not db_pedido:
         raise HTTPException(status_code=404, detail="Pedido not found")
+    if db_pedido.origen == "cliente" and str(estado) != prev_estado:
+        notifications.send_pedido_status_notification(db, db_pedido, str(estado))
     payload = schemas.Pedido.model_validate(db_pedido).model_dump(mode='json')
     await _emit_pedido_rooms("order_update", payload, db_pedido.sede_id)
     return db_pedido

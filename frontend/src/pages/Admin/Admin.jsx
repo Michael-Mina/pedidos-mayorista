@@ -391,7 +391,9 @@ const Admin = () => {
                 dataToSend = {
                     id: formData.id,
                     nombre: formData.nombre,
-                    password: formData.password || null
+                    password: formData.password || null,
+                    slug: formData.slug || null,
+                    notificacion_canal: formData.notificacion_canal || 'ambos',
                 };
             }
 
@@ -1355,6 +1357,8 @@ const Admin = () => {
                                     <tr>
                                         <th>Centro de Operación (C.O)</th>
                                         <th>Nombre</th>
+                                        <th>Slug / URLs públicas</th>
+                                        <th>Notificaciones</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1363,6 +1367,16 @@ const Admin = () => {
                                         <tr key={s.id}>
                                             <td>{s.id}</td>
                                             <td>{s.nombre}</td>
+                                            <td>
+                                                {s.slug ? (
+                                                    <div className={styles.sedeLinks}>
+                                                        <a href={`/clientes/${s.slug}`} target="_blank" rel="noreferrer">Clientes</a>
+                                                        <a href={`/turnos/${s.slug}`} target="_blank" rel="noreferrer">TV turnos</a>
+                                                        <code>{s.slug}</code>
+                                                    </div>
+                                                ) : '—'}
+                                            </td>
+                                            <td>{s.notificacion_canal || 'ambos'}</td>
                                             <td>
                                                 <button onClick={() => handleOpenModal('sede', s)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '10px' }}>Editar</button>
                                                 <button onClick={() => handleDelete('sede', s.id)} style={{ background: 'transparent', border: 'none', color: 'var(--error)' }}>Borrar</button>
@@ -1553,6 +1567,13 @@ const Admin = () => {
                                 <>
                                     <input type="text" placeholder="Centro de Operación (C.O)" className="input-field" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value })} disabled={!!editItem} required />
                                     <input placeholder="Nombre de la sede" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
+                                    <input placeholder="Slug URL (ej: canaveral-norte)" className="input-field" value={formData.slug || ''} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
+                                    <select className="input-field" value={formData.notificacion_canal || 'ambos'} onChange={e => setFormData({ ...formData, notificacion_canal: e.target.value })}>
+                                        <option value="ambos">Notificaciones: SMS y WhatsApp</option>
+                                        <option value="sms">Solo SMS</option>
+                                        <option value="whatsapp">Solo WhatsApp</option>
+                                        <option value="ninguno">Sin notificaciones</option>
+                                    </select>
                                     <input placeholder={editItem ? "Nueva Contraseña (dejar vacío si no cambia)" : "Contraseña de acceso"} type="password" className="input-field" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editItem} />
                                 </>
                             )}

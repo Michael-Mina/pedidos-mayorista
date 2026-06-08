@@ -24,10 +24,12 @@ import {
     Menu,
     MessageSquare,
     Calendar,
-    Search
+    Search,
+    Ticket
 } from 'lucide-react';
 import styles from './JefeCarnes.module.css';
 import { panelLabel } from '../../utils/rolePanels';
+import TurnosManager from '../../components/TurnosManager/TurnosManager';
 import LoggedUserLabel from '../../components/LoggedUserLabel/LoggedUserLabel';
 import {
     formatPedidoNumero,
@@ -70,6 +72,7 @@ const JefeCarnes = () => {
     const globalOrdersRef = useRef([]);
     const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'historial', 'reportes', 'personal', 'productos'
     const [sedeNombre, setSedeNombre] = useState('');
+    const [sedeSlug, setSedeSlug] = useState('');
     const [loading, setLoading] = useState(false);
 
     // Personal / Carniceros State
@@ -279,6 +282,7 @@ const JefeCarnes = () => {
         { id: 'historial', label: 'Historial', icon: History },
         { id: 'reportes', label: 'Reportes', icon: MessageSquare },
         { id: 'productos', label: 'Productos', icon: Package },
+        { id: 'turnos', label: 'Turnos clientes', icon: Ticket },
         { id: 'personal', label: 'Personal', icon: Users },
     ];
 
@@ -299,6 +303,7 @@ const JefeCarnes = () => {
             .then((res) => {
                 const sede = res.data.find((s) => s.id === user.sede_id);
                 setSedeNombre(sede?.nombre || '');
+                setSedeSlug(sede?.slug || '');
             })
             .catch(() => setSedeNombre(''));
     }, [user?.sede_id]);
@@ -631,6 +636,7 @@ const JefeCarnes = () => {
                         activeTab === 'personal' ? 'Gestión de Personal' :
                         activeTab === 'reportes' ? 'Reportes' :
                         activeTab === 'productos' ? 'Catálogo de Productos' :
+                        activeTab === 'turnos' ? 'Turnos de clientes' :
                         'Historial'
                     }</h1>
                     {activeTab === 'monitor' && (
@@ -1041,6 +1047,16 @@ const JefeCarnes = () => {
                         ) : (
                             <p className={styles.emptyMsg}>
                                 Su usuario no tiene sede asignada. Contacte al administrador para gestionar el catálogo.
+                            </p>
+                        )
+                    )}
+
+                    {activeTab === 'turnos' && (
+                        user?.sede_id ? (
+                            <TurnosManager sedeId={user.sede_id} sedeSlug={sedeSlug} sedeNombre={sedeNombre} />
+                        ) : (
+                            <p className={styles.emptyMsg}>
+                                Su usuario no tiene sede asignada. Contacte al administrador.
                             </p>
                         )
                     )}
