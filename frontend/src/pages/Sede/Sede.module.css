@@ -40,6 +40,88 @@
     display: flex;
     align-items: center;
     gap: 20px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.turnoControls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.turnoNowBadge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    background: rgba(46, 204, 113, 0.12);
+    border: 1px solid rgba(46, 204, 113, 0.25);
+    color: var(--text-light);
+}
+
+.turnoNowBadge strong {
+    font-size: 1.35rem;
+    line-height: 1;
+    color: var(--primary-color);
+}
+
+.turnoNowLabel {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.turnoCallBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: white;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    box-shadow: 0 4px 14px rgba(46, 204, 113, 0.25);
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+.turnoCallBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.turnoCallBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.turnoDoneBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.turnoDoneBtn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.turnoDoneBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .sedeBadge {
@@ -811,6 +893,17 @@
         width: 100%;
         justify-content: space-between;
         gap: 10px;
+    }
+
+    .turnoControls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .turnoCallBtn,
+    .turnoDoneBtn {
+        flex: 1;
+        justify-content: center;
     }
 
     .sedeBadge {

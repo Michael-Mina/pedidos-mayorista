@@ -4,11 +4,13 @@ import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import { 
     ClipboardList, LogOut, Play, CheckCircle, Users, 
-    Clock, Package, UserCheck, Bell, BellRing, Monitor, X, ArrowDown
+    Clock, Package, UserCheck, Bell, BellRing, Monitor, X, ArrowDown,
+    Ticket, PhoneCall
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
 import { panelLabel } from '../../utils/rolePanels';
+import publicClientService from '../../services/api/publicClient';
 
 const Sede = () => {
     const { user, logout } = useAuth();
@@ -19,6 +21,9 @@ const Sede = () => {
     const [assigningOrder, setAssigningOrder] = useState(false);
     const [newOrderIds, setNewOrderIds] = useState(new Set());
     const [nowTick, setNowTick] = useState(() => Date.now());
+    const [sedeSlug, setSedeSlug] = useState('');
+    const [turnDisplay, setTurnDisplay] = useState({ actual: null, proximos: [] });
+    const [callingTurn, setCallingTurn] = useState(false);
     
     // Audio for notifications
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
@@ -79,13 +84,64 @@ const Sede = () => {
 
         socketService.onCarniceroUpdate(applyCarniceroUpdate);
 
+        socketService.onTurnUpdate((payload) => {
+            setTurnDisplay(payload);
+        });
+
         return () => {
             socketService.offNewOrder();
             socketService.offOrderUpdate();
             socketService.offCarniceroUpdate();
+            socketService.offTurnUpdate();
             socketService.disconnect();
         };
     }, [user?.id, user?.sede_id]);
+
+    useEffect(() => {
+        if (!user?.sede_id) return;
+        api.get('/sedes')
+            .then((res) => {
+                const sede = res.data.find((s) => s.id === user.sede_id);
+                setSedeSlug(sede?.slug || '');
+            })
+            .catch(() => {});
+    }, [user?.sede_id]);
+
+    useEffect(() => {
+        if (!sedeSlug) return;
+        publicClientService.getTurnoDisplay(sedeSlug)
+            .then(setTurnDisplay)
+            .catch(() => {});
+    }, [sedeSlug]);
+
+    const handleLlamarSiguienteTurno = async () => {
+        if (!user?.sede_id || callingTurn) return;
+        setCallingTurn(true);
+        try {
+            await api.put(`/turnos/sede/${user.sede_id}/siguiente`);
+            if (sedeSlug) {
+                const data = await publicClientService.getTurnoDisplay(sedeSlug);
+                setTurnDisplay(data);
+            }
+        } catch (error) {
+            console.error('Error al llamar turno:', error.response?.data?.detail || error.message);
+        } finally {
+            setCallingTurn(false);
+        }
+    };
+
+    const handleAtenderTurnoActual = async () => {
+        if (!turnDisplay.actual?.id) return;
+        try {
+            await api.put(`/turnos/${turnDisplay.actual.id}/atender`);
+            if (sedeSlug) {
+                const data = await publicClientService.getTurnoDisplay(sedeSlug);
+                setTurnDisplay(data);
+            }
+        } catch (error) {
+            console.error('Error al atender turno:', error.response?.data?.detail || error.message);
+        }
+    };
 
     const fetchInitialData = async () => {
         try {
@@ -169,6 +225,33 @@ const Sede = () => {
                 </div>
 
                 <div className={styles.headerRight}>
+                    <div className={styles.turnoControls}>
+                        <div className={styles.turnoNowBadge} title="Turno en atención en el TV">
+                            <Ticket size={16} />
+                            <span className={styles.turnoNowLabel}>Turno</span>
+                            <strong>{turnDisplay.actual?.numero ?? '—'}</strong>
+                        </div>
+                        <button
+                            type="button"
+                            className={styles.turnoCallBtn}
+                            onClick={handleLlamarSiguienteTurno}
+                            disabled={callingTurn}
+                            title="Llamar siguiente turno en pantalla TV"
+                        >
+                            <PhoneCall size={16} />
+                            {callingTurn ? 'Llamando…' : 'Llamar siguiente'}
+                        </button>
+                        <button
+                            type="button"
+                            className={styles.turnoDoneBtn}
+                            onClick={handleAtenderTurnoActual}
+                            disabled={!turnDisplay.actual}
+                            title="Marcar turno actual como atendido"
+                        >
+                            <CheckCircle size={16} />
+                            Atendido
+                        </button>
+                    </div>
                     <div className={styles.sedeBadge}>
                         <Clock size={14} />
                         <span>Sede {user?.username}</span>
