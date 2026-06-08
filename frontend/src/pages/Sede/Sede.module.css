@@ -25,6 +25,23 @@
     font-weight: 800;
 }
 
+.hubLink {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    padding: 8px;
+    border-radius: 10px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+}
+
+.hubLink:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-light);
+}
+
 .logo span {
     color: var(--primary-color);
 }

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api, { pedidoService } from '../../services/api';
 import { socketService } from '../../services/api/socket';
 import { 
     ClipboardList, LogOut, Play, CheckCircle, Users, 
     Clock, Package, UserCheck, Bell, BellRing, Monitor, X, ArrowDown,
-    Ticket
+    Ticket, ArrowLeft
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
@@ -207,6 +208,9 @@ const Sede = () => {
         <div className={styles.container}>
             <header className={`${styles.header} glass-card`}>
                 <div className={styles.logo}>
+                    <Link to="/sede" className={styles.hubLink} title="Volver al inicio">
+                        <ArrowLeft size={18} />
+                    </Link>
                     <Monitor size={24} style={{ marginRight: '10px', color: 'var(--primary-color)' }} />
                     Pedidos <span>Mayorista</span> <small>| {panelLabel('sede')}</small>
                 </div>

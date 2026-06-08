@@ -5,6 +5,7 @@ import { AppDialogProvider } from './context/AppDialogContext';
 import Login from './pages/Login/Login';
 import Mayorista from './pages/Mayorista/Mayorista';
 import Sede from './pages/Sede/Sede';
+import SedeHub from './pages/Sede/SedeHub';
 import Admin from './pages/Admin/Admin';
 
 import JefeCarnes from './pages/JefeCarnes/JefeCarnes';
@@ -51,6 +52,11 @@ const App = () => {
               </ProtectedRoute>
             } />
             <Route path="/sede" element={
+              <ProtectedRoute allowedPanels={['sede']}>
+                <SedeHub />
+              </ProtectedRoute>
+            } />
+            <Route path="/sede/tablet" element={
               <ProtectedRoute allowedPanels={['sede']}>
                 <Sede />
               </ProtectedRoute>
