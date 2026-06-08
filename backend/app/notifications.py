@@ -172,22 +172,37 @@ def _format_detalle_line(detalle: models.DetallePedido) -> str:
     return line
 
 
-def _estado_intro(estado: str) -> str:
-    if estado == "pendiente":
-        return "fue recibido y está pendiente de preparación."
+def _message_pedido_breve(pedido: models.Pedido, estado: str) -> str:
+    nombre = (pedido.cliente_nombre or "").strip() or "Cliente"
+    numero = pedido.numero_pedido or str(pedido.id)
+
     if estado == "en_proceso":
-        return "está en preparación."
+        lines = [
+            f"¡Hola {nombre}! 👋",
+            "",
+            f"👨‍🍳 Su pedido #{numero} está en preparación.",
+            "",
+            "¡Gracias por su paciencia! 🙏",
+        ]
+        return "\n".join(lines)
+
     if estado == "finalizado":
-        return "ya está listo. Puede pasar a retirarlo."
-    return f"tiene una actualización: {estado}."
+        lines = [
+            f"¡Hola {nombre}! 👋",
+            "",
+            f"✅ ¡Su pedido #{numero} ya está listo! Puede pasar a retirarlo.",
+            "",
+            "¡Gracias por preferirnos! 🙏",
+            "",
+            "⏱️ Nota: tiene 30 minutos para retirar su pedido.",
+        ]
+        return "\n".join(lines)
 
-
-def _estado_cierre(estado: str) -> str | None:
-    if estado == "pendiente":
-        return "Le avisaremos cuando comience la preparación."
-    if estado == "en_proceso":
-        return "Le avisaremos cuando esté listo."
-    return None
+    return (
+        f"¡Hola {nombre}! 👋\n\n"
+        f"📢 Su pedido #{numero} tiene una actualización: {estado}.\n\n"
+        "¡Gracias por su compra! 🙏"
+    )
 
 
 def _load_pedido_for_message(db: Session, pedido_id: int) -> models.Pedido | None:
@@ -203,18 +218,18 @@ def _load_pedido_for_message(db: Session, pedido_id: int) -> models.Pedido | Non
     )
 
 
-def _message_for_pedido(pedido: models.Pedido, estado: str) -> str:
+def _message_pedido_completo(pedido: models.Pedido) -> str:
     nombre = (pedido.cliente_nombre or "").strip() or "Cliente"
     numero = pedido.numero_pedido or str(pedido.id)
     sede_nombre = (pedido.sede.nombre if pedido.sede else "").strip()
 
     lines = [
-        f"Hola {nombre},",
+        f"¡Hola {nombre}! 👋",
         "",
-        f"Su pedido #{numero} {_estado_intro(estado)}",
+        f"✅ Su pedido #{numero} fue recibido y está pendiente de preparación.",
         "",
-        f"Pedido #{numero}",
-        "Productos:",
+        f"📋 Pedido #{numero}",
+        "🥩 Productos:",
     ]
 
     detalles = pedido.detalles or []
@@ -225,17 +240,26 @@ def _message_for_pedido(pedido: models.Pedido, estado: str) -> str:
         lines.append("• (sin productos registrados)")
 
     if sede_nombre:
-        lines.extend(["", f"Sede: {sede_nombre}"])
+        lines.extend(["", f"🏪 Sede: {sede_nombre}"])
 
     obs_pedido = (pedido.observaciones or "").strip()
     if obs_pedido:
-        lines.extend(["", f"Observaciones: {obs_pedido}"])
+        lines.extend(["", f"📝 Observaciones: {obs_pedido}"])
 
-    cierre = _estado_cierre(estado)
-    if cierre:
-        lines.extend(["", cierre])
+    lines.extend([
+        "",
+        "Le avisaremos cuando comience la preparación.",
+        "",
+        "¡Gracias por su compra! 🙏",
+    ])
 
     return "\n".join(lines)
+
+
+def _message_for_pedido(pedido: models.Pedido, estado: str) -> str:
+    if estado == "pendiente":
+        return _message_pedido_completo(pedido)
+    return _message_pedido_breve(pedido, estado)
 
 
 def _channels_for_sede(sede: models.Sede | None) -> list[str]:
@@ -504,7 +528,10 @@ def send_pedido_status_notification(db: Session, pedido: models.Pedido, estado: 
             )
             return
 
-        pedido_full = _load_pedido_for_message(db, pedido.id) or pedido
+        if estado == "pendiente":
+            pedido_full = _load_pedido_for_message(db, pedido.id) or pedido
+        else:
+            pedido_full = pedido
         body = _message_for_pedido(pedido_full, estado)
         for channel in channels:
             ok, err = _send_channel(phone, body, channel, sede)
