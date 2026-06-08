@@ -169,6 +169,26 @@
     margin: 0;
 }
 
+.turnoSuccessBanner {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    padding: 16px 20px;
+    text-align: center;
+    border: 1px solid rgba(46, 204, 113, 0.35);
+    background: rgba(46, 204, 113, 0.1);
+}
+
+.turnoSuccessBanner strong {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.turnoSuccessHint {
+    margin: 8px 0 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
 .modalOverlay {
     position: fixed;
     inset: 0;

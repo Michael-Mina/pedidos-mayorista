@@ -1,7 +1,7 @@
 /**
  * Impresión de ticket de turno.
  *
- * Modo actual (sin impresora): abre pestaña con el ticket.
+ * Modo actual (sin impresora): abre pestaña con el ticket vía Blob URL.
  * Modo kiosk (VITE_KIOSK_SILENT_PRINT=true + Chrome --kiosk-printing):
  *   imprime en la pestaña y la cierra sin interacción en la página principal.
  *
@@ -10,8 +10,18 @@
 
 const KIOSK_SILENT_PRINT = import.meta.env.VITE_KIOSK_SILENT_PRINT === 'true';
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 function buildTicketHtml({ numero, sedeNombre }) {
-    const title = sedeNombre ? `Turno - ${sedeNombre}` : 'Turno';
+    const safeNumero = escapeHtml(numero);
+    const safeSede = escapeHtml(sedeNombre);
+    const title = sedeNombre ? `Turno - ${safeSede}` : 'Turno';
     const autoPrintScript = KIOSK_SILENT_PRINT
         ? `<script>
             window.onload = function () {
@@ -58,9 +68,9 @@ function buildTicketHtml({ numero, sedeNombre }) {
 </head>
 <body>
   <div class="ticket">
-    ${sedeNombre ? `<div class="brand">${sedeNombre}</div>` : ''}
+    ${sedeNombre ? `<div class="brand">${safeSede}</div>` : ''}
     <div class="label">Su turno</div>
-    <div class="number">${numero}</div>
+    <div class="number">${safeNumero}</div>
     <div class="hint">Espere a que llamen su número en pantalla</div>
   </div>
   ${autoPrintScript}
@@ -69,23 +79,34 @@ function buildTicketHtml({ numero, sedeNombre }) {
 }
 
 /**
- * @returns {boolean} false si el popup fue bloqueado
+ * Abre el ticket en una pestaña nueva.
+ * @returns {boolean} false solo si el navegador bloqueó por completo la pestaña
  */
 export function printTurnoTicket({ numero, sedeNombre = '' }) {
+    const html = buildTicketHtml({ numero, sedeNombre });
+
     if (typeof window.kioskPrint === 'function') {
-        window.kioskPrint(buildTicketHtml({ numero, sedeNombre }));
+        window.kioskPrint(html);
         return true;
     }
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=420,height=640');
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Sin noopener: la pestaña carga el HTML desde blob URL (compatible Brave/Chrome)
+    const printWindow = window.open(blobUrl, '_blank', 'width=420,height=640');
+
     if (!printWindow) {
+        URL.revokeObjectURL(blobUrl);
         return false;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(buildTicketHtml({ numero, sedeNombre }));
-    printWindow.document.close();
-    printWindow.focus();
+    // Revocar tras cargar para no filtrar memoria
+    printWindow.addEventListener?.('load', () => {
+        URL.revokeObjectURL(blobUrl);
+    });
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+
     return true;
 }
 

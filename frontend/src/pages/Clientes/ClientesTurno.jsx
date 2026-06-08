@@ -45,11 +45,18 @@ const ClientesTurno = () => {
                 sedeNombre,
             });
             if (!printed) {
-                setError('Permita ventanas emergentes para ver el ticket de impresión.');
-                setLoading(false);
-                return;
+                sessionStorage.setItem(
+                    `turno_ticket_${slug}`,
+                    JSON.stringify({ numero: data.numero, sedeNombre, at: Date.now() })
+                );
             }
-            navigate(`/clientes/${slug}`, { replace: true });
+            navigate(`/clientes/${slug}`, {
+                replace: true,
+                state: {
+                    turnoGenerado: data.numero,
+                    ticketPopupBlocked: !printed,
+                },
+            });
         } catch (err) {
             setError(err.message || 'No se pudo generar el turno');
             setLoading(false);
