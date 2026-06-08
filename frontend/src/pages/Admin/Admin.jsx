@@ -1597,12 +1597,12 @@ const Admin = () => {
             {/* Modal for CRUD */}
             {showModal && (
                 <div className={styles.modalOverlay}>
-                    <div className={`${styles.modal} glass-card`}>
+                    <div className={`${styles.modal} ${modalType === 'sede' ? styles.modalSede : ''} glass-card`}>
                         <h3>{editItem ? 'Editar' : 'Crear'} {
                             modalType === 'user' ? 'Usuario' :
                                 modalType === 'sede' ? 'Sede' : modalType
                         }</h3>
-                        <form onSubmit={handleSubmit}>
+                        <form onSubmit={handleSubmit} className={modalType === 'sede' ? styles.modalSedeForm : undefined}>
                             {modalType === 'user' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input placeholder="Nombre de usuario" className="input-field" value={formData.username || ''} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
@@ -1628,7 +1628,7 @@ const Admin = () => {
                                 </div>
                             )}
                             {modalType === 'sede' && (
-                                <>
+                                <div className={styles.modalSedeBody}>
                                     <input type="text" placeholder="Centro de Operación (C.O)" className="input-field" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value })} disabled={!!editItem} required />
                                     <input placeholder="Nombre de la sede" className="input-field" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} required />
                                     <input placeholder="Slug URL (ej: canaveral-norte)" className="input-field" value={formData.slug || ''} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
@@ -1686,7 +1686,7 @@ const Admin = () => {
                                         </>
                                     )}
                                     <input placeholder={editItem ? "Nueva Contraseña (dejar vacío si no cambia)" : "Contraseña de acceso"} type="password" className="input-field" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editItem} />
-                                </>
+                                </div>
                             )}
                             <div className={styles.modalActions}>
                                 <button type="button" onClick={() => setShowModal(false)} className="premium-button" style={{ background: 'var(--bg-card)' }}>Cancelar</button>

@@ -718,6 +718,8 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .modal {
@@ -777,6 +779,46 @@
     justify-content: flex-end;
     gap: 15px;
     margin-top: 30px;
+}
+
+.modalSede {
+    max-height: min(90dvh, 720px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 24px 28px;
+    box-sizing: border-box;
+}
+
+.modalSede h3 {
+    flex-shrink: 0;
+    margin-bottom: 16px;
+}
+
+.modalSede .modalSedeForm {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    gap: 0;
+}
+
+.modalSedeBody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-right: 4px;
+    margin-right: -4px;
+}
+
+.modalSede .modalActions {
+    flex-shrink: 0;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .productCell {
