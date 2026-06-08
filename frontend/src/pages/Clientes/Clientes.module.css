@@ -4,6 +4,49 @@
     box-sizing: border-box;
 }
 
+.turnoPage {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    width: 100%;
+    max-width: 100vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(12px, 2vh, 24px) clamp(12px, 3vw, 24px);
+}
+
+.turnoPage .backLink {
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+
+.turnoPage .turnoIntro {
+    flex: 1;
+    min-height: 0;
+    margin: clamp(8px, 2vh, 20px) auto;
+    max-width: min(520px, 100%);
+    width: 100%;
+    padding: clamp(20px, 4vh, 40px) clamp(16px, 4vw, 32px);
+    overflow: hidden;
+    justify-content: center;
+    gap: clamp(10px, 2vh, 16px);
+}
+
+.turnoPage .turnoIntro h1 {
+    font-size: clamp(1.4rem, 5vw, 2rem);
+}
+
+.turnoPage .turnoIntro p {
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
+}
+
+.turnoPage .bigButton {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
 .header {
     text-align: center;
     margin-bottom: 32px;
@@ -167,26 +210,6 @@
 .errorText {
     color: var(--error);
     margin: 0;
-}
-
-.turnoSuccessBanner {
-    max-width: 900px;
-    margin: 0 auto 20px;
-    padding: 16px 20px;
-    text-align: center;
-    border: 1px solid rgba(46, 204, 113, 0.35);
-    background: rgba(46, 204, 113, 0.1);
-}
-
-.turnoSuccessBanner strong {
-    font-size: 1.5rem;
-    color: var(--primary-color);
-}
-
-.turnoSuccessHint {
-    margin: 8px 0 0;
-    font-size: 0.9rem;
-    color: var(--text-muted);
 }
 
 .modalOverlay {

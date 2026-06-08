@@ -41,12 +41,14 @@ const PanelTurnosTV = () => {
         return () => clearInterval(id);
     }, []);
 
+    const proximoTurno = display.proximos?.[0] ?? null;
+
     return (
         <div className={styles.tvPage}>
             <header className={styles.tvHeader}>
                 <div>
                     <h1>{sede?.nombre || 'Turnos'}</h1>
-                    <p>Atención al cliente</p>
+                    <p>Atención por tickets</p>
                 </div>
                 <time className={styles.tvClock}>
                     {clock.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
@@ -61,16 +63,10 @@ const PanelTurnosTV = () => {
                     </div>
                 </section>
 
-                <section className={styles.nextSection}>
-                    <h2>Próximos turnos</h2>
-                    <div className={styles.nextGrid}>
-                        {(display.proximos || []).length === 0 ? (
-                            <p className={styles.emptyNext}>Sin turnos en espera</p>
-                        ) : (
-                            display.proximos.map((t) => (
-                                <div key={t.id} className={styles.nextCard}>{t.numero}</div>
-                            ))
-                        )}
+                <section className={styles.nextServing}>
+                    <span className={styles.nowLabel}>Próximo turno</span>
+                    <div className={styles.nextNumber}>
+                        {proximoTurno?.numero ?? '—'}
                     </div>
                 </section>
             </main>

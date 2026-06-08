@@ -5,7 +5,7 @@ import { socketService } from '../../services/api/socket';
 import { 
     ClipboardList, LogOut, Play, CheckCircle, Users, 
     Clock, Package, UserCheck, Bell, BellRing, Monitor, X, ArrowDown,
-    Ticket, PhoneCall
+    Ticket
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
@@ -130,19 +130,6 @@ const Sede = () => {
         }
     };
 
-    const handleAtenderTurnoActual = async () => {
-        if (!turnDisplay.actual?.id) return;
-        try {
-            await api.put(`/turnos/${turnDisplay.actual.id}/atender`);
-            if (sedeSlug) {
-                const data = await publicClientService.getTurnoDisplay(sedeSlug);
-                setTurnDisplay(data);
-            }
-        } catch (error) {
-            console.error('Error al atender turno:', error.response?.data?.detail || error.message);
-        }
-    };
-
     const fetchInitialData = async () => {
         try {
             const [pedidosData, usersData] = await Promise.all([
@@ -238,18 +225,8 @@ const Sede = () => {
                             disabled={callingTurn}
                             title="Llamar siguiente turno en pantalla TV"
                         >
-                            <PhoneCall size={16} />
+                            <Ticket size={16} />
                             {callingTurn ? 'Llamando…' : 'Llamar siguiente'}
-                        </button>
-                        <button
-                            type="button"
-                            className={styles.turnoDoneBtn}
-                            onClick={handleAtenderTurnoActual}
-                            disabled={!turnDisplay.actual}
-                            title="Marcar turno actual como atendido"
-                        >
-                            <CheckCircle size={16} />
-                            Atendido
                         </button>
                     </div>
                     <div className={styles.sedeBadge}>

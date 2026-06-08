@@ -40,23 +40,11 @@ const ClientesTurno = () => {
         setError('');
         try {
             const data = await publicClientService.createTurno(slug);
-            const printed = printTurnoTicket({
+            printTurnoTicket({
                 numero: data.numero,
                 sedeNombre,
             });
-            if (!printed) {
-                sessionStorage.setItem(
-                    `turno_ticket_${slug}`,
-                    JSON.stringify({ numero: data.numero, sedeNombre, at: Date.now() })
-                );
-            }
-            navigate(`/clientes/${slug}`, {
-                replace: true,
-                state: {
-                    turnoGenerado: data.numero,
-                    ticketPopupBlocked: !printed,
-                },
-            });
+            navigate(`/clientes/${slug}`, { replace: true });
         } catch (err) {
             setError(err.message || 'No se pudo generar el turno');
             setLoading(false);
@@ -67,7 +55,7 @@ const ClientesTurno = () => {
     const proximoTurno = display.proximo_numero ?? '—';
 
     return (
-        <div className={styles.page}>
+        <div className={`${styles.page} ${styles.turnoPage}`}>
             <Link to={`/clientes/${slug}`} className={styles.backLink}>
                 <ArrowLeft size={18} /> Volver
             </Link>

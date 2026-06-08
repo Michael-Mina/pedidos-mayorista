@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Copy, PhoneCall, CheckCircle } from 'lucide-react';
+import { Copy, Ticket, CheckCircle } from 'lucide-react';
 import api from '../../services/api';
 import { getApiBaseUrl } from '../../config/api';
 import { socketService } from '../../services/api/socket';
@@ -88,7 +88,7 @@ const TurnosManager = ({ sedeId, sedeSlug, sedeNombre }) => {
         <div className={styles.wrapper}>
             <div className={styles.toolbar}>
                 <button type="button" className="premium-button" onClick={llamarSiguiente}>
-                    <PhoneCall size={16} /> Llamar siguiente
+                    <Ticket size={16} /> Llamar siguiente
                 </button>
                 <button type="button" className="premium-button" onClick={atenderActual} disabled={!display.actual}>
                     <CheckCircle size={16} /> Marcar atendido
