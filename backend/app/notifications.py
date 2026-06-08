@@ -29,6 +29,40 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
 TWILIO_SMS_FROM = os.getenv("TWILIO_SMS_FROM", "").strip()
 TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "").strip()
 
+_ULTRAMSG_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/121.0.0.0 Safari/537.36"
+)
+
+
+def _ultramsg_http_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Cloudflare bloquea urllib sin User-Agent (error 1010)."""
+    headers = {
+        "User-Agent": _ULTRAMSG_USER_AGENT,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
+        "Origin": "https://ultramsg.com",
+        "Referer": "https://ultramsg.com/",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def _format_ultramsg_error(raw: str | None, err: str | None = None) -> str:
+    text = (raw or err or "").strip()
+    if "1010" in text or "cloudflare" in text.lower():
+        return (
+            "UltraMsg bloqueó la petición (Cloudflare 1010). "
+            "Verifique Instance ID, Token y que la instancia esté autenticada en UltraMsg."
+        )
+    if err:
+        return err
+    if raw:
+        return raw[:500]
+    return "Error desconocido al contactar UltraMsg"
+
 
 def _ultramsg_global_configured() -> bool:
     return bool(ULTRAMSG_INSTANCE_ID and ULTRAMSG_TOKEN)
@@ -165,9 +199,11 @@ def _parse_ultramsg_response(raw: str) -> tuple[bool, str | None]:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
+        if "1010" in raw or "cloudflare" in raw.lower():
+            return False, _format_ultramsg_error(raw)
         if "ok" in raw.lower() or "sent" in raw.lower():
             return True, None
-        return False, raw
+        return False, _format_ultramsg_error(raw)
 
     if data.get("error"):
         return False, str(data.get("error"))
@@ -189,7 +225,12 @@ def _parse_ultramsg_response(raw: str) -> tuple[bool, str | None]:
 
 
 def _ultramsg_request(url: str, data: bytes, headers: dict[str, str]) -> tuple[bool, str | None, str]:
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers=_ultramsg_http_headers(headers),
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8")
@@ -201,7 +242,7 @@ def _ultramsg_request(url: str, data: bytes, headers: dict[str, str]) -> tuple[b
             ok, err = _parse_ultramsg_response(raw)
             if ok:
                 return True, None, raw
-            return False, err or raw or str(exc), raw
+            return False, _format_ultramsg_error(raw, err or str(exc)), raw
         except Exception:
             return False, str(exc), ""
     except Exception as exc:
@@ -264,7 +305,7 @@ def _send_ultramsg_whatsapp(
         last_err = err or last_err
 
     logger.warning("[notifications] UltraMsg fallo a %s: %s", to, last_raw or last_err)
-    return False, last_err
+    return False, _format_ultramsg_error(last_raw, last_err)
 
 
 def send_test_whatsapp(
