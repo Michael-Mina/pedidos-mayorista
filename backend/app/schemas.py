@@ -1,7 +1,7 @@
 import json
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from datetime import datetime, date
-from typing import List, Optional
+from typing import List, Literal, Optional
 from .models import PedidoEstado
 
 class SedeBase(BaseModel):
@@ -190,8 +190,30 @@ class Corte(CorteBase):
 class DetallePedidoBase(BaseModel):
     corte_id: int
     tipo_corte_id: int
-    cantidad_kg: float
+    cantidad_kg: float = 0
     observaciones: Optional[str] = None
+    modo_cantidad: Optional[Literal["porciones", "kg"]] = None
+    num_porciones: Optional[int] = None
+    gramos_porcion: Optional[float] = None
+
+    @model_validator(mode="after")
+    def validate_cantidad_modo(self):
+        modo = self.modo_cantidad
+        if modo == "porciones":
+            if not self.num_porciones or self.num_porciones < 1:
+                raise ValueError("Indique la cantidad de porciones (mínimo 1)")
+            if not self.gramos_porcion or self.gramos_porcion <= 0:
+                raise ValueError("Indique los gramos por porción")
+            return self
+        if modo == "kg":
+            if not self.cantidad_kg or self.cantidad_kg <= 0:
+                raise ValueError("Indique los kilogramos totales")
+            if not self.gramos_porcion or self.gramos_porcion <= 0:
+                raise ValueError("Indique los gramos por porción")
+            return self
+        if not self.cantidad_kg or self.cantidad_kg <= 0:
+            raise ValueError("La cantidad en kg debe ser mayor a 0")
+        return self
 
 class DetallePedidoCreate(DetallePedidoBase):
     pass

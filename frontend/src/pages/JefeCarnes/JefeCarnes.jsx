@@ -40,6 +40,7 @@ import {
     pedidoFinalizadoHoy,
     todayLocalIsoDate,
 } from '../../utils/pedidos';
+import { formatDetalleCantidad } from '../../utils/pedidoCantidad';
 import {
     getReporteMensajes,
     getReporteThreadSeenKey,
@@ -1356,7 +1357,7 @@ const JefeCarnes = () => {
                                                         <td style={{ color: '#9ca3af' }}>{item.tipo_corte?.nombre || 'Estándar'}</td>
                                                         <td style={{ fontSize: '0.9rem', color: '#f39c12', maxWidth: '200px', wordBreak: 'break-word', whiteSpace: 'normal' }}>{item.observaciones || ''}</td>
                                                         <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--primary-color)' }}>
-                                                            {item.cantidad_kg} kg
+                                                            {formatDetalleCantidad(item)}
                                                         </td>
                                                     </tr>
                                                 ))}

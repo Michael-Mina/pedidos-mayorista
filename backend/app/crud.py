@@ -660,6 +660,9 @@ def create_pedido(db: Session, pedido: schemas.PedidoCreate):
             corte_id=detalle.corte_id,
             tipo_corte_id=detalle.tipo_corte_id,
             cantidad_kg=detalle.cantidad_kg,
+            modo_cantidad=detalle.modo_cantidad,
+            num_porciones=detalle.num_porciones,
+            gramos_porcion=detalle.gramos_porcion,
             observaciones=detalle.observaciones
         )
         db.add(db_detalle)
@@ -1078,6 +1081,9 @@ def create_pedido_cliente(db: Session, sede_id: int, pedido: schemas.PedidoClien
                 corte_id=detalle.corte_id,
                 tipo_corte_id=detalle.tipo_corte_id,
                 cantidad_kg=detalle.cantidad_kg,
+                modo_cantidad=detalle.modo_cantidad,
+                num_porciones=detalle.num_porciones,
+                gramos_porcion=detalle.gramos_porcion,
                 observaciones=detalle.observaciones,
             )
         )

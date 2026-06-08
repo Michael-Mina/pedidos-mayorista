@@ -116,6 +116,20 @@ def _ensure_catalog_sede_columns():
 _ensure_catalog_sede_columns()
 
 
+def _ensure_detalle_cantidad_columns() -> None:
+    """Modo porciones/kg en líneas de pedido."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE detalle_pedidos ADD COLUMN IF NOT EXISTS modo_cantidad VARCHAR;"))
+            conn.execute(text("ALTER TABLE detalle_pedidos ADD COLUMN IF NOT EXISTS num_porciones INTEGER;"))
+            conn.execute(text("ALTER TABLE detalle_pedidos ADD COLUMN IF NOT EXISTS gramos_porcion DOUBLE PRECISION;"))
+    except Exception as exc:
+        print(f"[migrations] Aviso al asegurar columnas detalle cantidad: {exc}")
+
+
+_ensure_detalle_cantidad_columns()
+
+
 def _ensure_cliente_panel_columns() -> None:
     """Slug de sede, pedidos cliente y tablas de turnos/notificaciones."""
     try:

@@ -157,7 +157,10 @@ class DetallePedido(Base):
     pedido_id = Column(Integer, ForeignKey("pedidos.id"))
     corte_id = Column(Integer, ForeignKey("cortes.id"))
     tipo_corte_id = Column(Integer, ForeignKey("tipos_corte.id"))
-    cantidad_kg = Column(Float)
+    cantidad_kg = Column(Float, default=0)
+    modo_cantidad = Column(String, nullable=True)  # porciones | kg | null (legacy)
+    num_porciones = Column(Integer, nullable=True)
+    gramos_porcion = Column(Float, nullable=True)
     observaciones = Column(Text, nullable=True)
 
     pedido = relationship("Pedido", back_populates="detalles")

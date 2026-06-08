@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import styles from './Sede.module.css';
 import { formatPedidoNumero, formatElapsedSince, formatPedidoItemCount } from '../../utils/pedidos';
+import { formatDetalleCantidad } from '../../utils/pedidoCantidad';
 import { panelLabel } from '../../utils/rolePanels';
 import publicClientService from '../../services/api/publicClient';
 import { hasSedeTabletAccess } from '../../utils/sedeTabletAccess';
@@ -354,7 +355,7 @@ const Sede = () => {
                                                         </div>
                                                         {det.observaciones && <div className={styles.itemObs}>{det.observaciones}</div>}
                                                     </td>
-                                                    <td style={{ textAlign: 'right' }}><strong>{det.cantidad_kg} kg</strong></td>
+                                                    <td style={{ textAlign: 'right' }}><strong>{formatDetalleCantidad(det)}</strong></td>
                                                 </tr>
                                             ))}
                                         </tbody>

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, ShoppingCart, Trash2, Package, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, ShoppingCart, Trash2, Package, Pencil, Search } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
+import PreparacionCantidadSteps from '../../components/PreparacionCantidadSteps/PreparacionCantidadSteps';
+import { buildCartItem, buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
 import mayoristaStyles from '../Mayorista/Mayorista.module.css';
 import styles from './Clientes.module.css';
 
@@ -19,10 +21,14 @@ const ClientesPedido = () => {
     const [items, setItems] = useState([]);
     const [tempQty, setTempQty] = useState(1.0);
     const [tempObs, setTempObs] = useState('');
+    const [modoCantidad, setModoCantidad] = useState(null);
+    const [tempPorciones, setTempPorciones] = useState(1);
+    const [tempGramosPorcion, setTempGramosPorcion] = useState(0.25);
     const [editingIndex, setEditingIndex] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [confirmed, setConfirmed] = useState(null);
     const [error, setError] = useState('');
+    const [productSearch, setProductSearch] = useState('');
 
     useEffect(() => {
         sessionStorage.removeItem(`cliente_pedido_${slug}`);
@@ -69,16 +75,53 @@ const ClientesPedido = () => {
         setStep(2);
     };
 
+    const filterProductItems = useCallback((items) => {
+        const q = productSearch.trim().toLowerCase();
+        if (!q) return items;
+        return items.filter((item) => (item.nombre || '').toLowerCase().includes(q));
+    }, [productSearch]);
+
+    const filteredCategories = useMemo(() => filterProductItems(categories), [categories, filterProductItems]);
+    const filteredCortes = useMemo(() => filterProductItems(cortes), [cortes, filterProductItems]);
+    const filteredTiposCorte = useMemo(() => {
+        const base = selection.corte?.tipos_corte?.length ? selection.corte.tipos_corte : tiposCorte;
+        return filterProductItems(base);
+    }, [selection.corte, tiposCorte, filterProductItems]);
+
+    const productSearchPlaceholder = step === 1
+        ? 'Buscar categoría...'
+        : step === 2
+          ? 'Buscar producto...'
+          : 'Buscar preparación...';
+
+    const resetCantidadForm = () => {
+        setModoCantidad(null);
+        setTempPorciones(1);
+        setTempGramosPorcion(0.25);
+        setTempQty(1.0);
+        setTempObs('');
+    };
+
+    const handleModeSelect = (modo) => {
+        setModoCantidad(modo);
+        setStep(5);
+    };
+
     const handleAddToCart = () => {
-        if (tempQty <= 0) return;
-        const newItem = {
-            corte_id: selection.corte.id,
-            tipo_corte_id: selection.tipoCorte.id,
-            name: selection.corte.nombre,
-            type: selection.tipoCorte.nombre,
-            qty: tempQty,
-            observaciones: tempObs,
-        };
+        if (modoCantidad === 'porciones' && (!tempPorciones || tempPorciones < 1)) return;
+        if (modoCantidad === 'kg' && (!tempQty || tempQty <= 0)) return;
+        if (!tempGramosPorcion || tempGramosPorcion <= 0) return;
+
+        const newItem = buildCartItem({
+            selection,
+            modoCantidad,
+            tempPorciones,
+            tempGramosPorcion,
+            tempQty,
+            tempObs,
+            pesoUnidad: 'lb',
+        });
+
         if (editingIndex !== null) {
             setItems((prev) => prev.map((it, i) => (i === editingIndex ? newItem : it)));
             setEditingIndex(null);
@@ -87,8 +130,7 @@ const ClientesPedido = () => {
         }
         setStep(1);
         setSelection({ category: null, corte: null, tipoCorte: null });
-        setTempQty(1.0);
-        setTempObs('');
+        resetCantidadForm();
     };
 
     const submitOrder = async () => {
@@ -99,12 +141,7 @@ const ClientesPedido = () => {
             const pedido = await publicClientService.createPedido(slug, {
                 cliente_nombre: contact.nombre,
                 cliente_telefono: contact.telefono,
-                detalles: items.map((item) => ({
-                    corte_id: item.corte_id,
-                    tipo_corte_id: item.tipo_corte_id,
-                    cantidad_kg: item.qty,
-                    observaciones: item.observaciones || null,
-                })),
+                detalles: items.map((item) => buildDetallePayload(item)),
             });
             setConfirmed(pedido);
             setItems([]);
@@ -223,7 +260,7 @@ const ClientesPedido = () => {
                                             <span className={mayoristaStyles.itemName}>{item.name} - {item.type}</span>
                                             {item.observaciones && <span className={mayoristaStyles.itemObs}>{item.observaciones}</span>}
                                         </div>
-                                        <span className={mayoristaStyles.itemQty}>{item.qty}kg</span>
+                                        <span className={mayoristaStyles.itemQty}>{formatItemCantidad(item)}</span>
                                     </div>
                                     <div className={mayoristaStyles.itemActions}>
                                         <button type="button" className={`${mayoristaStyles.actionIconButton} ${mayoristaStyles.delete}`} onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>
@@ -247,62 +284,95 @@ const ClientesPedido = () => {
                 </aside>
 
                 <section className={`${styles.pedidoColumn} ${styles.pedidoSelector} glass-card`}>
-                    <h2 className={mayoristaStyles.colTitle}><Package size={20} /> Seleccionar productos</h2>
+                    <div className={mayoristaStyles.selectorHeader}>
+                        <h2 className={mayoristaStyles.colTitle}><Package size={20} /> Seleccionar productos</h2>
+                        {step <= 3 && (
+                            <div className={mayoristaStyles.selectorSearch}>
+                                <Search size={16} />
+                                <input
+                                    type="search"
+                                    placeholder={productSearchPlaceholder}
+                                    value={productSearch}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                    aria-label={productSearchPlaceholder}
+                                />
+                            </div>
+                        )}
+                    </div>
                     <div className={styles.pedidoSelectorBody}>
                     {step === 1 && (
                         <div className={styles.pedidoGrid}>
-                            {categories.map((cat) => (
+                            {filteredCategories.map((cat) => (
                                 <button key={cat.id} type="button" className={mayoristaStyles.card} onClick={() => handleCategoryClick(cat)}>
                                     {cat.imagen_url ? <img src={cat.imagen_url} alt={cat.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥩</span>}
                                     <h3>{cat.nombre}</h3>
                                 </button>
                             ))}
+                            {!filteredCategories.length && (
+                                <p className={mayoristaStyles.emptyMsg}>No se encontraron categorías.</p>
+                            )}
                         </div>
                     )}
                     {step === 2 && (
                         <div>
                             <button type="button" onClick={() => setStep(1)} className={mayoristaStyles.backBtn}>← Categorías</button>
                             <div className={styles.pedidoGrid}>
-                                {cortes.map((corte) => (
+                                {filteredCortes.map((corte) => (
                                     <button key={corte.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, corte }); setStep(3); }}>
                                         {corte.imagen_url ? <img src={corte.imagen_url} alt={corte.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥓</span>}
                                         <h3>{corte.nombre}</h3>
                                     </button>
                                 ))}
                             </div>
+                            {!filteredCortes.length && (
+                                <p className={mayoristaStyles.emptyMsg}>No se encontraron productos.</p>
+                            )}
                         </div>
                     )}
                     {step === 3 && (
                         <div>
                             <button type="button" onClick={() => setStep(2)} className={mayoristaStyles.backBtn}>← Productos</button>
                             <div className={styles.pedidoGrid}>
-                                {((selection.corte?.tipos_corte?.length ? selection.corte.tipos_corte : tiposCorte)).map((tipo) => (
-                                    <button key={tipo.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, tipoCorte: tipo }); setStep(4); }}>
+                                {filteredTiposCorte.map((tipo) => (
+                                    <button key={tipo.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, tipoCorte: tipo }); setModoCantidad(null); setStep(4); }}>
                                         <span className={mayoristaStyles.cardIcon}>🔪</span>
                                         <h3>{tipo.nombre}</h3>
                                     </button>
                                 ))}
                             </div>
+                            {!filteredTiposCorte.length && (
+                                <p className={mayoristaStyles.emptyMsg}>No se encontraron preparaciones.</p>
+                            )}
                         </div>
                     )}
                     {step === 4 && (
-                        <div className={mayoristaStyles.qtyForm}>
-                            <button type="button" onClick={() => setStep(3)} className={mayoristaStyles.backBtn}>← Preparación</button>
-                            <h3>{selection.corte?.nombre} - {selection.tipoCorte?.nombre}</h3>
-                            <div className={mayoristaStyles.formGroup}>
-                                <label>Kilogramos</label>
-                                <div className={mayoristaStyles.qtyControl}>
-                                    <button type="button" className={mayoristaStyles.qtyBtn} onClick={() => setTempQty((p) => Math.max(0.5, p - 0.5))}><Minus size={16} /></button>
-                                    <input type="number" step="0.1" className={`${mayoristaStyles.qtyInput} input-field`} value={tempQty} onChange={(e) => setTempQty(parseFloat(e.target.value) || '')} />
-                                    <button type="button" className={mayoristaStyles.qtyBtn} onClick={() => setTempQty((p) => (parseFloat(p) || 0) + 0.5)}><Plus size={16} /></button>
-                                </div>
-                            </div>
-                            <div className={mayoristaStyles.formGroup}>
-                                <label>Observaciones</label>
-                                <textarea className="input-field" rows="3" value={tempObs} onChange={(e) => setTempObs(e.target.value)} />
-                            </div>
-                            <button type="button" className="premium-button" onClick={handleAddToCart}><Plus size={18} /> Agregar</button>
-                        </div>
+                        <PreparacionCantidadSteps
+                            step={4}
+                            selection={selection}
+                            onModeSelect={handleModeSelect}
+                            onBackFromMode={() => setStep(3)}
+                            styles={mayoristaStyles}
+                            pesoUnidad="lb"
+                        />
+                    )}
+                    {step === 5 && (
+                        <PreparacionCantidadSteps
+                            step={5}
+                            selection={selection}
+                            modoCantidad={modoCantidad}
+                            onBackFromForm={() => setStep(4)}
+                            tempPorciones={tempPorciones}
+                            setTempPorciones={setTempPorciones}
+                            tempGramosPorcion={tempGramosPorcion}
+                            setTempGramosPorcion={setTempGramosPorcion}
+                            tempQty={tempQty}
+                            setTempQty={setTempQty}
+                            tempObs={tempObs}
+                            setTempObs={setTempObs}
+                            onSubmit={handleAddToCart}
+                            styles={mayoristaStyles}
+                            pesoUnidad="lb"
+                        />
                     )}
                     </div>
                 </section>
