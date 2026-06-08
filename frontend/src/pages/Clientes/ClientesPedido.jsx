@@ -24,7 +24,7 @@ const ClientesPedido = () => {
     const [tempQtyLb, setTempQtyLb] = useState(1.0);
     const [tempObs, setTempObs] = useState('');
     const [tempPorciones, setTempPorciones] = useState(1);
-    const [tempPesoPorcionLb, setTempPesoPorcionLb] = useState(0.25);
+    const [tempGramosPorcion, setTempGramosPorcion] = useState(100);
     const [editingIndex, setEditingIndex] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [confirmed, setConfirmed] = useState(null);
@@ -101,7 +101,7 @@ const ClientesPedido = () => {
         setPedidoModo(null);
         setModoCantidad(null);
         setTempPorciones(1);
-        setTempPesoPorcionLb(0.25);
+        setTempGramosPorcion(100);
         setTempQtyLb(1.0);
         setTempObs('');
     };
@@ -145,7 +145,7 @@ const ClientesPedido = () => {
         if (pedidoModo === 'preparacion') {
             if (!selection.tipoCorte || !tempQtyLb || tempQtyLb <= 0) return;
         } else if (pedidoModo === 'porciones') {
-            if (!tempPesoPorcionLb || tempPesoPorcionLb <= 0) return;
+            if (!tempGramosPorcion || tempGramosPorcion <= 0) return;
             if (modoCantidad === 'porciones' && (!tempPorciones || tempPorciones < 1)) return;
             if (modoCantidad === 'kg' && (!tempQtyLb || tempQtyLb <= 0)) return;
         } else {
@@ -157,7 +157,7 @@ const ClientesPedido = () => {
             pedidoModo,
             modoCantidad,
             tempPorciones,
-            tempPesoPorcionLb,
+            tempGramosPorcion,
             tempQtyLb,
             tempObs,
             tiposCorte,
@@ -387,8 +387,8 @@ const ClientesPedido = () => {
                             onBack={handleSelectorBack}
                             tempPorciones={tempPorciones}
                             setTempPorciones={setTempPorciones}
-                            tempPesoPorcionLb={tempPesoPorcionLb}
-                            setTempPesoPorcionLb={setTempPesoPorcionLb}
+                            tempGramosPorcion={tempGramosPorcion}
+                            setTempGramosPorcion={setTempGramosPorcion}
                             tempQtyLb={tempQtyLb}
                             setTempQtyLb={setTempQtyLb}
                             tempObs={tempObs}

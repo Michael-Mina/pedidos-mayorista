@@ -14,8 +14,8 @@ const ClientePedidoSelector = ({
     onBack,
     tempPorciones,
     setTempPorciones,
-    tempPesoPorcionLb,
-    setTempPesoPorcionLb,
+    tempGramosPorcion,
+    setTempGramosPorcion,
     tempQtyLb,
     setTempQtyLb,
     tempObs,
@@ -50,7 +50,7 @@ const ClientePedidoSelector = ({
                     <button type="button" className={styles.modeCard} onClick={() => onSelectPedidoModo('porciones')}>
                         <span className={styles.modeCardIcon} aria-hidden>🔢</span>
                         <h4>Por porciones</h4>
-                        <p>Pida por cantidad de porciones o por libras totales, con peso por porción.</p>
+                        <p>Pida por cantidad de porciones (peso en gramos) o por libras totales.</p>
                     </button>
                 </div>
             </div>
@@ -92,12 +92,12 @@ const ClientePedidoSelector = ({
                     <button type="button" className={styles.modeCard} onClick={() => onSelectSubmodoPorciones('porciones')}>
                         <span className={styles.modeCardIcon} aria-hidden>🔢</span>
                         <h4>Por cantidad de porciones</h4>
-                        <p>Ej: 50 porciones de 0.25 lb c/u. No importa el peso total.</p>
+                        <p>Ej: 50 porciones de 100 g c/u. No importa el peso total.</p>
                     </button>
                     <button type="button" className={styles.modeCard} onClick={() => onSelectSubmodoPorciones('kg')}>
                         <span className={styles.modeCardIcon} aria-hidden>⚖️</span>
                         <h4>Por libras totales</h4>
-                        <p>Ej: 10 lb en porciones de 0.25 lb. No importa cuántas porciones salgan.</p>
+                        <p>Ej: 10 lb en porciones de 100 g. No importa cuántas porciones salgan.</p>
                     </button>
                 </div>
             </div>
@@ -115,33 +115,33 @@ const ClientePedidoSelector = ({
                 <h3>{titulo}</h3>
                 <p className={styles.modeHint}>
                     {pedidoModo === 'preparacion' && 'Indique el peso en libras y observaciones.'}
-                    {pedidoModo === 'porciones' && modoCantidad === 'porciones' && 'Indique cuántas porciones y el peso de cada una en libras.'}
-                    {pedidoModo === 'porciones' && modoCantidad === 'kg' && 'Indique las libras totales y el peso de cada porción.'}
+                    {pedidoModo === 'porciones' && modoCantidad === 'porciones' && 'Indique cuántas porciones y el peso de cada una en gramos.'}
+                    {pedidoModo === 'porciones' && modoCantidad === 'kg' && 'Indique las libras totales y el peso de cada porción en gramos.'}
                 </p>
 
                 {pedidoModo === 'porciones' && (
                     <div className={styles.formGroup}>
-                        <label>Libras por porción</label>
+                        <label>Gramos por porción</label>
                         <div className={styles.qtyControl}>
-                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempPesoPorcionLb, -0.05, 0.05, tempPesoPorcionLb, 0.25)}>
+                            <button type="button" className={styles.qtyBtn} onClick={() => setTempGramosPorcion((p) => Math.max(10, (Number(p) || 100) - 10))}>
                                 <Minus size={16} />
                             </button>
                             <input
                                 type="number"
-                                step="0.05"
-                                min="0.05"
+                                step="10"
+                                min="10"
                                 className={`${styles.qtyInput} input-field`}
-                                value={tempPesoPorcionLb}
+                                value={tempGramosPorcion}
                                 onChange={(e) => {
                                     const val = parseFloat(e.target.value);
-                                    if (val > 0) setTempPesoPorcionLb(val);
-                                    else if (e.target.value === '') setTempPesoPorcionLb('');
+                                    if (val > 0) setTempGramosPorcion(val);
+                                    else if (e.target.value === '') setTempGramosPorcion('');
                                 }}
                                 onBlur={() => {
-                                    if (!tempPesoPorcionLb || tempPesoPorcionLb <= 0) setTempPesoPorcionLb(0.25);
+                                    if (!tempGramosPorcion || tempGramosPorcion <= 0) setTempGramosPorcion(100);
                                 }}
                             />
-                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempPesoPorcionLb, 0.05, 0.05, tempPesoPorcionLb, 0.25)}>
+                            <button type="button" className={styles.qtyBtn} onClick={() => setTempGramosPorcion((p) => (Number(p) || 0) + 10)}>
                                 <Plus size={16} />
                             </button>
                         </div>

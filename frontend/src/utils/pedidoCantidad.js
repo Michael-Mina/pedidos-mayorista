@@ -19,9 +19,10 @@ export function formatLibras(libras) {
 }
 
 function pesoPorcionTexto(item) {
-    const unidad = item.pesoUnidad ?? 'kg';
     const peso = item.gramos_porcion ?? item.gramosPorcion;
     if (!peso) return null;
+    if (item.pesoPorcionUnidad === 'g') return formatGramos(peso);
+    const unidad = item.pesoUnidad ?? 'kg';
     return unidad === 'lb' ? formatLibras(peso) : formatGramos(peso);
 }
 
@@ -70,9 +71,13 @@ export function buildDetallePayload(item) {
 
     let gramos_porcion = null;
     if (modo && pesoPorcionRaw != null) {
-        gramos_porcion = unidad === 'lb'
-            ? Math.round(Number(pesoPorcionRaw) * LB_TO_G * 100) / 100
-            : Number(pesoPorcionRaw);
+        if (item.pesoPorcionUnidad === 'g') {
+            gramos_porcion = Number(pesoPorcionRaw);
+        } else if (unidad === 'lb') {
+            gramos_porcion = Math.round(Number(pesoPorcionRaw) * LB_TO_G * 100) / 100;
+        } else {
+            gramos_porcion = Number(pesoPorcionRaw);
+        }
     }
 
     let cantidad_kg = 0;
@@ -109,7 +114,7 @@ export function buildCartItemCliente({
     pedidoModo,
     modoCantidad,
     tempPorciones,
-    tempPesoPorcionLb,
+    tempGramosPorcion,
     tempQtyLb,
     tempObs,
     tiposCorte,
@@ -139,8 +144,9 @@ export function buildCartItemCliente({
         pedidoModo: 'porciones',
         modo_cantidad: modoCantidad,
         pesoUnidad: 'lb',
+        pesoPorcionUnidad: 'g',
         num_porciones: modoCantidad === 'porciones' ? tempPorciones : null,
-        gramos_porcion: tempPesoPorcionLb,
+        gramos_porcion: tempGramosPorcion,
         qty: modoCantidad === 'kg' ? tempQtyLb : 0,
         observaciones: tempObs,
     };
