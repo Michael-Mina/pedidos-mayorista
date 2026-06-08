@@ -63,14 +63,20 @@ export function formatDetalleCantidad(det) {
     });
 }
 
+/** Convierte libras a kg para el API. */
+export function librasToKg(lb) {
+    return Math.round(Number(lb) * LB_TO_KG * 1000) / 1000;
+}
+
 /** Payload API desde ítem del carrito. */
 export function buildDetallePayload(item) {
     const modo = item.modo_cantidad ?? item.modoCantidad ?? null;
     const unidad = item.pesoUnidad ?? 'kg';
     const pesoPorcionRaw = item.gramos_porcion ?? item.gramosPorcion;
+    const qty = item.qty ?? item.cantidad_kg;
 
     let gramos_porcion = null;
-    if (modo && pesoPorcionRaw != null) {
+    if (pesoPorcionRaw != null && (modo === 'porciones' || modo === 'kg')) {
         if (item.pesoPorcionUnidad === 'g') {
             gramos_porcion = Number(pesoPorcionRaw);
         } else if (unidad === 'lb') {
@@ -81,10 +87,11 @@ export function buildDetallePayload(item) {
     }
 
     let cantidad_kg = 0;
-    if (modo === 'kg' && item.qty != null) {
-        cantidad_kg = unidad === 'lb'
-            ? Math.round(Number(item.qty) * LB_TO_KG * 1000) / 1000
-            : Number(item.qty);
+    if (modo === 'kg' && qty != null) {
+        cantidad_kg = unidad === 'lb' ? librasToKg(qty) : Number(qty);
+    } else if (!modo && qty != null && Number(qty) > 0) {
+        // Preparación / tipo: solo peso total en libras o kg
+        cantidad_kg = unidad === 'lb' ? librasToKg(qty) : Number(qty);
     }
 
     return {

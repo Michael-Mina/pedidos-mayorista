@@ -211,6 +211,14 @@ class DetallePedidoBase(BaseModel):
             if not self.gramos_porcion or self.gramos_porcion <= 0:
                 raise ValueError("Indique los gramos por porción")
             return self
+        # Por porciones sin modo explícito (compatibilidad)
+        if (
+            self.num_porciones
+            and self.num_porciones >= 1
+            and self.gramos_porcion
+            and self.gramos_porcion > 0
+        ):
+            return self
         if not self.cantidad_kg or self.cantidad_kg <= 0:
             raise ValueError("La cantidad en kg debe ser mayor a 0")
         return self
