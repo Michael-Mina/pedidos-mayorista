@@ -804,12 +804,7 @@
 }
 
 .modal.modalSede h3 {
-    position: sticky;
-    top: 0;
-    z-index: 2;
     margin-bottom: 16px;
-    padding-bottom: 8px;
-    background: #1e293b;
 }
 
 .modal.modalSede .modalSedeForm {
@@ -825,13 +820,8 @@
 }
 
 .modal.modalSede .modalActions {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
     margin-top: 16px;
     padding-top: 16px;
-    padding-bottom: 4px;
-    background: #1e293b;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
