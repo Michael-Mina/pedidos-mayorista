@@ -15,7 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from . import models
 
@@ -149,15 +149,93 @@ def whatsapp_config_error(sede: models.Sede | None) -> str | None:
     )
 
 
-def _message_for_estado(numero: str | None, estado: str) -> str:
-    n = numero or "—"
+def _fmt_kg(cantidad: float | None) -> str:
+    if cantidad is None:
+        return "—"
+    if float(cantidad).is_integer():
+        return str(int(cantidad))
+    text = f"{float(cantidad):.2f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _format_detalle_line(detalle: models.DetallePedido) -> str:
+    corte = (detalle.corte.nombre if detalle.corte else None) or "Producto"
+    tipo = detalle.tipo_corte.nombre if detalle.tipo_corte else None
+    kg = _fmt_kg(detalle.cantidad_kg)
+    if tipo:
+        line = f"• {corte} ({tipo}): {kg} kg"
+    else:
+        line = f"• {corte}: {kg} kg"
+    obs = (detalle.observaciones or "").strip()
+    if obs:
+        line += f" — {obs}"
+    return line
+
+
+def _estado_intro(estado: str) -> str:
     if estado == "pendiente":
-        return f"Su pedido #{n} fue recibido y está pendiente."
+        return "fue recibido y está pendiente de preparación."
     if estado == "en_proceso":
-        return f"Su pedido #{n} está en preparación."
+        return "está en preparación."
     if estado == "finalizado":
-        return f"Su pedido #{n} ya está listo. Puede pasar a retirarlo."
-    return f"Actualización de su pedido #{n}: {estado}."
+        return "ya está listo. Puede pasar a retirarlo."
+    return f"tiene una actualización: {estado}."
+
+
+def _estado_cierre(estado: str) -> str | None:
+    if estado == "pendiente":
+        return "Le avisaremos cuando comience la preparación."
+    if estado == "en_proceso":
+        return "Le avisaremos cuando esté listo."
+    return None
+
+
+def _load_pedido_for_message(db: Session, pedido_id: int) -> models.Pedido | None:
+    return (
+        db.query(models.Pedido)
+        .options(
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.corte),
+            joinedload(models.Pedido.detalles).joinedload(models.DetallePedido.tipo_corte),
+            joinedload(models.Pedido.sede),
+        )
+        .filter(models.Pedido.id == pedido_id)
+        .first()
+    )
+
+
+def _message_for_pedido(pedido: models.Pedido, estado: str) -> str:
+    nombre = (pedido.cliente_nombre or "").strip() or "Cliente"
+    numero = pedido.numero_pedido or str(pedido.id)
+    sede_nombre = (pedido.sede.nombre if pedido.sede else "").strip()
+
+    lines = [
+        f"Hola {nombre},",
+        "",
+        f"Su pedido #{numero} {_estado_intro(estado)}",
+        "",
+        f"Pedido #{numero}",
+        "Productos:",
+    ]
+
+    detalles = pedido.detalles or []
+    if detalles:
+        for detalle in detalles:
+            lines.append(_format_detalle_line(detalle))
+    else:
+        lines.append("• (sin productos registrados)")
+
+    if sede_nombre:
+        lines.extend(["", f"Sede: {sede_nombre}"])
+
+    obs_pedido = (pedido.observaciones or "").strip()
+    if obs_pedido:
+        lines.extend(["", f"Observaciones: {obs_pedido}"])
+
+    cierre = _estado_cierre(estado)
+    if cierre:
+        lines.extend(["", cierre])
+
+    return "\n".join(lines)
 
 
 def _channels_for_sede(sede: models.Sede | None) -> list[str]:
@@ -426,7 +504,8 @@ def send_pedido_status_notification(db: Session, pedido: models.Pedido, estado: 
             )
             return
 
-        body = _message_for_estado(pedido.numero_pedido, estado)
+        pedido_full = _load_pedido_for_message(db, pedido.id) or pedido
+        body = _message_for_pedido(pedido_full, estado)
         for channel in channels:
             ok, err = _send_channel(phone, body, channel, sede)
             _log_notification(
