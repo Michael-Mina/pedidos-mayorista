@@ -1,0 +1,229 @@
+import React from 'react';
+import { Minus, Plus } from 'lucide-react';
+
+const ClientePedidoSelector = ({
+    step,
+    selection,
+    pedidoModo,
+    modoCantidad,
+    tiposCorte,
+    filteredTiposCorte,
+    onSelectPedidoModo,
+    onSelectTipoCorte,
+    onSelectSubmodoPorciones,
+    onBack,
+    tempPorciones,
+    setTempPorciones,
+    tempPesoPorcionLb,
+    setTempPesoPorcionLb,
+    tempQtyLb,
+    setTempQtyLb,
+    tempObs,
+    setTempObs,
+    onSubmit,
+    styles,
+    gridClassName,
+}) => {
+    const corteNombre = selection.corte?.nombre ?? '';
+
+    const ajustarLb = (setter, delta, min, current, fallback) => {
+        setter((p) => {
+            const base = Number(p) || fallback;
+            return Math.round(Math.max(min, base + delta) * 100) / 100;
+        });
+    };
+
+    if (step === 3) {
+        return (
+            <div className={styles.qtyForm}>
+                <button type="button" onClick={() => onBack(2)} className={styles.backBtn}>
+                    ← Volver a partes
+                </button>
+                <h3>{corteNombre}</h3>
+                <p className={styles.modeHint}>¿Cómo desea pedir este producto?</p>
+                <div className={styles.modeGrid}>
+                    <button type="button" className={styles.modeCard} onClick={() => onSelectPedidoModo('preparacion')}>
+                        <span className={styles.modeCardIcon} aria-hidden>🔪</span>
+                        <h4>Por preparación / tipo</h4>
+                        <p>Elija delgado, grueso, etc. e indique el peso en libras con observaciones.</p>
+                    </button>
+                    <button type="button" className={styles.modeCard} onClick={() => onSelectPedidoModo('porciones')}>
+                        <span className={styles.modeCardIcon} aria-hidden>🔢</span>
+                        <h4>Por porciones</h4>
+                        <p>Pida por cantidad de porciones o por libras totales, con peso por porción.</p>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (step === 4 && pedidoModo === 'preparacion') {
+        return (
+            <div>
+                <button type="button" onClick={() => onBack(3)} className={styles.backBtn}>← Volver</button>
+                <h3 className={styles.stepSubtitle}>Tipo de preparación</h3>
+                <div className={gridClassName}>
+                    {filteredTiposCorte.map((tipo) => (
+                        <button
+                            key={tipo.id}
+                            type="button"
+                            className={styles.card}
+                            onClick={() => onSelectTipoCorte(tipo)}
+                        >
+                            <span className={styles.cardIcon}>🔪</span>
+                            <h3>{tipo.nombre}</h3>
+                        </button>
+                    ))}
+                </div>
+                {!filteredTiposCorte.length && (
+                    <p className={styles.emptyMsg}>No se encontraron preparaciones.</p>
+                )}
+            </div>
+        );
+    }
+
+    if (step === 4 && pedidoModo === 'porciones') {
+        return (
+            <div className={styles.qtyForm}>
+                <button type="button" onClick={() => onBack(3)} className={styles.backBtn}>← Volver</button>
+                <h3>{corteNombre}</h3>
+                <p className={styles.modeHint}>¿Cómo desea pedir por porciones?</p>
+                <div className={styles.modeGrid}>
+                    <button type="button" className={styles.modeCard} onClick={() => onSelectSubmodoPorciones('porciones')}>
+                        <span className={styles.modeCardIcon} aria-hidden>🔢</span>
+                        <h4>Por cantidad de porciones</h4>
+                        <p>Ej: 50 porciones de 0.25 lb c/u. No importa el peso total.</p>
+                    </button>
+                    <button type="button" className={styles.modeCard} onClick={() => onSelectSubmodoPorciones('kg')}>
+                        <span className={styles.modeCardIcon} aria-hidden>⚖️</span>
+                        <h4>Por libras totales</h4>
+                        <p>Ej: 10 lb en porciones de 0.25 lb. No importa cuántas porciones salgan.</p>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (step === 5) {
+        const titulo = pedidoModo === 'preparacion'
+            ? `${corteNombre} — ${selection.tipoCorte?.nombre}`
+            : corteNombre;
+
+        return (
+            <div className={styles.qtyForm}>
+                <button type="button" onClick={() => onBack(4)} className={styles.backBtn}>← Volver</button>
+                <h3>{titulo}</h3>
+                <p className={styles.modeHint}>
+                    {pedidoModo === 'preparacion' && 'Indique el peso en libras y observaciones.'}
+                    {pedidoModo === 'porciones' && modoCantidad === 'porciones' && 'Indique cuántas porciones y el peso de cada una en libras.'}
+                    {pedidoModo === 'porciones' && modoCantidad === 'kg' && 'Indique las libras totales y el peso de cada porción.'}
+                </p>
+
+                {pedidoModo === 'porciones' && (
+                    <div className={styles.formGroup}>
+                        <label>Libras por porción</label>
+                        <div className={styles.qtyControl}>
+                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempPesoPorcionLb, -0.05, 0.05, tempPesoPorcionLb, 0.25)}>
+                                <Minus size={16} />
+                            </button>
+                            <input
+                                type="number"
+                                step="0.05"
+                                min="0.05"
+                                className={`${styles.qtyInput} input-field`}
+                                value={tempPesoPorcionLb}
+                                onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (val > 0) setTempPesoPorcionLb(val);
+                                    else if (e.target.value === '') setTempPesoPorcionLb('');
+                                }}
+                                onBlur={() => {
+                                    if (!tempPesoPorcionLb || tempPesoPorcionLb <= 0) setTempPesoPorcionLb(0.25);
+                                }}
+                            />
+                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempPesoPorcionLb, 0.05, 0.05, tempPesoPorcionLb, 0.25)}>
+                                <Plus size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {pedidoModo === 'porciones' && modoCantidad === 'porciones' && (
+                    <div className={styles.formGroup}>
+                        <label>Cantidad de porciones</label>
+                        <div className={styles.qtyControl}>
+                            <button type="button" className={styles.qtyBtn} onClick={() => setTempPorciones((p) => Math.max(1, (parseInt(p, 10) || 1) - 1))}>
+                                <Minus size={16} />
+                            </button>
+                            <input
+                                type="number"
+                                step="1"
+                                min="1"
+                                className={`${styles.qtyInput} input-field`}
+                                value={tempPorciones}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (val > 0) setTempPorciones(val);
+                                    else if (e.target.value === '') setTempPorciones('');
+                                }}
+                                onBlur={() => {
+                                    if (!tempPorciones || tempPorciones < 1) setTempPorciones(1);
+                                }}
+                            />
+                            <button type="button" className={styles.qtyBtn} onClick={() => setTempPorciones((p) => (parseInt(p, 10) || 0) + 1)}>
+                                <Plus size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {(pedidoModo === 'preparacion' || (pedidoModo === 'porciones' && modoCantidad === 'kg')) && (
+                    <div className={styles.formGroup}>
+                        <label>Libras</label>
+                        <div className={styles.qtyControl}>
+                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempQtyLb, -0.5, 0.5, tempQtyLb, 1)}>
+                                <Minus size={16} />
+                            </button>
+                            <input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                className={`${styles.qtyInput} input-field`}
+                                value={tempQtyLb}
+                                onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (val > 0) setTempQtyLb(val);
+                                    else if (e.target.value === '') setTempQtyLb('');
+                                }}
+                                onBlur={() => {
+                                    if (!tempQtyLb || tempQtyLb <= 0) setTempQtyLb(1);
+                                }}
+                            />
+                            <button type="button" className={styles.qtyBtn} onClick={() => ajustarLb(setTempQtyLb, 0.5, 0.5, tempQtyLb, 1)}>
+                                <Plus size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className={styles.formGroup}>
+                    <label>Observaciones</label>
+                    <textarea
+                        className="input-field"
+                        rows="3"
+                        placeholder="Ej: Sin grasa..."
+                        value={tempObs}
+                        onChange={(e) => setTempObs(e.target.value)}
+                    />
+                </div>
+                <button type="button" className="premium-button" onClick={onSubmit}>
+                    <Plus size={18} /> Agregar al pedido
+                </button>
+            </div>
+        );
+    }
+
+    return null;
+};
+
+export default ClientePedidoSelector;

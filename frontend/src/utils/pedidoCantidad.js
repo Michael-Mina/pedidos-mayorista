@@ -93,7 +93,60 @@ export function buildDetallePayload(item) {
     };
 }
 
-/** Ítem de carrito desde formulario de preparación. */
+/** Tipo de corte interno para pedidos por porciones (sin preparación delgado/grueso). */
+export function resolveTipoCortePorciones(tiposCorte) {
+    const prefer = ['por porciones', 'porción', 'porciones', 'estandar', 'estándar', 'entero'];
+    for (const name of prefer) {
+        const found = (tiposCorte || []).find((t) => (t.nombre || '').toLowerCase() === name);
+        if (found) return found.id;
+    }
+    return tiposCorte?.[0]?.id ?? null;
+}
+
+/** Ítem de carrito — panel clientes (libras). */
+export function buildCartItemCliente({
+    selection,
+    pedidoModo,
+    modoCantidad,
+    tempPorciones,
+    tempPesoPorcionLb,
+    tempQtyLb,
+    tempObs,
+    tiposCorte,
+}) {
+    if (pedidoModo === 'preparacion') {
+        return {
+            corte_id: selection.corte.id,
+            tipo_corte_id: selection.tipoCorte.id,
+            name: selection.corte.nombre,
+            type: selection.tipoCorte.nombre,
+            pedidoModo: 'preparacion',
+            modo_cantidad: null,
+            pesoUnidad: 'lb',
+            num_porciones: null,
+            gramos_porcion: null,
+            qty: tempQtyLb,
+            observaciones: tempObs,
+        };
+    }
+
+    const tipoId = resolveTipoCortePorciones(tiposCorte);
+    return {
+        corte_id: selection.corte.id,
+        tipo_corte_id: tipoId,
+        name: selection.corte.nombre,
+        type: 'Por porciones',
+        pedidoModo: 'porciones',
+        modo_cantidad: modoCantidad,
+        pesoUnidad: 'lb',
+        num_porciones: modoCantidad === 'porciones' ? tempPorciones : null,
+        gramos_porcion: tempPesoPorcionLb,
+        qty: modoCantidad === 'kg' ? tempQtyLb : 0,
+        observaciones: tempObs,
+    };
+}
+
+/** Ítem de carrito desde formulario de preparación (mayorista). */
 export function buildCartItem({
     selection,
     modoCantidad,

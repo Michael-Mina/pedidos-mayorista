@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, ShoppingCart, Trash2, Package, Pencil, Search } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
-import PreparacionCantidadSteps from '../../components/PreparacionCantidadSteps/PreparacionCantidadSteps';
-import { buildCartItem, buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
+import ClientePedidoSelector from '../../components/ClientePedidoSelector/ClientePedidoSelector';
+import { buildCartItemCliente, buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
 import mayoristaStyles from '../Mayorista/Mayorista.module.css';
 import styles from './Clientes.module.css';
 
@@ -19,11 +19,12 @@ const ClientesPedido = () => {
     const [tiposCorte, setTiposCorte] = useState([]);
     const [selection, setSelection] = useState({ category: null, corte: null, tipoCorte: null });
     const [items, setItems] = useState([]);
-    const [tempQty, setTempQty] = useState(1.0);
-    const [tempObs, setTempObs] = useState('');
+    const [pedidoModo, setPedidoModo] = useState(null);
     const [modoCantidad, setModoCantidad] = useState(null);
+    const [tempQtyLb, setTempQtyLb] = useState(1.0);
+    const [tempObs, setTempObs] = useState('');
     const [tempPorciones, setTempPorciones] = useState(1);
-    const [tempGramosPorcion, setTempGramosPorcion] = useState(0.25);
+    const [tempPesoPorcionLb, setTempPesoPorcionLb] = useState(0.25);
     const [editingIndex, setEditingIndex] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [confirmed, setConfirmed] = useState(null);
@@ -89,38 +90,83 @@ const ClientesPedido = () => {
     }, [selection.corte, tiposCorte, filterProductItems]);
 
     const productSearchPlaceholder = step === 1
-        ? 'Buscar categoría...'
+        ? 'Buscar proteína...'
         : step === 2
-          ? 'Buscar producto...'
+          ? 'Buscar parte...'
           : 'Buscar preparación...';
 
+    const showProductSearch = step <= 2 || (step === 4 && pedidoModo === 'preparacion');
+
     const resetCantidadForm = () => {
+        setPedidoModo(null);
         setModoCantidad(null);
         setTempPorciones(1);
-        setTempGramosPorcion(0.25);
-        setTempQty(1.0);
+        setTempPesoPorcionLb(0.25);
+        setTempQtyLb(1.0);
         setTempObs('');
     };
 
-    const handleModeSelect = (modo) => {
-        setModoCantidad(modo);
+    const resetAndGoHome = () => {
+        setStep(1);
+        setSelection({ category: null, corte: null, tipoCorte: null });
+        resetCantidadForm();
+    };
+
+    const handleSelectPedidoModo = (modo) => {
+        setPedidoModo(modo);
+        setModoCantidad(null);
+        setSelection((s) => ({ ...s, tipoCorte: null }));
+        setStep(4);
+    };
+
+    const handleSelectTipoCorte = (tipo) => {
+        setSelection((s) => ({ ...s, tipoCorte: tipo }));
         setStep(5);
     };
 
-    const handleAddToCart = () => {
-        if (modoCantidad === 'porciones' && (!tempPorciones || tempPorciones < 1)) return;
-        if (modoCantidad === 'kg' && (!tempQty || tempQty <= 0)) return;
-        if (!tempGramosPorcion || tempGramosPorcion <= 0) return;
+    const handleSelectSubmodoPorciones = (submodo) => {
+        setModoCantidad(submodo);
+        setStep(5);
+    };
 
-        const newItem = buildCartItem({
+    const handleSelectorBack = (targetStep) => {
+        if (targetStep === 3) {
+            setPedidoModo(null);
+            setModoCantidad(null);
+            setSelection((s) => ({ ...s, tipoCorte: null }));
+        }
+        if (targetStep === 4 && pedidoModo === 'porciones') {
+            setModoCantidad(null);
+        }
+        setStep(targetStep);
+    };
+
+    const handleAddToCart = () => {
+        if (pedidoModo === 'preparacion') {
+            if (!selection.tipoCorte || !tempQtyLb || tempQtyLb <= 0) return;
+        } else if (pedidoModo === 'porciones') {
+            if (!tempPesoPorcionLb || tempPesoPorcionLb <= 0) return;
+            if (modoCantidad === 'porciones' && (!tempPorciones || tempPorciones < 1)) return;
+            if (modoCantidad === 'kg' && (!tempQtyLb || tempQtyLb <= 0)) return;
+        } else {
+            return;
+        }
+
+        const newItem = buildCartItemCliente({
             selection,
+            pedidoModo,
             modoCantidad,
             tempPorciones,
-            tempGramosPorcion,
-            tempQty,
+            tempPesoPorcionLb,
+            tempQtyLb,
             tempObs,
-            pesoUnidad: 'lb',
+            tiposCorte,
         });
+
+        if (!newItem.tipo_corte_id) {
+            setError('No hay tipos de preparación configurados en esta sede.');
+            return;
+        }
 
         if (editingIndex !== null) {
             setItems((prev) => prev.map((it, i) => (i === editingIndex ? newItem : it)));
@@ -128,9 +174,7 @@ const ClientesPedido = () => {
         } else {
             setItems((prev) => [...prev, newItem]);
         }
-        setStep(1);
-        setSelection({ category: null, corte: null, tipoCorte: null });
-        resetCantidadForm();
+        resetAndGoHome();
     };
 
     const submitOrder = async () => {
@@ -286,7 +330,7 @@ const ClientesPedido = () => {
                 <section className={`${styles.pedidoColumn} ${styles.pedidoSelector} glass-card`}>
                     <div className={mayoristaStyles.selectorHeader}>
                         <h2 className={mayoristaStyles.colTitle}><Package size={20} /> Seleccionar productos</h2>
-                        {step <= 3 && (
+                        {showProductSearch && (
                             <div className={mayoristaStyles.selectorSearch}>
                                 <Search size={16} />
                                 <input
@@ -318,7 +362,7 @@ const ClientesPedido = () => {
                             <button type="button" onClick={() => setStep(1)} className={mayoristaStyles.backBtn}>← Categorías</button>
                             <div className={styles.pedidoGrid}>
                                 {filteredCortes.map((corte) => (
-                                    <button key={corte.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, corte }); setStep(3); }}>
+                                    <button key={corte.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, corte, tipoCorte: null }); resetCantidadForm(); setStep(3); }}>
                                         {corte.imagen_url ? <img src={corte.imagen_url} alt={corte.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥓</span>}
                                         <h3>{corte.nombre}</h3>
                                     </button>
@@ -329,49 +373,29 @@ const ClientesPedido = () => {
                             )}
                         </div>
                     )}
-                    {step === 3 && (
-                        <div>
-                            <button type="button" onClick={() => setStep(2)} className={mayoristaStyles.backBtn}>← Productos</button>
-                            <div className={styles.pedidoGrid}>
-                                {filteredTiposCorte.map((tipo) => (
-                                    <button key={tipo.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, tipoCorte: tipo }); setModoCantidad(null); setStep(4); }}>
-                                        <span className={mayoristaStyles.cardIcon}>🔪</span>
-                                        <h3>{tipo.nombre}</h3>
-                                    </button>
-                                ))}
-                            </div>
-                            {!filteredTiposCorte.length && (
-                                <p className={mayoristaStyles.emptyMsg}>No se encontraron preparaciones.</p>
-                            )}
-                        </div>
-                    )}
-                    {step === 4 && (
-                        <PreparacionCantidadSteps
-                            step={4}
+                    {step >= 3 && (
+                        <ClientePedidoSelector
+                            step={step}
                             selection={selection}
-                            onModeSelect={handleModeSelect}
-                            onBackFromMode={() => setStep(3)}
-                            styles={mayoristaStyles}
-                            pesoUnidad="lb"
-                        />
-                    )}
-                    {step === 5 && (
-                        <PreparacionCantidadSteps
-                            step={5}
-                            selection={selection}
+                            pedidoModo={pedidoModo}
                             modoCantidad={modoCantidad}
-                            onBackFromForm={() => setStep(4)}
+                            tiposCorte={tiposCorte}
+                            filteredTiposCorte={filteredTiposCorte}
+                            onSelectPedidoModo={handleSelectPedidoModo}
+                            onSelectTipoCorte={handleSelectTipoCorte}
+                            onSelectSubmodoPorciones={handleSelectSubmodoPorciones}
+                            onBack={handleSelectorBack}
                             tempPorciones={tempPorciones}
                             setTempPorciones={setTempPorciones}
-                            tempGramosPorcion={tempGramosPorcion}
-                            setTempGramosPorcion={setTempGramosPorcion}
-                            tempQty={tempQty}
-                            setTempQty={setTempQty}
+                            tempPesoPorcionLb={tempPesoPorcionLb}
+                            setTempPesoPorcionLb={setTempPesoPorcionLb}
+                            tempQtyLb={tempQtyLb}
+                            setTempQtyLb={setTempQtyLb}
                             tempObs={tempObs}
                             setTempObs={setTempObs}
                             onSubmit={handleAddToCart}
                             styles={mayoristaStyles}
-                            pesoUnidad="lb"
+                            gridClassName={styles.pedidoGrid}
                         />
                     )}
                     </div>
