@@ -282,6 +282,114 @@
     color: var(--text-light);
 }
 
+.confirmModal {
+    max-width: 480px;
+    max-height: min(90dvh, 640px);
+    overflow-y: auto;
+}
+
+.confirmModalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.confirmModalHeader h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--primary-color);
+}
+
+.confirmCloseBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.confirmCloseBtn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-light);
+}
+
+.confirmSummary {
+    margin-bottom: 16px;
+}
+
+.confirmSummary p {
+    margin: 0 0 8px;
+    color: var(--text-light);
+}
+
+.confirmList {
+    margin-top: 12px;
+    max-height: min(240px, 40dvh);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+}
+
+.confirmItem {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.confirmItemInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.confirmItemInfo span:first-child {
+    color: var(--text-light);
+    font-size: 0.95rem;
+}
+
+.confirmItemObs {
+    font-size: 0.82rem;
+    color: #f39c12;
+    font-style: italic;
+}
+
+.confirmItem strong {
+    color: var(--primary-color);
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.confirmWarning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    background: rgba(243, 156, 18, 0.1);
+    border: 1px solid rgba(243, 156, 18, 0.25);
+    color: #f39c12;
+    font-size: 0.88rem;
+}
+
 .pedidoPage {
     padding: 20px;
     height: 100dvh;

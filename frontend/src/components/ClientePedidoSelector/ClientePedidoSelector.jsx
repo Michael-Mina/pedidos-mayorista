@@ -21,6 +21,7 @@ const ClientePedidoSelector = ({
     tempObs,
     setTempObs,
     onSubmit,
+    isEditing = false,
     styles,
     gridClassName,
 }) => {
@@ -217,7 +218,7 @@ const ClientePedidoSelector = ({
                     />
                 </div>
                 <button type="button" className="premium-button" onClick={onSubmit}>
-                    <Plus size={18} /> Agregar al pedido
+                    <Plus size={18} /> {isEditing ? 'Guardar cambios' : 'Agregar al pedido'}
                 </button>
             </div>
         );

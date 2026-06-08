@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, ShoppingCart, Trash2, Package, Pencil, Search } from 'lucide-react';
+import { ArrowLeft, Plus, ShoppingCart, Trash2, Package, Pencil, Search, Edit2, X, AlertCircle } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
 import ClientePedidoSelector from '../../components/ClientePedidoSelector/ClientePedidoSelector';
 import { buildCartItemCliente, buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
@@ -26,6 +26,7 @@ const ClientesPedido = () => {
     const [tempPorciones, setTempPorciones] = useState(1);
     const [tempGramosPorcion, setTempGramosPorcion] = useState(100);
     const [editingIndex, setEditingIndex] = useState(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [confirmed, setConfirmed] = useState(null);
     const [error, setError] = useState('');
@@ -134,11 +135,32 @@ const ClientesPedido = () => {
             setPedidoModo(null);
             setModoCantidad(null);
             setSelection((s) => ({ ...s, tipoCorte: null }));
+            setEditingIndex(null);
         }
         if (targetStep === 4 && pedidoModo === 'porciones') {
             setModoCantidad(null);
         }
         setStep(targetStep);
+    };
+
+    const handleEditItem = (index) => {
+        const item = items[index];
+        setSelection({
+            category: null,
+            corte: { id: item.corte_id, nombre: item.name },
+            tipoCorte: item.pedidoModo === 'preparacion'
+                ? { id: item.tipo_corte_id, nombre: item.type }
+                : null,
+        });
+        setPedidoModo(item.pedidoModo);
+        setModoCantidad(item.modo_cantidad || null);
+        setTempQtyLb(item.qty || 1);
+        setTempGramosPorcion(item.gramos_porcion || 100);
+        setTempPorciones(item.num_porciones || 1);
+        setTempObs(item.observaciones || '');
+        setEditingIndex(index);
+        setStep(5);
+        setError('');
     };
 
     const handleAddToCart = () => {
@@ -187,6 +209,7 @@ const ClientesPedido = () => {
                 cliente_telefono: contact.telefono,
                 detalles: items.map((item) => buildDetallePayload(item)),
             });
+            setShowConfirmModal(false);
             setConfirmed(pedido);
             setItems([]);
         } catch (err) {
@@ -274,6 +297,61 @@ const ClientesPedido = () => {
                 </div>
             )}
 
+            {showConfirmModal && (
+                <div className={styles.modalOverlay} onClick={() => !submitting && setShowConfirmModal(false)} role="presentation">
+                    <div className={`${styles.modal} ${styles.confirmModal} glass-card`} onClick={(e) => e.stopPropagation()}>
+                        <div className={styles.confirmModalHeader}>
+                            <h2><Package size={22} /> Confirmar pedido</h2>
+                            <button type="button" className={styles.confirmCloseBtn} onClick={() => setShowConfirmModal(false)} disabled={submitting} aria-label="Cerrar">
+                                <X size={22} />
+                            </button>
+                        </div>
+                        <p>Revise su pedido antes de enviarlo.</p>
+                        <div className={styles.confirmSummary}>
+                            <p><strong>Cliente:</strong> {contact.nombre}</p>
+                            <p><strong>Teléfono:</strong> {contact.telefono}</p>
+                            <p><strong>Productos:</strong> {items.length}</p>
+                            <div className={styles.confirmList}>
+                                {items.map((item, idx) => (
+                                    <div key={idx} className={styles.confirmItem}>
+                                        <div className={styles.confirmItemInfo}>
+                                            <span>{item.name} — {item.type}</span>
+                                            {item.observaciones && (
+                                                <span className={styles.confirmItemObs}>{item.observaciones}</span>
+                                            )}
+                                        </div>
+                                        <strong>{formatItemCantidad(item)}</strong>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className={styles.confirmWarning}>
+                            <AlertCircle size={16} />
+                            <span>Una vez enviado no podrá modificar el pedido.</span>
+                        </div>
+                        {error && <p className={styles.errorText}>{error}</p>}
+                        <div className={styles.modalActions}>
+                            <button
+                                type="button"
+                                className={styles.modalBackBtn}
+                                onClick={() => setShowConfirmModal(false)}
+                                disabled={submitting}
+                            >
+                                Modificar
+                            </button>
+                            <button
+                                type="button"
+                                className="premium-button"
+                                onClick={submitOrder}
+                                disabled={submitting}
+                            >
+                                {submitting ? 'Enviando…' : 'Confirmar y enviar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <header className={`${mayoristaStyles.header} glass-card`}>
                 <Link to={`/clientes/${slug}`} className={styles.backLink} style={{ margin: 0 }}>
                     <ArrowLeft size={18} /> Volver
@@ -307,6 +385,9 @@ const ClientesPedido = () => {
                                         <span className={mayoristaStyles.itemQty}>{formatItemCantidad(item)}</span>
                                     </div>
                                     <div className={mayoristaStyles.itemActions}>
+                                        <button type="button" className={mayoristaStyles.actionIconButton} onClick={() => handleEditItem(idx)} title="Editar">
+                                            <Edit2 size={14} />
+                                        </button>
                                         <button type="button" className={`${mayoristaStyles.actionIconButton} ${mayoristaStyles.delete}`} onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>
                                             <Trash2 size={14} />
                                         </button>
@@ -321,7 +402,7 @@ const ClientesPedido = () => {
                         className="premium-button"
                         style={{ width: '100%', marginTop: 'auto' }}
                         disabled={!items.length || submitting}
-                        onClick={submitOrder}
+                        onClick={() => setShowConfirmModal(true)}
                     >
                         {submitting ? 'Enviando…' : 'Enviar pedido'}
                     </button>
@@ -394,6 +475,7 @@ const ClientesPedido = () => {
                             tempObs={tempObs}
                             setTempObs={setTempObs}
                             onSubmit={handleAddToCart}
+                            isEditing={editingIndex !== null}
                             styles={mayoristaStyles}
                             gridClassName={styles.pedidoGrid}
                         />
