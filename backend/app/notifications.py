@@ -1,13 +1,18 @@
 """
-Notificaciones SMS/WhatsApp vía Twilio para pedidos de clientes.
-Si Twilio no está configurado, registra en log sin interrumpir el flujo.
+Notificaciones para pedidos de clientes.
+- WhatsApp: UltraMsg API (backend, sin abrir WhatsApp en el dispositivo).
+- SMS: Twilio (opcional).
+Si no hay proveedor configurado, registra en log sin interrumpir el flujo.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+import urllib.error
+import urllib.request
 
 from sqlalchemy.orm import Session
 
@@ -15,10 +20,25 @@ from . import models
 
 logger = logging.getLogger(__name__)
 
+ULTRAMSG_INSTANCE_ID = os.getenv("ULTRAMSG_INSTANCE_ID", "").strip()
+ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN", "").strip()
+
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
 TWILIO_SMS_FROM = os.getenv("TWILIO_SMS_FROM", "").strip()
 TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "").strip()
+
+
+def _ultramsg_global_configured() -> bool:
+    return bool(ULTRAMSG_INSTANCE_ID and ULTRAMSG_TOKEN)
+
+
+def _ultramsg_for_sede(sede: models.Sede | None) -> tuple[str, str] | None:
+    if sede and sede.ultramsg_instance_id and sede.ultramsg_token:
+        return sede.ultramsg_instance_id.strip(), sede.ultramsg_token.strip()
+    if _ultramsg_global_configured():
+        return ULTRAMSG_INSTANCE_ID, ULTRAMSG_TOKEN
+    return None
 
 
 def _twilio_configured() -> bool:
@@ -82,9 +102,53 @@ def _log_notification(
     db.commit()
 
 
-def _send_twilio(to: str, body: str, channel: str) -> tuple[bool, str | None]:
+def _send_ultramsg_whatsapp(
+    to: str,
+    body: str,
+    instance_id: str,
+    token: str,
+) -> tuple[bool, str | None]:
+    url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+    payload = json.dumps({
+        "token": token,
+        "to": to,
+        "body": body,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    raw = ""
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            err_body = exc.read().decode("utf-8")
+            data = json.loads(err_body) if err_body else {}
+            err_msg = data.get("error") or data.get("message") or err_body or str(exc)
+        except Exception:
+            err_msg = str(exc)
+        logger.exception("[notifications] UltraMsg HTTP error a %s", to)
+        return False, err_msg
+    except Exception as exc:
+        logger.exception("[notifications] Error UltraMsg a %s", to)
+        return False, str(exc)
+
+    sent = data.get("sent")
+    if sent is True or str(sent).lower() == "true" or data.get("id"):
+        return True, None
+
+    err = data.get("error") or data.get("message") or raw or str(data)
+    return False, str(err) if err else "Respuesta inesperada de UltraMsg"
+
+
+def _send_twilio_sms(to: str, body: str) -> tuple[bool, str | None]:
     if not _twilio_configured():
-        logger.info("[notifications] Twilio no configurado. Mensaje (%s) a %s: %s", channel, to, body)
+        logger.info("[notifications] Twilio no configurado. SMS a %s: %s", to, body)
         return False, "Twilio no configurado"
 
     try:
@@ -93,24 +157,64 @@ def _send_twilio(to: str, body: str, channel: str) -> tuple[bool, str | None]:
         logger.warning("[notifications] Paquete twilio no instalado")
         return False, "Paquete twilio no instalado"
 
+    if not TWILIO_SMS_FROM:
+        return False, "TWILIO_SMS_FROM no configurado"
+
     client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
     try:
-        if channel == "whatsapp":
-            if not TWILIO_WHATSAPP_FROM:
-                return False, "TWILIO_WHATSAPP_FROM no configurado"
-            from_addr = TWILIO_WHATSAPP_FROM
-            if not from_addr.startswith("whatsapp:"):
-                from_addr = f"whatsapp:{from_addr}"
-            to_addr = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
-            client.messages.create(body=body, from_=from_addr, to=to_addr)
-        else:
-            if not TWILIO_SMS_FROM:
-                return False, "TWILIO_SMS_FROM no configurado"
-            client.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to)
+        client.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to)
         return True, None
     except Exception as exc:
-        logger.exception("[notifications] Error enviando %s a %s", channel, to)
+        logger.exception("[notifications] Error enviando SMS a %s", to)
         return False, str(exc)
+
+
+def _send_twilio_whatsapp(to: str, body: str) -> tuple[bool, str | None]:
+    """Respaldo legacy si UltraMsg no está configurado."""
+    if not _twilio_configured():
+        return False, "Twilio no configurado"
+    if not TWILIO_WHATSAPP_FROM:
+        return False, "TWILIO_WHATSAPP_FROM no configurado"
+
+    try:
+        from twilio.rest import Client
+    except ImportError:
+        return False, "Paquete twilio no instalado"
+
+    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    from_addr = TWILIO_WHATSAPP_FROM
+    if not from_addr.startswith("whatsapp:"):
+        from_addr = f"whatsapp:{from_addr}"
+    to_addr = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
+    try:
+        client.messages.create(body=body, from_=from_addr, to=to_addr)
+        return True, None
+    except Exception as exc:
+        logger.exception("[notifications] Error enviando WhatsApp Twilio a %s", to)
+        return False, str(exc)
+
+
+def _send_channel(
+    phone: str,
+    body: str,
+    channel: str,
+    sede: models.Sede | None,
+) -> tuple[bool, str | None]:
+    if channel == "whatsapp":
+        creds = _ultramsg_for_sede(sede)
+        if creds:
+            return _send_ultramsg_whatsapp(phone, body, creds[0], creds[1])
+        sede_label = sede.nombre if sede else "sede"
+        msg = (
+            f"WhatsApp no configurado para {sede_label}. "
+            "Indique teléfono, Instance ID y Token UltraMsg en la sede, "
+            "o variables globales ULTRAMSG_INSTANCE_ID y ULTRAMSG_TOKEN."
+        )
+        logger.warning("[notifications] %s", msg)
+        return _send_twilio_whatsapp(phone, body) if _twilio_configured() else (False, msg)
+    if channel == "sms":
+        return _send_twilio_sms(phone, body)
+    return False, f"Canal desconocido: {channel}"
 
 
 def send_pedido_status_notification(db: Session, pedido: models.Pedido, estado: str) -> None:
@@ -130,7 +234,7 @@ def send_pedido_status_notification(db: Session, pedido: models.Pedido, estado: 
 
     body = _message_for_estado(pedido.numero_pedido, estado)
     for channel in channels:
-        ok, err = _send_twilio(phone, body, channel)
+        ok, err = _send_channel(phone, body, channel, sede)
         _log_notification(
             db,
             pedido.id,

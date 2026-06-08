@@ -27,6 +27,9 @@ def _apply_sede_slug(db: Session, sede: models.Sede, requested_slug: str | None 
 def create_sede(db: Session, sede: schemas.SedeCreate):
     from . import auth
     sede_data = sede.model_dump(exclude_none=True, exclude={"password", "slug"})
+    for key in ("whatsapp_telefono", "ultramsg_instance_id", "ultramsg_token"):
+        if key in sede_data and isinstance(sede_data[key], str):
+            sede_data[key] = sede_data[key].strip() or None
     db_sede = models.Sede(**sede_data)
     if sede.notificacion_canal:
         db_sede.notificacion_canal = sede.notificacion_canal
@@ -60,6 +63,12 @@ def update_sede(db: Session, sede_id: int, sede: schemas.SedeUpdate):
             db_sede.ciudad = sede.ciudad
         if sede.notificacion_canal is not None:
             db_sede.notificacion_canal = sede.notificacion_canal
+        if sede.whatsapp_telefono is not None:
+            db_sede.whatsapp_telefono = sede.whatsapp_telefono.strip() or None
+        if sede.ultramsg_instance_id is not None:
+            db_sede.ultramsg_instance_id = sede.ultramsg_instance_id.strip() or None
+        if sede.ultramsg_token is not None and sede.ultramsg_token.strip():
+            db_sede.ultramsg_token = sede.ultramsg_token.strip()
         if sede.slug is not None or sede.nombre:
             _apply_sede_slug(db, db_sede, sede.slug)
         db.commit()

@@ -1204,6 +1204,13 @@
     max-width: 720px;
 }
 
+.fieldHint {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
 .roleCreateForm {
     padding: 20px;
     margin-bottom: 20px;

@@ -58,6 +58,9 @@ class Sede(Base):
     ciudad = Column(String)
     slug = Column(String, unique=True, index=True, nullable=True)
     notificacion_canal = Column(String, default="ambos", nullable=False)
+    whatsapp_telefono = Column(String, nullable=True)
+    ultramsg_instance_id = Column(String, nullable=True)
+    ultramsg_token = Column(String, nullable=True)
 
     users = relationship("User", back_populates="sede")
     pedidos = relationship("Pedido", back_populates="sede")

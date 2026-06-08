@@ -9,6 +9,9 @@ class SedeBase(BaseModel):
     ciudad: Optional[str] = "Centro de Operación"
     slug: Optional[str] = None
     notificacion_canal: Optional[str] = "ambos"
+    whatsapp_telefono: Optional[str] = None
+    ultramsg_instance_id: Optional[str] = None
+    ultramsg_token: Optional[str] = None
 
 class SedeCreate(SedeBase):
     id: Optional[int] = None
@@ -20,6 +23,9 @@ class SedeUpdate(BaseModel):
     password: Optional[str] = None
     slug: Optional[str] = None
     notificacion_canal: Optional[str] = None
+    whatsapp_telefono: Optional[str] = None
+    ultramsg_instance_id: Optional[str] = None
+    ultramsg_token: Optional[str] = None
 
 class Sede(SedeBase):
     id: int
