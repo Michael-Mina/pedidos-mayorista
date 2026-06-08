@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, ShoppingCart, Trash2, Package } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, ShoppingCart, Trash2, Package, Pencil } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
 import mayoristaStyles from '../Mayorista/Mayorista.module.css';
 import styles from './Clientes.module.css';
-
-const SESSION_KEY = (slug) => `cliente_pedido_${slug}`;
 
 const ClientesPedido = () => {
     const { slug } = useParams();
     const [sede, setSede] = useState(null);
     const [showContactModal, setShowContactModal] = useState(true);
+    const [contactModalMode, setContactModalMode] = useState('initial');
     const [contact, setContact] = useState({ nombre: '', telefono: '' });
     const [step, setStep] = useState(1);
     const [categories, setCategories] = useState([]);
@@ -26,18 +25,10 @@ const ClientesPedido = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const saved = sessionStorage.getItem(SESSION_KEY(slug));
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.nombre && parsed.telefono) {
-                    setContact(parsed);
-                    setShowContactModal(false);
-                }
-            } catch {
-                /* ignore */
-            }
-        }
+        sessionStorage.removeItem(`cliente_pedido_${slug}`);
+        setContact({ nombre: '', telefono: '' });
+        setContactModalMode('initial');
+        setShowContactModal(true);
         publicClientService.getSedeInfo(slug).then(setSede).catch(() => setError('Sede no encontrada'));
         Promise.all([
             publicClientService.getCategories(slug),
@@ -51,11 +42,24 @@ const ClientesPedido = () => {
     const confirmContact = (e) => {
         e.preventDefault();
         if (!contact.nombre.trim() || !contact.telefono.trim()) return;
-        sessionStorage.setItem(SESSION_KEY(slug), JSON.stringify({
+        setContact({
             nombre: contact.nombre.trim(),
             telefono: contact.telefono.trim(),
-        }));
+        });
         setShowContactModal(false);
+    };
+
+    const openEditContact = () => {
+        if (!contact.nombre) return;
+        setContactModalMode('edit');
+        setShowContactModal(true);
+    };
+
+    const closeContactModal = () => {
+        if (contactModalMode === 'edit') {
+            setShowContactModal(false);
+            return;
+        }
     };
 
     const handleCategoryClick = async (cat) => {
@@ -132,12 +136,24 @@ const ClientesPedido = () => {
     }
 
     return (
-        <div className={mayoristaStyles.container}>
+        <div className={styles.pedidoPage}>
             {showContactModal && (
-                <div className={styles.modalOverlay}>
-                    <form className={`${styles.modal} glass-card`} onSubmit={confirmContact}>
+                <div
+                    className={styles.modalOverlay}
+                    onClick={contactModalMode === 'edit' ? closeContactModal : undefined}
+                    role="presentation"
+                >
+                    <form
+                        className={`${styles.modal} glass-card`}
+                        onSubmit={confirmContact}
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <h2>Sus datos</h2>
-                        <p>Ingrese nombre y teléfono para recibir avisos del pedido</p>
+                        <p>
+                            {contactModalMode === 'initial'
+                                ? 'Ingrese nombre y teléfono para recibir avisos del pedido'
+                                : 'Modifique sus datos si es necesario'}
+                        </p>
                         <div className={styles.modalField}>
                             <label htmlFor="cliente-nombre">Nombre</label>
                             <input
@@ -159,25 +175,42 @@ const ClientesPedido = () => {
                                 required
                             />
                         </div>
-                        <button type="submit" className="premium-button" style={{ width: '100%' }}>Continuar</button>
+                        <div className={styles.modalActions}>
+                            {contactModalMode === 'initial' ? (
+                                <Link to={`/clientes/${slug}`} className={styles.modalBackBtn}>
+                                    <ArrowLeft size={16} /> Volver
+                                </Link>
+                            ) : (
+                                <button type="button" className={styles.modalBackBtn} onClick={closeContactModal}>
+                                    Cancelar
+                                </button>
+                            )}
+                            <button type="submit" className="premium-button">
+                                {contactModalMode === 'initial' ? 'Continuar' : 'Guardar'}
+                            </button>
+                        </div>
                     </form>
                 </div>
             )}
 
-            <header className={`${mayoristaStyles.header} glass-card`} style={{ marginBottom: 16 }}>
+            <header className={`${mayoristaStyles.header} glass-card`}>
                 <Link to={`/clientes/${slug}`} className={styles.backLink} style={{ margin: 0 }}>
                     <ArrowLeft size={18} /> Volver
                 </Link>
                 <div className={mayoristaStyles.logo}>
                     Pedido cliente {sede ? `| ${sede.nombre}` : ''}
                 </div>
-                <div className={mayoristaStyles.userInfo}>
-                    <span>{contact.nombre}</span>
-                </div>
+                {!showContactModal && contact.nombre && (
+                    <button type="button" className={styles.contactBadge} onClick={openEditContact} title="Modificar datos">
+                        <span className={styles.contactBadgeName}>{contact.nombre}</span>
+                        <span className={styles.contactBadgePhone}>{contact.telefono}</span>
+                        <Pencil size={12} className={styles.contactBadgeIcon} aria-hidden />
+                    </button>
+                )}
             </header>
 
-            <main className={mayoristaStyles.mainGrid}>
-                <aside className={`${mayoristaStyles.column} ${mayoristaStyles.summaryColumn} glass-card`}>
+            <main className={styles.pedidoLayout}>
+                <aside className={`${styles.pedidoColumn} glass-card`}>
                     <h2 className={mayoristaStyles.colTitle}><ShoppingCart size={20} /> Su pedido</h2>
                     <div className={mayoristaStyles.itemsList}>
                         {items.length === 0 ? (
@@ -213,10 +246,11 @@ const ClientesPedido = () => {
                     </button>
                 </aside>
 
-                <section className={`${mayoristaStyles.column} ${mayoristaStyles.selectorColumn} glass-card`}>
+                <section className={`${styles.pedidoColumn} ${styles.pedidoSelector} glass-card`}>
                     <h2 className={mayoristaStyles.colTitle}><Package size={20} /> Seleccionar productos</h2>
+                    <div className={styles.pedidoSelectorBody}>
                     {step === 1 && (
-                        <div className={mayoristaStyles.grid}>
+                        <div className={styles.pedidoGrid}>
                             {categories.map((cat) => (
                                 <button key={cat.id} type="button" className={mayoristaStyles.card} onClick={() => handleCategoryClick(cat)}>
                                     {cat.imagen_url ? <img src={cat.imagen_url} alt={cat.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥩</span>}
@@ -228,7 +262,7 @@ const ClientesPedido = () => {
                     {step === 2 && (
                         <div>
                             <button type="button" onClick={() => setStep(1)} className={mayoristaStyles.backBtn}>← Categorías</button>
-                            <div className={mayoristaStyles.grid}>
+                            <div className={styles.pedidoGrid}>
                                 {cortes.map((corte) => (
                                     <button key={corte.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, corte }); setStep(3); }}>
                                         {corte.imagen_url ? <img src={corte.imagen_url} alt={corte.nombre} className={mayoristaStyles.cardImg} /> : <span className={mayoristaStyles.cardIcon}>🥓</span>}
@@ -241,7 +275,7 @@ const ClientesPedido = () => {
                     {step === 3 && (
                         <div>
                             <button type="button" onClick={() => setStep(2)} className={mayoristaStyles.backBtn}>← Productos</button>
-                            <div className={mayoristaStyles.grid}>
+                            <div className={styles.pedidoGrid}>
                                 {((selection.corte?.tipos_corte?.length ? selection.corte.tipos_corte : tiposCorte)).map((tipo) => (
                                     <button key={tipo.id} type="button" className={mayoristaStyles.card} onClick={() => { setSelection({ ...selection, tipoCorte: tipo }); setStep(4); }}>
                                         <span className={mayoristaStyles.cardIcon}>🔪</span>
@@ -270,6 +304,7 @@ const ClientesPedido = () => {
                             <button type="button" className="premium-button" onClick={handleAddToCart}><Plus size={18} /> Agregar</button>
                         </div>
                     )}
+                    </div>
                 </section>
             </main>
         </div>
