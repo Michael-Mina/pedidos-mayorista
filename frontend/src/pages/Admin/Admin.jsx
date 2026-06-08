@@ -1596,7 +1596,7 @@ const Admin = () => {
 
             {/* Modal for CRUD */}
             {showModal && (
-                <div className={styles.modalOverlay}>
+                <div className={`${styles.modalOverlay} ${modalType === 'sede' ? styles.modalOverlaySede : ''}`}>
                     <div className={`${styles.modal} ${modalType === 'sede' ? styles.modalSede : ''} glass-card`}>
                         <h3>{editItem ? 'Editar' : 'Crear'} {
                             modalType === 'user' ? 'Usuario' :
