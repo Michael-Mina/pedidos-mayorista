@@ -494,6 +494,28 @@ def update_sede(
 ):
     return crud.update_sede(db, sede_id, sede)
 
+
+@app.post("/sedes/{sede_id}/test-whatsapp", response_model=schemas.WhatsappTestResponse)
+def test_sede_whatsapp(
+    sede_id: int,
+    body: schemas.WhatsappTestRequest,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(auth.require_admin),
+):
+    sede = crud.get_sede_by_id(db, sede_id)
+    if not sede:
+        raise HTTPException(status_code=404, detail="Sede no encontrada")
+    ok, message, _ = notifications.send_test_whatsapp(
+        sede,
+        body.telefono,
+        instance_id=body.ultramsg_instance_id,
+        token=body.ultramsg_token,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=message)
+    return schemas.WhatsappTestResponse(ok=True, message=message)
+
+
 @app.delete("/sedes/{sede_id}")
 def delete_sede(
     sede_id: int,
@@ -887,6 +909,20 @@ async def delete_carnicero_endpoint(user_id: int, db: Session = Depends(get_db))
 @app.get("/users", response_model=List[schemas.User])
 def read_users(db: Session = Depends(get_db)):
     return [_user_api(db, u) for u in crud.get_users(db)]
+
+
+@app.get("/notification-logs", response_model=List[schemas.NotificationLog])
+def read_notification_logs(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(auth.require_admin),
+):
+    return (
+        db.query(models.NotificationLog)
+        .order_by(models.NotificationLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 @app.get("/roles/assignable", response_model=List[schemas.AppRole])

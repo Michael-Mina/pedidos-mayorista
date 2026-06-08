@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from sqlalchemy.orm import Session
@@ -33,11 +34,25 @@ def _ultramsg_global_configured() -> bool:
     return bool(ULTRAMSG_INSTANCE_ID and ULTRAMSG_TOKEN)
 
 
+def _normalize_instance_id(instance_id: str) -> str:
+    raw = (instance_id or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("instance"):
+        return raw
+    if raw.isdigit():
+        return f"instance{raw}"
+    return raw
+
+
 def _ultramsg_for_sede(sede: models.Sede | None) -> tuple[str, str] | None:
     if sede and sede.ultramsg_instance_id and sede.ultramsg_token:
-        return sede.ultramsg_instance_id.strip(), sede.ultramsg_token.strip()
+        instance = _normalize_instance_id(sede.ultramsg_instance_id)
+        token = sede.ultramsg_token.strip()
+        if instance and token:
+            return instance, token
     if _ultramsg_global_configured():
-        return ULTRAMSG_INSTANCE_ID, ULTRAMSG_TOKEN
+        return _normalize_instance_id(ULTRAMSG_INSTANCE_ID), ULTRAMSG_TOKEN
     return None
 
 
@@ -56,6 +71,48 @@ def _normalize_phone(phone: str) -> str:
     if phone.strip().startswith("+"):
         return phone.strip()
     return f"+{digits}"
+
+
+def _ultramsg_recipients(phone: str) -> list[str]:
+    """Formatos aceptados por UltraMsg para el destinatario."""
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return []
+    if len(digits) == 10:
+        digits = f"57{digits}"
+    recipients = [digits, f"+{digits}"]
+    if not digits.endswith("@c.us"):
+        recipients.append(f"{digits}@c.us")
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in recipients:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
+
+def whatsapp_configured_for_sede(sede: models.Sede | None) -> bool:
+    return _ultramsg_for_sede(sede) is not None
+
+
+def whatsapp_config_error(sede: models.Sede | None) -> str | None:
+    if not sede:
+        return "Sede no encontrada"
+    canal = (sede.notificacion_canal or "ambos")
+    if canal not in ("whatsapp", "ambos"):
+        return None
+    if _ultramsg_for_sede(sede):
+        return None
+    if sede.whatsapp_telefono:
+        return (
+            "Tiene teléfono WhatsApp pero faltan Instance ID y Token UltraMsg válidos. "
+            "Verifique que guardó el Token al editar la sede."
+        )
+    return (
+        "Configure Instance ID y Token UltraMsg en la sede "
+        "(o ULTRAMSG_INSTANCE_ID y ULTRAMSG_TOKEN en el servidor)."
+    )
 
 
 def _message_for_estado(numero: str | None, estado: str) -> str:
@@ -102,48 +159,132 @@ def _log_notification(
     db.commit()
 
 
+def _parse_ultramsg_response(raw: str) -> tuple[bool, str | None]:
+    if not raw:
+        return False, "Respuesta vacía de UltraMsg"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        if "ok" in raw.lower() or "sent" in raw.lower():
+            return True, None
+        return False, raw
+
+    if data.get("error"):
+        return False, str(data.get("error"))
+
+    sent = data.get("sent")
+    if sent is True or str(sent).lower() in ("true", "1"):
+        return True, None
+
+    if data.get("id"):
+        return True, None
+
+    message = data.get("message")
+    if isinstance(message, str):
+        lower = message.lower()
+        if any(word in lower for word in ("ok", "done", "sent", "queue", "added")):
+            return True, None
+
+    return False, data.get("message") or raw
+
+
+def _ultramsg_request(url: str, data: bytes, headers: dict[str, str]) -> tuple[bool, str | None, str]:
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+            ok, err = _parse_ultramsg_response(raw)
+            return ok, err, raw
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read().decode("utf-8")
+            ok, err = _parse_ultramsg_response(raw)
+            if ok:
+                return True, None, raw
+            return False, err or raw or str(exc), raw
+        except Exception:
+            return False, str(exc), ""
+    except Exception as exc:
+        logger.exception("[notifications] Error de red UltraMsg")
+        return False, str(exc), ""
+
+
 def _send_ultramsg_whatsapp(
     to: str,
     body: str,
     instance_id: str,
     token: str,
 ) -> tuple[bool, str | None]:
-    url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
-    payload = json.dumps({
-        "token": token,
-        "to": to,
-        "body": body,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    raw = ""
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8")
-            data = json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as exc:
-        try:
-            err_body = exc.read().decode("utf-8")
-            data = json.loads(err_body) if err_body else {}
-            err_msg = data.get("error") or data.get("message") or err_body or str(exc)
-        except Exception:
-            err_msg = str(exc)
-        logger.exception("[notifications] UltraMsg HTTP error a %s", to)
-        return False, err_msg
-    except Exception as exc:
-        logger.exception("[notifications] Error UltraMsg a %s", to)
-        return False, str(exc)
+    instance = _normalize_instance_id(instance_id)
+    token = (token or "").strip()
+    if not instance or not token:
+        return False, "Instance ID o Token UltraMsg vacíos"
 
-    sent = data.get("sent")
-    if sent is True or str(sent).lower() == "true" or data.get("id"):
-        return True, None
+    recipients = _ultramsg_recipients(to)
+    if not recipients:
+        return False, "Teléfono destino inválido"
 
-    err = data.get("error") or data.get("message") or raw or str(data)
-    return False, str(err) if err else "Respuesta inesperada de UltraMsg"
+    last_err = "No se pudo enviar"
+    last_raw = ""
+
+    for to_addr in recipients:
+        # Método oficial SDK: token en query + JSON {to, body}
+        url = (
+            f"https://api.ultramsg.com/{instance}/messages/chat"
+            f"?token={urllib.parse.quote(token)}"
+        )
+        payload = json.dumps({"to": to_addr, "body": body}).encode("utf-8")
+        ok, err, raw = _ultramsg_request(
+            url,
+            payload,
+            {"Content-Type": "application/json"},
+        )
+        last_raw = raw
+        if ok:
+            logger.info("[notifications] UltraMsg OK a %s: %s", to_addr, raw)
+            return True, None
+        last_err = err or last_err
+
+        # Respaldo: application/x-www-form-urlencoded
+        form_url = f"https://api.ultramsg.com/{instance}/messages/chat"
+        form_body = urllib.parse.urlencode({
+            "token": token,
+            "to": to_addr,
+            "body": body,
+        }).encode("utf-8")
+        ok, err, raw = _ultramsg_request(
+            form_url,
+            form_body,
+            {"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        last_raw = raw or last_raw
+        if ok:
+            logger.info("[notifications] UltraMsg OK (form) a %s: %s", to_addr, raw)
+            return True, None
+        last_err = err or last_err
+
+    logger.warning("[notifications] UltraMsg fallo a %s: %s", to, last_raw or last_err)
+    return False, last_err
+
+
+def send_test_whatsapp(
+    sede: models.Sede | None,
+    telefono: str,
+    instance_id: str | None = None,
+    token: str | None = None,
+) -> tuple[bool, str, str | None]:
+    inst = (instance_id or "").strip() or (sede.ultramsg_instance_id if sede else None)
+    tok = (token or "").strip() or (sede.ultramsg_token if sede else None)
+    inst_norm = _normalize_instance_id(inst or "")
+    tok = (tok or "").strip()
+    if not inst_norm or not tok:
+        return False, whatsapp_config_error(sede) or "UltraMsg no configurado", None
+
+    body = "Mensaje de prueba — Pedidos Mayorista. Si recibió esto, WhatsApp está funcionando."
+    ok, err = _send_ultramsg_whatsapp(telefono, body, inst_norm, tok)
+    if ok:
+        return True, "Mensaje enviado correctamente", None
+    return False, err or "Error desconocido", err
 
 
 def _send_twilio_sms(to: str, body: str) -> tuple[bool, str | None]:
@@ -170,7 +311,6 @@ def _send_twilio_sms(to: str, body: str) -> tuple[bool, str | None]:
 
 
 def _send_twilio_whatsapp(to: str, body: str) -> tuple[bool, str | None]:
-    """Respaldo legacy si UltraMsg no está configurado."""
     if not _twilio_configured():
         return False, "Twilio no configurado"
     if not TWILIO_WHATSAPP_FROM:
@@ -204,12 +344,7 @@ def _send_channel(
         creds = _ultramsg_for_sede(sede)
         if creds:
             return _send_ultramsg_whatsapp(phone, body, creds[0], creds[1])
-        sede_label = sede.nombre if sede else "sede"
-        msg = (
-            f"WhatsApp no configurado para {sede_label}. "
-            "Indique teléfono, Instance ID y Token UltraMsg en la sede, "
-            "o variables globales ULTRAMSG_INSTANCE_ID y ULTRAMSG_TOKEN."
-        )
+        msg = whatsapp_config_error(sede) or "WhatsApp no configurado"
         logger.warning("[notifications] %s", msg)
         return _send_twilio_whatsapp(phone, body) if _twilio_configured() else (False, msg)
     if channel == "sms":
@@ -218,29 +353,49 @@ def _send_channel(
 
 
 def send_pedido_status_notification(db: Session, pedido: models.Pedido, estado: str) -> None:
-    if pedido.origen != "cliente" or not pedido.cliente_telefono:
-        return
+    try:
+        if pedido.origen != "cliente":
+            logger.info("[notifications] Pedido %s omitido: origen=%s", pedido.id, pedido.origen)
+            return
+        if not pedido.cliente_telefono:
+            logger.info("[notifications] Pedido %s omitido: sin teléfono cliente", pedido.id)
+            return
 
-    sede = pedido.sede or db.query(models.Sede).filter(models.Sede.id == pedido.sede_id).first()
-    channels = _channels_for_sede(sede)
-    if not channels:
-        _log_notification(db, pedido.id, "ninguno", pedido.cliente_telefono, estado, "skipped", "Canal deshabilitado")
-        return
+        sede = db.query(models.Sede).filter(models.Sede.id == pedido.sede_id).first()
+        channels = _channels_for_sede(sede)
+        wa_err = whatsapp_config_error(sede)
+        if wa_err and "whatsapp" in channels:
+            logger.warning(
+                "[notifications] Pedido %s sede %s: %s",
+                pedido.id,
+                sede.nombre if sede else "?",
+                wa_err,
+            )
 
-    phone = _normalize_phone(pedido.cliente_telefono)
-    if not phone:
-        _log_notification(db, pedido.id, "ninguno", pedido.cliente_telefono, estado, "failed", "Teléfono inválido")
-        return
+        if not channels:
+            _log_notification(
+                db, pedido.id, "ninguno", pedido.cliente_telefono or "", estado, "skipped", "Canal deshabilitado"
+            )
+            return
 
-    body = _message_for_estado(pedido.numero_pedido, estado)
-    for channel in channels:
-        ok, err = _send_channel(phone, body, channel, sede)
-        _log_notification(
-            db,
-            pedido.id,
-            channel,
-            phone,
-            estado,
-            "sent" if ok else "failed",
-            err,
-        )
+        phone = _normalize_phone(pedido.cliente_telefono)
+        if not phone:
+            _log_notification(
+                db, pedido.id, "ninguno", pedido.cliente_telefono, estado, "failed", "Teléfono inválido"
+            )
+            return
+
+        body = _message_for_estado(pedido.numero_pedido, estado)
+        for channel in channels:
+            ok, err = _send_channel(phone, body, channel, sede)
+            _log_notification(
+                db,
+                pedido.id,
+                channel,
+                phone,
+                estado,
+                "sent" if ok else "failed",
+                err,
+            )
+    except Exception:
+        logger.exception("[notifications] Error inesperado pedido %s estado %s", pedido.id, estado)

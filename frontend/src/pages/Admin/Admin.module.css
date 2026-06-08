@@ -1211,6 +1211,30 @@
     line-height: 1.45;
 }
 
+.whatsappOk {
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.whatsappWarn {
+    color: var(--warning);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.whatsappTestRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.whatsappTestRow .input-field {
+    flex: 1;
+    min-width: 180px;
+}
+
 .roleCreateForm {
     padding: 20px;
     margin-bottom: 20px;

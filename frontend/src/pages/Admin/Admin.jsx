@@ -367,9 +367,52 @@ const Admin = () => {
         setShowModal(true);
     };
 
+    const handleTestWhatsapp = async () => {
+        if (!editItem?.id) {
+            showToast('Guarde la sede primero para probar WhatsApp', 'warning');
+            return;
+        }
+        const telefono = formData.test_whatsapp_telefono?.trim() || formData.whatsapp_telefono?.trim();
+        if (!telefono) {
+            showToast('Indique un teléfono de prueba', 'error');
+            return;
+        }
+        try {
+            await api.post(`/sedes/${editItem.id}/test-whatsapp`, {
+                telefono,
+                ultramsg_instance_id: formData.ultramsg_instance_id?.trim() || null,
+                ultramsg_token: formData.ultramsg_token?.trim() || null,
+            });
+            showToast('Mensaje de prueba enviado. Revise WhatsApp del destinatario.', 'success');
+        } catch (err) {
+            showToast(err.response?.data?.detail || 'No se pudo enviar la prueba', 'error');
+        }
+    };
+
+    const sedeWhatsappApiReady = (sede) => {
+        const canal = sede?.notificacion_canal || 'ambos';
+        if (canal === 'sms' || canal === 'ninguno') return true;
+        return Boolean(sede?.ultramsg_instance_id && sede?.ultramsg_token);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            if (modalType === 'sede') {
+                const canal = formData.notificacion_canal || 'ambos';
+                if (canal === 'whatsapp' || canal === 'ambos') {
+                    if (!formData.ultramsg_instance_id?.trim()) {
+                        showToast('Para WhatsApp debe indicar el UltraMsg Instance ID', 'error');
+                        return;
+                    }
+                    const hasToken = Boolean(formData.ultramsg_token?.trim() || editItem?.ultramsg_token);
+                    if (!hasToken) {
+                        showToast('Para WhatsApp debe indicar el UltraMsg Token', 'error');
+                        return;
+                    }
+                }
+            }
+
             let endpoint = '';
             let dataToSend = {};
 
@@ -1366,6 +1409,7 @@ const Admin = () => {
                                         <th>Nombre</th>
                                         <th>Slug / URLs públicas</th>
                                         <th>WhatsApp sede</th>
+                                        <th>API WhatsApp</th>
                                         <th>Notificaciones</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -1385,6 +1429,17 @@ const Admin = () => {
                                                 ) : '—'}
                                             </td>
                                             <td>{s.whatsapp_telefono || '—'}</td>
+                                            <td>
+                                                {(s.notificacion_canal === 'whatsapp' || s.notificacion_canal === 'ambos' || !s.notificacion_canal) ? (
+                                                    sedeWhatsappApiReady(s) ? (
+                                                        <span className={styles.whatsappOk}>Lista</span>
+                                                    ) : (
+                                                        <span className={styles.whatsappWarn} title="Faltan Instance ID y Token UltraMsg">
+                                                            Incompleta
+                                                        </span>
+                                                    )
+                                                ) : '—'}
+                                            </td>
                                             <td>{s.notificacion_canal || 'ambos'}</td>
                                             <td>
                                                 <button onClick={() => handleOpenModal('sede', s)} style={{ background: 'transparent', border: 'none', color: 'var(--primary-color)', marginRight: '10px' }}>Editar</button>
@@ -1587,27 +1642,47 @@ const Admin = () => {
                                         <>
                                             <p className={styles.fieldHint}>
                                                 WhatsApp por UltraMsg (mensajes automáticos desde el servidor, sin abrir la app).
+                                                El teléfono identifica el número vinculado; Instance ID y Token son obligatorios para enviar.
                                             </p>
                                             <input
-                                                placeholder="Teléfono WhatsApp de la sede (ej: 3001234567)"
+                                                placeholder="Teléfono WhatsApp de la sede (referencia, ej: 3001234567)"
                                                 className="input-field"
                                                 type="tel"
                                                 value={formData.whatsapp_telefono || ''}
                                                 onChange={e => setFormData({ ...formData, whatsapp_telefono: e.target.value })}
                                             />
                                             <input
-                                                placeholder="UltraMsg Instance ID"
+                                                placeholder="UltraMsg Instance ID (obligatorio)"
                                                 className="input-field"
                                                 value={formData.ultramsg_instance_id || ''}
                                                 onChange={e => setFormData({ ...formData, ultramsg_instance_id: e.target.value })}
+                                                required
                                             />
                                             <input
-                                                placeholder={editItem ? 'UltraMsg Token (dejar vacío si no cambia)' : 'UltraMsg Token'}
+                                                placeholder={editItem?.ultramsg_token ? 'UltraMsg Token (dejar vacío si no cambia)' : 'UltraMsg Token (obligatorio)'}
                                                 className="input-field"
                                                 type="password"
                                                 value={formData.ultramsg_token || ''}
                                                 onChange={e => setFormData({ ...formData, ultramsg_token: e.target.value })}
                                             />
+                                            {editItem && (
+                                                <div className={styles.whatsappTestRow}>
+                                                    <input
+                                                        placeholder="Teléfono de prueba (su celular)"
+                                                        className="input-field"
+                                                        type="tel"
+                                                        value={formData.test_whatsapp_telefono || ''}
+                                                        onChange={e => setFormData({ ...formData, test_whatsapp_telefono: e.target.value })}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        className="premium-button"
+                                                        onClick={handleTestWhatsapp}
+                                                    >
+                                                        Probar WhatsApp
+                                                    </button>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                     <input placeholder={editItem ? "Nueva Contraseña (dejar vacío si no cambia)" : "Contraseña de acceso"} type="password" className="input-field" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editItem} />

@@ -41,6 +41,29 @@ class SedePublicInfo(BaseModel):
     ciudad: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
+
+class NotificationLog(BaseModel):
+    id: int
+    pedido_id: Optional[int] = None
+    canal: str
+    destino: str
+    estado_pedido: str
+    status: str
+    error: Optional[str] = None
+    created_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WhatsappTestRequest(BaseModel):
+    telefono: str
+    ultramsg_instance_id: Optional[str] = None
+    ultramsg_token: Optional[str] = None
+
+
+class WhatsappTestResponse(BaseModel):
+    ok: bool
+    message: str
+
 class AppRoleBase(BaseModel):
     code: str
     label: str
