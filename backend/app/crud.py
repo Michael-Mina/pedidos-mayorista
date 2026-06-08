@@ -978,7 +978,12 @@ def get_turno_display(db: Session, sede_id: int) -> dict:
         .order_by(models.TurnoTicket.finished_at.desc())
         .first()
     )
-    return {"actual": actual, "proximos": proximos, "ultimo_atendido": ultimo_atendido}
+    return {
+        "actual": actual,
+        "proximos": proximos,
+        "ultimo_atendido": ultimo_atendido,
+        "proximo_numero": _next_turno_numero(db, sede_id),
+    }
 
 
 def get_turno_for_sede(db: Session, turno_id: int, sede_id: int):

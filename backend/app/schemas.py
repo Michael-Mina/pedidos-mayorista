@@ -293,3 +293,4 @@ class TurnoDisplay(BaseModel):
     actual: Optional[TurnoTicket] = None
     proximos: List[TurnoTicket] = []
     ultimo_atendido: Optional[TurnoTicket] = None
+    proximo_numero: int

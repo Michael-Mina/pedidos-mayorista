@@ -289,6 +289,7 @@ def _turno_display_payload(db: Session, sede_id: int) -> dict:
         actual=schemas.TurnoTicket.model_validate(data["actual"]) if data["actual"] else None,
         proximos=[schemas.TurnoTicket.model_validate(t) for t in data["proximos"]],
         ultimo_atendido=schemas.TurnoTicket.model_validate(data["ultimo_atendido"]) if data["ultimo_atendido"] else None,
+        proximo_numero=data["proximo_numero"],
     ).model_dump(mode="json")
 
 
@@ -706,6 +707,7 @@ def public_turno_display(slug: str, db: Session = Depends(get_db)):
         actual=schemas.TurnoTicket.model_validate(data["actual"]) if data["actual"] else None,
         proximos=[schemas.TurnoTicket.model_validate(t) for t in data["proximos"]],
         ultimo_atendido=schemas.TurnoTicket.model_validate(data["ultimo_atendido"]) if data["ultimo_atendido"] else None,
+        proximo_numero=data["proximo_numero"],
     )
 
 
