@@ -164,7 +164,10 @@ def _format_detalle_line(detalle: models.DetallePedido) -> str:
     gramos = detalle.gramos_porcion
     gramos_txt = f"{int(gramos)} g" if gramos and float(gramos).is_integer() else (f"{gramos} g" if gramos else None)
 
-    if detalle.modo_cantidad == "porciones" and detalle.num_porciones and gramos_txt:
+    if detalle.modo_cantidad == "unidades" and detalle.num_porciones:
+        n = int(detalle.num_porciones)
+        qty = f"{n} unidad" if n == 1 else f"{n} unidades"
+    elif detalle.modo_cantidad == "porciones" and detalle.num_porciones and gramos_txt:
         qty = f"{detalle.num_porciones} porciones de {gramos_txt} c/u"
     elif detalle.modo_cantidad == "kg" and gramos_txt:
         kg = _fmt_kg(detalle.cantidad_kg)

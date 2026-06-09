@@ -62,14 +62,18 @@ const ProductCatalog = ({ sedeNombre }) => {
         setEditItem(item);
         if (item) {
             if (type === 'cut') {
-                setFormData({ ...item, tipos_corte_ids: item.tipos_corte?.map((t) => t.id) || [] });
+                setFormData({
+                    ...item,
+                    tipos_corte_ids: item.tipos_corte?.map((t) => t.id) || [],
+                    es_empacado: Boolean(item.es_empacado),
+                });
             } else {
                 setFormData({ ...item });
             }
         } else if (prefilled) {
             setFormData(prefilled);
         } else {
-            setFormData({});
+            setFormData(type === 'cut' ? { es_empacado: false } : {});
         }
         setShowModal(true);
     };
@@ -195,11 +199,13 @@ const ProductCatalog = ({ sedeNombre }) => {
                 };
             } else if (modalType === 'cut') {
                 endpoint = '/cortes';
+                const esEmpacado = Boolean(formData.es_empacado);
                 dataToSend = {
                     nombre: formData.nombre,
                     categoria_id: parseInt(formData.categoria_id, 10),
                     imagen_url: formData.imagen_url || null,
-                    tipos_corte_ids: formData.tipos_corte_ids || [],
+                    es_empacado: esEmpacado,
+                    tipos_corte_ids: esEmpacado ? [] : (formData.tipos_corte_ids || []),
                 };
             } else if (modalType === 'tipoCorte') {
                 endpoint = '/tipos-corte';
@@ -584,59 +590,93 @@ const ProductCatalog = ({ sedeNombre }) => {
                             {editItem ? 'Editar' : 'Crear'}{' '}
                             {modalType === 'category' ? 'Categoría' : modalType === 'cut' ? 'Producto' : 'Corte'}
                         </h3>
-                        <form onSubmit={handleSubmit}>
+                        <form onSubmit={handleSubmit} className={styles.modalForm}>
                             {modalType === 'category' && (
                                 <>
-                                    <input placeholder="Nombre Categoría" className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
-                                    <input placeholder="Imagen URL (opcional)" className="input-field" value={formData.imagen_url || ''} onChange={(e) => setFormData({ ...formData, imagen_url: e.target.value })} />
+                                    <div className={styles.modalField}>
+                                        <label htmlFor="cat-nombre">Nombre</label>
+                                        <input id="cat-nombre" placeholder="Nombre categoría" className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
+                                    </div>
+                                    <div className={styles.modalField}>
+                                        <label htmlFor="cat-img">Imagen URL (opcional)</label>
+                                        <input id="cat-img" placeholder="https://..." className="input-field" value={formData.imagen_url || ''} onChange={(e) => setFormData({ ...formData, imagen_url: e.target.value })} />
+                                    </div>
                                 </>
                             )}
                             {modalType === 'cut' && (
                                 <>
-                                    <input placeholder="Nombre del Producto" className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
-                                    <input placeholder="Imagen URL (opcional)" className="input-field" value={formData.imagen_url || ''} onChange={(e) => setFormData({ ...formData, imagen_url: e.target.value })} />
-                                    <select
-                                        className="input-field"
-                                        value={formData.categoria_id || ''}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setFormData({ ...formData, categoria_id: val ? parseInt(val, 10) : '' });
-                                        }}
-                                        required
-                                    >
-                                        <option value="">Seleccionar Categoría</option>
-                                        {products.categories.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.nombre}</option>
-                                        ))}
-                                    </select>
-                                    <div style={{ marginTop: '10px' }}>
-                                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            Cortes permitidos (opcional):
-                                        </label>
-                                        <div className={styles.tiposGrid}>
-                                            {products.tiposCorte.map((tc) => (
-                                                <label key={tc.id} className={styles.tipoCheck}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={(formData.tipos_corte_ids || []).includes(tc.id)}
-                                                        onChange={(e) => {
-                                                            const currentIds = formData.tipos_corte_ids || [];
-                                                            if (e.target.checked) {
-                                                                setFormData({ ...formData, tipos_corte_ids: [...currentIds, tc.id] });
-                                                            } else {
-                                                                setFormData({ ...formData, tipos_corte_ids: currentIds.filter((id) => id !== tc.id) });
-                                                            }
-                                                        }}
-                                                    />
-                                                    {tc.nombre}
-                                                </label>
-                                            ))}
-                                        </div>
+                                    <div className={styles.modalField}>
+                                        <label htmlFor="cut-nombre">Nombre del producto</label>
+                                        <input id="cut-nombre" placeholder="Ej: Salchichas, Queso..." className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
                                     </div>
+                                    <div className={styles.modalField}>
+                                        <label htmlFor="cut-img">Imagen URL (opcional)</label>
+                                        <input id="cut-img" placeholder="https://..." className="input-field" value={formData.imagen_url || ''} onChange={(e) => setFormData({ ...formData, imagen_url: e.target.value })} />
+                                    </div>
+                                    <div className={styles.modalField}>
+                                        <label htmlFor="cut-cat">Categoría</label>
+                                        <select
+                                            id="cut-cat"
+                                            className="input-field"
+                                            value={formData.categoria_id || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setFormData({ ...formData, categoria_id: val ? parseInt(val, 10) : '' });
+                                            }}
+                                            required
+                                        >
+                                            <option value="">Seleccionar categoría</option>
+                                            {products.categories.map((c) => (
+                                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <label className={styles.empacadoToggle}>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(formData.es_empacado)}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                es_empacado: e.target.checked,
+                                                tipos_corte_ids: e.target.checked ? [] : (formData.tipos_corte_ids || []),
+                                            })}
+                                        />
+                                        <span>
+                                            <strong>Producto empacado</strong>
+                                            <small>Sin corte ni porcionamiento — el pedido será por unidades (paquetes) y observaciones.</small>
+                                        </span>
+                                    </label>
+                                    {!formData.es_empacado && (
+                                        <div className={styles.modalField}>
+                                            <label>Cortes / preparaciones permitidos (opcional)</label>
+                                            <div className={styles.tiposGrid}>
+                                                {products.tiposCorte.map((tc) => (
+                                                    <label key={tc.id} className={styles.tipoCheck}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={(formData.tipos_corte_ids || []).includes(tc.id)}
+                                                            onChange={(e) => {
+                                                                const currentIds = formData.tipos_corte_ids || [];
+                                                                if (e.target.checked) {
+                                                                    setFormData({ ...formData, tipos_corte_ids: [...currentIds, tc.id] });
+                                                                } else {
+                                                                    setFormData({ ...formData, tipos_corte_ids: currentIds.filter((id) => id !== tc.id) });
+                                                                }
+                                                            }}
+                                                        />
+                                                        {tc.nombre}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
                             {modalType === 'tipoCorte' && (
-                                <input placeholder="Nombre del Corte (Ej: Mariposa)" className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
+                                <div className={styles.modalField}>
+                                    <label htmlFor="tipo-nombre">Nombre del corte</label>
+                                    <input id="tipo-nombre" placeholder="Ej: Mariposa" className="input-field" value={formData.nombre || ''} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
+                                </div>
                             )}
                             <div className={styles.modalActions}>
                                 <button type="button" onClick={() => setShowModal(false)} className="premium-button" style={{ background: 'var(--bg-card)' }}>Cancelar</button>

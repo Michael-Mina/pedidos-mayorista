@@ -130,6 +130,20 @@ def _ensure_detalle_cantidad_columns() -> None:
 _ensure_detalle_cantidad_columns()
 
 
+def _ensure_corte_empacado_column() -> None:
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE cortes ADD COLUMN IF NOT EXISTS es_empacado BOOLEAN DEFAULT FALSE NOT NULL;"
+            ))
+            conn.commit()
+    except Exception:
+        pass
+
+
+_ensure_corte_empacado_column()
+
+
 def _ensure_cliente_panel_columns() -> None:
     """Slug de sede, pedidos cliente y tablas de turnos/notificaciones."""
     try:

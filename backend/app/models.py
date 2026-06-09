@@ -109,6 +109,7 @@ class Corte(Base):
     categoria_id = Column(Integer, ForeignKey("categorias.id"))
     nombre = Column(String, index=True)
     imagen_url = Column(String, nullable=True)
+    es_empacado = Column(Boolean, default=False, nullable=False, server_default="false")
 
     sede = relationship("Sede", backref="cortes")
     categoria = relationship("Categoria", back_populates="cortes")

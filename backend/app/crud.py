@@ -185,7 +185,9 @@ def create_corte(db: Session, corte: schemas.CorteBase, sede_id: int):
     corte_data = corte.model_dump(exclude={"tipos_corte_ids"})
     db_corte = models.Corte(**corte_data, sede_id=sede_id)
 
-    if corte.tipos_corte_ids:
+    if corte.es_empacado:
+        db_corte.tipos_corte = []
+    elif corte.tipos_corte_ids:
         db_corte.tipos_corte = _tipos_corte_for_sede(db, sede_id, corte.tipos_corte_ids)
 
     db.add(db_corte)
@@ -206,8 +208,11 @@ def update_corte(db: Session, corte_id: int, corte: schemas.CorteBase, sede_id: 
     db_corte.nombre = corte.nombre
     db_corte.categoria_id = corte.categoria_id
     db_corte.imagen_url = corte.imagen_url
+    db_corte.es_empacado = corte.es_empacado
 
-    if corte.tipos_corte_ids is not None:
+    if corte.es_empacado:
+        db_corte.tipos_corte = []
+    elif corte.tipos_corte_ids is not None:
         db_corte.tipos_corte = _tipos_corte_for_sede(db, sede_id, corte.tipos_corte_ids)
 
     db.commit()

@@ -180,6 +180,7 @@ class CorteBase(BaseModel):
     nombre: str
     imagen_url: Optional[str] = None
     tipos_corte_ids: Optional[List[int]] = []
+    es_empacado: bool = False
 
 class Corte(CorteBase):
     id: int
@@ -192,7 +193,7 @@ class DetallePedidoBase(BaseModel):
     tipo_corte_id: int
     cantidad_kg: float = 0
     observaciones: Optional[str] = None
-    modo_cantidad: Optional[Literal["porciones", "kg"]] = None
+    modo_cantidad: Optional[Literal["porciones", "kg", "unidades"]] = None
     num_porciones: Optional[int] = None
     gramos_porcion: Optional[float] = None
 
@@ -210,6 +211,10 @@ class DetallePedidoBase(BaseModel):
                 raise ValueError("Indique los kilogramos totales")
             if not self.gramos_porcion or self.gramos_porcion <= 0:
                 raise ValueError("Indique los gramos por porción")
+            return self
+        if modo == "unidades":
+            if not self.num_porciones or self.num_porciones < 1:
+                raise ValueError("Indique la cantidad de unidades (mínimo 1)")
             return self
         # Por porciones sin modo explícito (compatibilidad)
         if (

@@ -38,6 +38,11 @@ export function formatItemCantidad(item) {
     const porcionTxt = pesoPorcionTexto(item);
     const modo = item.modo_cantidad ?? item.modoCantidad;
 
+    if (modo === 'unidades') {
+        const n = item.num_porciones ?? item.numPorciones ?? item.cantidad_unidades;
+        if (n === 1) return '1 unidad';
+        if (n) return `${n} unidades`;
+    }
     if (modo === 'porciones') {
         const n = item.num_porciones ?? item.numPorciones;
         if (n && porcionTxt) return `${n} porc. de ${porcionTxt}`;
@@ -99,9 +104,47 @@ export function buildDetallePayload(item) {
         tipo_corte_id: item.tipo_corte_id,
         cantidad_kg,
         modo_cantidad: modo,
-        num_porciones: modo === 'porciones' ? Number(item.num_porciones ?? item.numPorciones) : null,
+        num_porciones: modo === 'porciones' || modo === 'unidades'
+            ? Number(item.num_porciones ?? item.numPorciones ?? item.cantidad_unidades)
+            : null,
         gramos_porcion,
         observaciones: item.observaciones || null,
+    };
+}
+
+/** Tipo de corte interno para productos empacados. */
+export function resolveTipoCorteEmpacado(tiposCorte) {
+    const prefer = ['empacado', 'unidad', 'unidades', 'paquete', 'entero', 'estandar', 'estándar'];
+    for (const name of prefer) {
+        const found = (tiposCorte || []).find((t) => (t.nombre || '').toLowerCase() === name);
+        if (found) return found.id;
+    }
+    return tiposCorte?.[0]?.id ?? null;
+}
+
+export function isCorteEmpacado(corte) {
+    return Boolean(corte?.es_empacado);
+}
+
+/** Ítem de carrito — producto empacado (solo unidades y observaciones). */
+export function buildCartItemEmpacado({
+    selection,
+    tempUnidades,
+    tempObs,
+    tiposCorte,
+}) {
+    const tipoId = resolveTipoCorteEmpacado(tiposCorte);
+    return {
+        corte_id: selection.corte.id,
+        tipo_corte_id: tipoId,
+        name: selection.corte.nombre,
+        type: 'Empacado',
+        pedidoModo: 'empacado',
+        modo_cantidad: 'unidades',
+        num_porciones: tempUnidades,
+        gramos_porcion: null,
+        qty: 0,
+        observaciones: tempObs,
     };
 }
 

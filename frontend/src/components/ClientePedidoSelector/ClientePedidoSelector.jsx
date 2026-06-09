@@ -110,6 +110,55 @@ const ClientePedidoSelector = ({
         );
     }
 
+    if (step === 5 && pedidoModo === 'empacado') {
+        return (
+            <div className={styles.qtyForm}>
+                <button type="button" onClick={() => onBack(2)} className={styles.backBtn}>← Volver</button>
+                <h3>{corteNombre}</h3>
+                <p className={styles.modeHint}>Producto empacado — indique cuántas unidades necesita.</p>
+                <div className={styles.formGroup}>
+                    <label>Cantidad de unidades (paquetes)</label>
+                    <div className={styles.qtyControl}>
+                        <button type="button" className={styles.qtyBtn} onClick={() => setTempPorciones((p) => Math.max(1, (parseInt(p, 10) || 1) - 1))}>
+                            <Minus size={16} />
+                        </button>
+                        <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            className={`${styles.qtyInput} input-field`}
+                            value={tempPorciones}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (val > 0) setTempPorciones(val);
+                                else if (e.target.value === '') setTempPorciones('');
+                            }}
+                            onBlur={() => {
+                                if (!tempPorciones || tempPorciones < 1) setTempPorciones(1);
+                            }}
+                        />
+                        <button type="button" className={styles.qtyBtn} onClick={() => setTempPorciones((p) => (parseInt(p, 10) || 0) + 1)}>
+                            <Plus size={16} />
+                        </button>
+                    </div>
+                </div>
+                <div className={styles.formGroup}>
+                    <label>Observaciones</label>
+                    <textarea
+                        className="input-field"
+                        rows="3"
+                        placeholder="Ej: Marca preferida, fecha de vencimiento..."
+                        value={tempObs}
+                        onChange={(e) => setTempObs(e.target.value)}
+                    />
+                </div>
+                <button type="button" className="premium-button" onClick={onSubmit}>
+                    <Plus size={18} /> {isEditing ? 'Guardar cambios' : 'Agregar al pedido'}
+                </button>
+            </div>
+        );
+    }
+
     if (step === 5) {
         const titulo = pedidoModo === 'preparacion'
             ? `${corteNombre} — ${selection.tipoCorte?.nombre}`

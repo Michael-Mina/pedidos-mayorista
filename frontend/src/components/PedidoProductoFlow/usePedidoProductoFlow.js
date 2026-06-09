@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { buildCartItemFlujo } from '../../utils/pedidoCantidad';
+import { buildCartItemFlujo, buildCartItemEmpacado, isCorteEmpacado } from '../../utils/pedidoCantidad';
 
 export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdded }) {
     const [step, setStep] = useState(1);
@@ -53,7 +53,14 @@ export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdd
     const handleCorteSelect = useCallback((corte) => {
         setSelection((s) => ({ ...s, corte, tipoCorte: null }));
         resetCantidadForm();
-        setStep(3);
+        if (isCorteEmpacado(corte)) {
+            setPedidoModo('empacado');
+            setModoCantidad('unidades');
+            setTempPorciones(1);
+            setStep(5);
+        } else {
+            setStep(3);
+        }
     }, [resetCantidadForm]);
 
     const handleSelectPedidoModo = useCallback((modo) => {
@@ -74,11 +81,11 @@ export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdd
     }, []);
 
     const handleSelectorBack = useCallback((targetStep) => {
-        if (targetStep === 3) {
+        if (targetStep === 2 || targetStep === 3) {
             setPedidoModo(null);
             setModoCantidad(null);
             setSelection((s) => ({ ...s, tipoCorte: null }));
-            setEditingIndex(null);
+            if (targetStep === 3) setEditingIndex(null);
         }
         if (targetStep === 4 && pedidoModo === 'porciones') {
             setModoCantidad(null);
@@ -88,6 +95,7 @@ export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdd
 
     const inferPedidoModo = useCallback((item) => {
         if (item.pedidoModo) return item.pedidoModo;
+        if (item.modo_cantidad === 'unidades' || item.type === 'Empacado') return 'empacado';
         if (item.type === 'Por porciones') return 'porciones';
         if (item.modo_cantidad === 'porciones') return 'porciones';
         if (item.modo_cantidad === 'kg' && item.type && item.type !== item.name) {
@@ -101,7 +109,11 @@ export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdd
         const modo = inferPedidoModo(item);
         setSelection({
             category: null,
-            corte: { id: item.corte_id, nombre: item.name },
+            corte: {
+                id: item.corte_id,
+                nombre: item.name,
+                es_empacado: modo === 'empacado',
+            },
             tipoCorte: modo === 'preparacion'
                 ? { id: item.tipo_corte_id, nombre: item.type }
                 : null,
@@ -117,6 +129,21 @@ export function usePedidoProductoFlow({ tiposCorte, pesoUnidad = 'lb', onItemAdd
     }, [inferPedidoModo]);
 
     const validateAndBuildItem = useCallback(() => {
+        if (pedidoModo === 'empacado') {
+            if (!tempPorciones || tempPorciones < 1) {
+                return { error: 'Indique la cantidad de unidades' };
+            }
+            const item = buildCartItemEmpacado({
+                selection,
+                tempUnidades: tempPorciones,
+                tempObs,
+                tiposCorte,
+            });
+            if (!item.tipo_corte_id) {
+                return { error: 'No hay tipos de preparación configurados.' };
+            }
+            return { error: null, item };
+        }
         if (pedidoModo === 'preparacion') {
             if (!selection.tipoCorte || !tempPesoTotal || tempPesoTotal <= 0) {
                 return { error: pesoUnidad === 'kg' ? 'Indique el peso en kg' : 'Indique el peso en libras' };

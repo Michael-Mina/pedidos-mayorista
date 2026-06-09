@@ -318,6 +318,58 @@
     color: var(--text-light);
 }
 
+.modalForm {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.modalField {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.modalField label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.empacadoToggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    background: rgba(93, 156, 236, 0.08);
+    border: 1px solid rgba(93, 156, 236, 0.25);
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.empacadoToggle input {
+    margin-top: 4px;
+    flex-shrink: 0;
+    accent-color: #5d9cec;
+}
+
+.empacadoToggle strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.95rem;
+}
+
+.empacadoToggle small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    font-weight: 400;
+}
+
 .modalActions {
     display: flex;
     gap: 12px;
