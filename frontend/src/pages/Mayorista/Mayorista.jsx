@@ -289,6 +289,41 @@ const Mayorista = () => {
         onItemAdded: handleItemAdded,
     });
 
+    const selectedCategoryIdRef = useRef(null);
+
+    useEffect(() => {
+        selectedCategoryIdRef.current = flow.selection?.category?.id ?? null;
+    }, [flow.selection?.category?.id]);
+
+    const fetchCatalogData = useCallback(async () => {
+        const [categoriesResult, typesResult] = await Promise.allSettled([
+            productService.getCategories(),
+            productService.getTiposCorte(),
+        ]);
+
+        if (categoriesResult.status === 'fulfilled') {
+            setCategories(categoriesResult.value);
+        } else {
+            console.error('Error fetching categories:', categoriesResult.reason);
+        }
+
+        if (typesResult.status === 'fulfilled') {
+            setTiposCorte(typesResult.value);
+        } else {
+            console.error('Error fetching cut types:', typesResult.reason);
+        }
+
+        const catId = selectedCategoryIdRef.current;
+        if (catId) {
+            try {
+                const res = await productService.getCortes(catId);
+                setCortes(res);
+            } catch (error) {
+                console.error('Error fetching cortes:', error);
+            }
+        }
+    }, []);
+
     const refreshPedidosHistory = useCallback(async ({ showRefreshing = false } = {}) => {
         if (!user?.sede_id) return;
         if (showRefreshing) setHistoryRefreshing(true);
@@ -351,37 +386,30 @@ const Mayorista = () => {
                 setViewingOrder((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
                 setReportingPedido((prev) => (prev?.id === updatedOrder.id ? updatedOrder : prev));
             });
+
+            socketService.onCatalogUpdate((payload) => {
+                if (payload?.sede_id && user.sede_id && String(payload.sede_id) !== String(user.sede_id)) {
+                    return;
+                }
+                fetchCatalogData();
+            });
         }
 
         return () => {
             socketService.offNewOrder();
             socketService.offOrderUpdate();
+            socketService.offCatalogUpdate();
             socketService.disconnect();
         };
-    }, [user]);
+    }, [user, fetchCatalogData]);
 
-    const fetchInitialData = async () => {
-        const [categoriesResult, typesResult] = await Promise.allSettled([
-            productService.getCategories(),
-            productService.getTiposCorte()
-        ]);
-
+    const fetchInitialData = useCallback(async () => {
+        await fetchCatalogData();
         await refreshPedidosHistory();
-
-        if (categoriesResult.status === 'fulfilled') {
-            setCategories(categoriesResult.value);
-        } else {
-            console.error("Error fetching categories:", categoriesResult.reason);
-        }
-
-        if (typesResult.status === 'fulfilled') {
-            setTiposCorte(typesResult.value);
-        } else {
-            console.error("Error fetching cut types:", typesResult.reason);
-        }
-    };
+    }, [fetchCatalogData, refreshPedidosHistory]);
 
     const handleCategoryClick = async (cat) => {
+        selectedCategoryIdRef.current = cat.id;
         flow.setSelection({ ...flow.selection, category: cat });
         try {
             const res = await productService.getCortes(cat.id);

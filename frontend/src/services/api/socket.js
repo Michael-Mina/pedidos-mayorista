@@ -14,6 +14,7 @@ const handlers = {
     approval_update: null,
     carnicero_update: null,
     turn_update: null,
+    catalog_update: null,
 };
 
 function bindEvent(eventName, key, callback) {
@@ -80,6 +81,12 @@ export const socketService = {
     },
     offTurnUpdate: () => {
         unbindEvent('turn_update', 'turn_update');
+    },
+    onCatalogUpdate: (callback) => {
+        bindEvent('catalog_update', 'catalog_update', callback);
+    },
+    offCatalogUpdate: () => {
+        unbindEvent('catalog_update', 'catalog_update');
     },
 };
 

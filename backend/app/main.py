@@ -314,6 +314,13 @@ async def _emit_pedido_rooms(event: str, payload, sede_id: str):
     await sio.emit(event, payload, room="manager")
 
 
+async def _emit_catalog_update(sede_id: int) -> None:
+    """Notifica cambios de catálogo a mayorista, clientes y jefe de carnes de la sede."""
+    payload = {"sede_id": int(sede_id)}
+    await sio.emit("catalog_update", payload, room=f"sede_{sede_id}")
+    await sio.emit("catalog_update", payload, room="manager")
+
+
 def _turno_display_payload(db: Session, sede_id: int) -> dict:
     data = crud.get_turno_display(db, sede_id)
     return schemas.TurnoDisplay(
@@ -560,15 +567,17 @@ def read_categories(
     return crud.get_categories(db, current_user.sede_id)
 
 @app.post("/categorias", response_model=schemas.Categoria)
-def create_category(
+async def create_category(
     cat: schemas.CategoriaBase,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
 ):
-    return crud.create_category(db, cat, current_user.sede_id)
+    created = crud.create_category(db, cat, current_user.sede_id)
+    await _emit_catalog_update(current_user.sede_id)
+    return created
 
 @app.put("/categorias/{cat_id}", response_model=schemas.Categoria)
-def update_category(
+async def update_category(
     cat_id: int,
     cat: schemas.CategoriaBase,
     db: Session = Depends(get_db),
@@ -577,10 +586,11 @@ def update_category(
     updated = crud.update_category(db, cat_id, cat, current_user.sede_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Categoría no encontrada en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return updated
 
 @app.delete("/categorias/{cat_id}")
-def delete_category(
+async def delete_category(
     cat_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
@@ -588,6 +598,7 @@ def delete_category(
     deleted = crud.delete_category(db, cat_id, current_user.sede_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Categoría no encontrada en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return {"ok": True}
 
 @app.get("/cortes", response_model=List[schemas.Corte])
@@ -599,18 +610,20 @@ def read_cortes(
     return crud.get_cortes(db, current_user.sede_id, categoria_id)
 
 @app.post("/cortes", response_model=schemas.Corte)
-def create_corte_endpoint(
+async def create_corte_endpoint(
     corte: schemas.CorteBase,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
 ):
     try:
-        return crud.create_corte(db, corte, current_user.sede_id)
+        created = crud.create_corte(db, corte, current_user.sede_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await _emit_catalog_update(current_user.sede_id)
+    return created
 
 @app.put("/cortes/{corte_id}", response_model=schemas.Corte)
-def update_corte_endpoint(
+async def update_corte_endpoint(
     corte_id: int,
     corte: schemas.CorteBase,
     db: Session = Depends(get_db),
@@ -622,10 +635,11 @@ def update_corte_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     if not updated:
         raise HTTPException(status_code=404, detail="Producto no encontrado en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return updated
 
 @app.delete("/cortes/{corte_id}")
-def delete_corte_endpoint(
+async def delete_corte_endpoint(
     corte_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
@@ -633,6 +647,7 @@ def delete_corte_endpoint(
     deleted = crud.delete_corte(db, corte_id, current_user.sede_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Producto no encontrado en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return {"ok": True}
 
 @app.get("/tipos-corte", response_model=List[schemas.TipoCorte])
@@ -643,15 +658,17 @@ def read_tipos_corte(
     return crud.get_tipos_corte(db, current_user.sede_id)
 
 @app.post("/tipos-corte", response_model=schemas.TipoCorte)
-def create_tipo_corte_endpoint(
+async def create_tipo_corte_endpoint(
     tipo: schemas.TipoCorteBase,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
 ):
-    return crud.create_tipo_corte(db, tipo, current_user.sede_id)
+    created = crud.create_tipo_corte(db, tipo, current_user.sede_id)
+    await _emit_catalog_update(current_user.sede_id)
+    return created
 
 @app.put("/tipos-corte/{tipo_id}", response_model=schemas.TipoCorte)
-def update_tipo_corte_endpoint(
+async def update_tipo_corte_endpoint(
     tipo_id: int,
     tipo: schemas.TipoCorteBase,
     db: Session = Depends(get_db),
@@ -660,10 +677,11 @@ def update_tipo_corte_endpoint(
     updated = crud.update_tipo_corte(db, tipo_id, tipo, current_user.sede_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Tipo de corte no encontrado en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return updated
 
 @app.delete("/tipos-corte/{tipo_id}")
-def delete_tipo_corte_endpoint(
+async def delete_tipo_corte_endpoint(
     tipo_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_catalog_manager),
@@ -671,6 +689,7 @@ def delete_tipo_corte_endpoint(
     deleted = crud.delete_tipo_corte(db, tipo_id, current_user.sede_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Tipo de corte no encontrado en esta sede")
+    await _emit_catalog_update(current_user.sede_id)
     return {"ok": True}
 
 
@@ -721,6 +740,7 @@ async def import_catalog_excel(
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error al importar catálogo: {exc}")
+    await _emit_catalog_update(current_user.sede_id)
     return result
 
 

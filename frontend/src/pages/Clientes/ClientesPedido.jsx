@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, Trash2, Package, Pencil, Edit2, X, AlertCircle } from 'lucide-react';
 import publicClientService from '../../services/api/publicClient';
+import { socketService } from '../../services/api/socket';
 import PedidoProductoFlow from '../../components/PedidoProductoFlow/PedidoProductoFlow';
 import { usePedidoProductoFlow } from '../../components/PedidoProductoFlow/usePedidoProductoFlow';
 import { buildDetallePayload, formatItemCantidad } from '../../utils/pedidoCantidad';
@@ -37,20 +38,51 @@ const ClientesPedido = () => {
         onItemAdded: handleItemAdded,
     });
 
+    const selectedCategoryIdRef = useRef(null);
+
+    useEffect(() => {
+        selectedCategoryIdRef.current = flow.selection?.category?.id ?? null;
+    }, [flow.selection?.category?.id]);
+
+    const reloadCatalog = useCallback(async () => {
+        try {
+            const [cats, tipos] = await Promise.all([
+                publicClientService.getCategories(slug),
+                publicClientService.getTiposCorte(slug),
+            ]);
+            setCategories(cats);
+            setTiposCorte(tipos);
+            const catId = selectedCategoryIdRef.current;
+            if (catId) {
+                const cortesRes = await publicClientService.getCortes(slug, catId);
+                setCortes(cortesRes);
+            }
+        } catch (err) {
+            console.error('Error reloading catalog:', err);
+        }
+    }, [slug]);
+
     useEffect(() => {
         sessionStorage.removeItem(`cliente_pedido_${slug}`);
         setContact({ nombre: '', telefono: '' });
         setContactModalMode('initial');
         setShowContactModal(true);
         publicClientService.getSedeInfo(slug).then(setSede).catch(() => setError('Sede no encontrada'));
-        Promise.all([
-            publicClientService.getCategories(slug),
-            publicClientService.getTiposCorte(slug),
-        ]).then(([cats, tipos]) => {
-            setCategories(cats);
-            setTiposCorte(tipos);
-        }).catch((err) => setError(err.message));
-    }, [slug]);
+        reloadCatalog().catch((err) => setError(err.message));
+    }, [slug, reloadCatalog]);
+
+    useEffect(() => {
+        if (!sede?.id) return undefined;
+        socketService.connect(`sede_${sede.id}`);
+        socketService.onCatalogUpdate((payload) => {
+            if (payload?.sede_id && String(payload.sede_id) !== String(sede.id)) return;
+            reloadCatalog();
+        });
+        return () => {
+            socketService.offCatalogUpdate();
+            socketService.disconnect();
+        };
+    }, [sede?.id, reloadCatalog]);
 
     const confirmContact = (e) => {
         e.preventDefault();
@@ -76,6 +108,7 @@ const ClientesPedido = () => {
     };
 
     const handleCategoryClick = async (cat) => {
+        selectedCategoryIdRef.current = cat.id;
         flow.setSelection({ ...flow.selection, category: cat });
         const res = await publicClientService.getCortes(slug, cat.id);
         setCortes(res);

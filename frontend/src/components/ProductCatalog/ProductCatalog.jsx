@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Plus, Search, Download, Upload } from 'lucide-react';
 import api, { downloadCatalogExcel, downloadCatalogTemplate, importCatalogExcel } from '../../services/api';
+import { socketService } from '../../services/api/socket';
 import { useAppDialog } from '../../context/AppDialogContext';
 import styles from './ProductCatalog.module.css';
 
@@ -32,8 +33,8 @@ const ProductCatalog = ({ sedeNombre }) => {
     const [showImportSummary, setShowImportSummary] = useState(false);
     const fileInputRef = useRef(null);
 
-    const fetchCatalog = useCallback(async () => {
-        setLoading(true);
+    const fetchCatalog = useCallback(async ({ silent = false } = {}) => {
+        if (!silent) setLoading(true);
         try {
             const [resCats, resCortes, resTipos] = await Promise.all([
                 api.get('/categorias'),
@@ -47,14 +48,21 @@ const ProductCatalog = ({ sedeNombre }) => {
             });
         } catch (error) {
             console.error('Error fetching catalog:', error);
-            showToast('No se pudo cargar el catálogo de productos', 'error');
+            if (!silent) showToast('No se pudo cargar el catálogo de productos', 'error');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [showToast]);
 
     useEffect(() => {
         fetchCatalog();
+    }, [fetchCatalog]);
+
+    useEffect(() => {
+        socketService.onCatalogUpdate(() => {
+            fetchCatalog({ silent: true });
+        });
+        return () => socketService.offCatalogUpdate();
     }, [fetchCatalog]);
 
     const handleOpenModal = (type, item = null, prefilled = null) => {
