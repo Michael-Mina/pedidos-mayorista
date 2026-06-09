@@ -8,7 +8,6 @@ import {
     AlertTriangle,
     CheckCircle,
     Power,
-    RefreshCcw,
     Activity,
     Eraser,
     Monitor,
@@ -75,7 +74,6 @@ const JefeCarnes = () => {
     const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'historial', 'reportes', 'personal', 'productos'
     const [sedeNombre, setSedeNombre] = useState('');
     const [sedeSlug, setSedeSlug] = useState('');
-    const [loading, setLoading] = useState(false);
 
     // Personal / Carniceros State
     const [carniceros, setCarniceros] = useState([]);
@@ -386,21 +384,33 @@ const JefeCarnes = () => {
         currentPage * itemsPerPage
     );
 
-    const monitorNeedsLiveTick = useMemo(
-        () => monitorOrdersOrigen.some((o) => o.estado === 'pendiente' || o.estado === 'en_proceso'),
-        [monitorOrdersOrigen]
-    );
-
     const switchMonitorOrigen = (origen) => {
         setMonitorOrigen(origen);
         setCurrentPage(1);
     };
 
+    const fetchData = useCallback(async ({ silent = false } = {}) => {
+        if (!user) return;
+        try {
+            const params = user.sede_id ? { sede_id: user.sede_id } : {};
+            const response = await api.get('/pedidos', { params });
+            setGlobalOrders(response.data.slice(-50).reverse());
+        } catch (error) {
+            if (!silent) console.error('Error fetching global data:', error);
+        }
+    }, [user]);
+
     useEffect(() => {
-        if (activeTab !== 'monitor' || !monitorNeedsLiveTick) return;
+        if (activeTab !== 'monitor') return;
         const id = setInterval(() => setNowTick(Date.now()), 1000);
         return () => clearInterval(id);
-    }, [activeTab, monitorNeedsLiveTick]);
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab !== 'monitor' || !user) return;
+        const id = setInterval(() => fetchData({ silent: true }), 15000);
+        return () => clearInterval(id);
+    }, [activeTab, user, fetchData]);
 
     useEffect(() => {
         requestNotificationPermission();
@@ -480,20 +490,7 @@ const JefeCarnes = () => {
             socketService.offCarniceroUpdate();
             socketService.disconnect();
         };
-    }, [user]);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const params = user?.sede_id ? { sede_id: user.sede_id } : {};
-            const response = await api.get('/pedidos', { params });
-            setGlobalOrders(response.data.slice(-50).reverse());
-        } catch (error) {
-            console.error("Error fetching global data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [user, fetchData]);
 
     const fetchCarniceros = async () => {
         try {
@@ -660,7 +657,7 @@ const JefeCarnes = () => {
             </aside>
 
             <main className={styles.content}>
-                <header className={`${styles.topBanner} glass-card`}>
+                <header className={`${styles.topBanner} glass-card ${activeTab === 'monitor' ? styles.topBannerMonitor : ''}`}>
                     <h1>{
                         activeTab === 'monitor' ? 'Monitor Global' :
                         activeTab === 'personal' ? 'Gestión de Personal' :
@@ -670,16 +667,7 @@ const JefeCarnes = () => {
                         'Historial'
                     }</h1>
                     {activeTab === 'monitor' && (
-                        <button onClick={fetchData} className={styles.refreshBtn} disabled={loading} title="Actualizar pedidos">
-                            <RefreshCcw size={18} className={loading ? styles.spinning : ''} />
-                        </button>
-                    )}
-                </header>
-
-                <div className={styles.scrollArea}>
-
-                    {activeTab === 'monitor' && (
-                        <div className={styles.monitorView}>
+                        <div className={styles.topBannerMonitorTools}>
                             <div className={styles.monitorOrigenToggle} role="tablist" aria-label="Origen de pedidos">
                                 <button
                                     type="button"
@@ -700,7 +688,18 @@ const JefeCarnes = () => {
                                     Clientes
                                 </button>
                             </div>
+                            <div className={styles.liveBadge} title="Actualización automática en tiempo real">
+                                <span className={styles.liveDot} aria-hidden />
+                                En vivo
+                            </div>
+                        </div>
+                    )}
+                </header>
 
+                <div className={styles.scrollArea}>
+
+                    {activeTab === 'monitor' && (
+                        <div className={styles.monitorView}>
                             <div className={styles.statsRow}>
                                 <div className={`${styles.statCard} glass-card`}>
                                     <Clock size={24} color="#3498db" />

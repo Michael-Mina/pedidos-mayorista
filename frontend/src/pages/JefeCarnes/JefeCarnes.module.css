@@ -128,22 +128,40 @@
     text-transform: uppercase;
 }
 
-.refreshBtn {
-    background: var(--primary-color);
-    border: none;
-    padding: 10px;
-    border-radius: 8px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
+.topBannerMonitor {
+    gap: 16px;
 }
 
-.refreshBtn:hover {
-    transform: scale(1.05);
+.topBannerMonitorTools {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.liveBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #7dcea0;
+    white-space: nowrap;
+}
+
+.liveDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.5);
+    animation: livePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.45); }
+    50% { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
 }
 
 .spinning {
@@ -568,8 +586,8 @@
 .monitorOrigenToggle {
     display: inline-flex;
     gap: 0;
-    margin-bottom: 18px;
-    padding: 4px;
+    margin-bottom: 0;
+    padding: 3px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1284,6 +1302,11 @@
         align-items: stretch;
         text-align: left;
         margin: 12px 12px 0;
+    }
+
+    .topBannerMonitorTools {
+        justify-content: space-between;
+        width: 100%;
     }
 
     .scrollArea {
