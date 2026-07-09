@@ -12,25 +12,38 @@ try:
         db.refresh(sede)
     
     # 2. Ensure Category exists
-    cat = db.query(models.Categoria).first()
+    cat = (
+        db.query(models.Categoria)
+        .filter(models.Categoria.sede_id == sede.id, models.Categoria.nombre == "Res")
+        .first()
+    )
     if not cat:
-        cat = models.Categoria(nombre="Res")
+        cat = models.Categoria(nombre="Res", sede_id=sede.id)
         db.add(cat)
         db.commit()
         db.refresh(cat)
     
     # 3. Ensure Corte exists
-    corte = db.query(models.Corte).first()
+    corte = (
+        db.query(models.Corte)
+        .filter(models.Corte.sede_id == sede.id, models.Corte.nombre == "Lomo")
+        .first()
+    )
     if not corte:
-        corte = models.Corte(nombre="Lomo", categoria_id=cat.id)
+        corte = models.Corte(nombre="Lomo", categoria_id=cat.id, sede_id=sede.id)
         db.add(corte)
         db.commit()
         db.refresh(corte)
     
     # 4. Ensure TiposCorte exist
-    if db.query(models.TipoCorte).count() == 0:
+    if (
+        db.query(models.TipoCorte)
+        .filter(models.TipoCorte.sede_id == sede.id)
+        .count()
+        == 0
+    ):
         for tname in ["Mariposa", "Delgado", "Grueso"]:
-            db.add(models.TipoCorte(nombre=tname))
+            db.add(models.TipoCorte(nombre=tname, sede_id=sede.id))
         db.commit()
 
     # 5. Usuario mayorista de prueba (siempre idempotente por username)

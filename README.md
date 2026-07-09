@@ -29,6 +29,7 @@ Blueprint en la raíz: **`render.yaml`** (API + frontend estático + PostgreSQL)
 8. [Seguridad](#seguridad)
 9. [Scripts útiles](#scripts-útiles)
 10. [Base de datos](#base-de-datos)
+    - [Rearmar la base en otro equipo o servidor](#rearmar-la-base-en-otro-equipo-o-servidor)
 11. [Problemas frecuentes](#problemas-frecuentes)
 
 ---
@@ -118,8 +119,12 @@ pip install -r requirements.txt
 Primera vez o BD vacía — datos mínimos de prueba:
 
 ```powershell
+python reset_db.py
 python setup_initial_data.py
+python create_master.py
 ```
+
+> Para migrar datos desde otro servidor o rearmar la BD en otro equipo, ver [Rearmar la base en otro equipo o servidor](#rearmar-la-base-en-otro-equipo-o-servidor).
 
 Arrancar API:
 
@@ -275,7 +280,8 @@ Ejecutar desde la carpeta `backend` con el venv activado:
 
 | Script | Uso |
 |--------|-----|
-| `setup_initial_data.py` | Datos mínimos: sede, categoría, `mayorista_test` |
+| `setup_initial_data.py` | Datos mínimos: sede, categoría, tipos de corte, `mayorista_test`, `admin1` |
+| `create_master.py` | Usuario master (`master` / contraseña en `.env`) |
 | `reset_db.py` | **Borra todas las tablas** y las recrea vacías |
 | `create_admin.py` | Crear usuario administrador (interactivo) |
 | `seed_cortes_res_servidor.py` | Insertar/actualizar cortes de res en BD |
@@ -292,16 +298,196 @@ Guía completa: [docs/BACKUP.md](docs/BACKUP.md). Desde el panel **Admin → Res
 
 ### Creación automática al arrancar
 
-Al iniciar uvicorn, FastAPI ejecuta `create_all`: crea tablas que falten según los modelos actuales.
+Al iniciar uvicorn, FastAPI ejecuta `create_all`: crea tablas que falten según los modelos actuales. No inserta usuarios ni catálogo por sí solo.
 
-### Reinicio completo (desarrollo)
+### Reinicio completo (mismo equipo, desarrollo)
 
 ```powershell
 cd backend
 .\venv\Scripts\Activate.ps1
 python reset_db.py
 python setup_initial_data.py
+python create_master.py
 ```
+
+En Linux/macOS:
+
+```bash
+cd backend
+source venv/bin/activate
+python reset_db.py
+python setup_initial_data.py
+python create_master.py
+```
+
+Luego arranca el API una vez para que sincronice el catálogo de res (`catalogo_res.py`):
+
+```powershell
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+---
+
+### Rearmar la base en otro equipo o servidor
+
+Usa esta guía cuando clones el proyecto en **otro PC**, cambies de servidor PostgreSQL o migres desde **producción (Render)** a **local** (o al revés).
+
+#### Requisitos previos en el destino
+
+1. **PostgreSQL** instalado y en ejecución (12 o superior).
+2. **Python 3.9+** con el venv del backend (`pip install -r requirements.txt`).
+3. Archivo **`backend/.env`** apuntando al PostgreSQL **del nuevo lugar**:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=supertiendas_db
+DB_USER=postgres
+DB_PASS=tu_contraseña
+SECRET_KEY=una_clave_larga_y_unica
+```
+
+En Render u otro hosting, suele bastar con `DATABASE_URL` (el backend la prioriza sobre `DB_*`).
+
+4. Herramientas cliente PostgreSQL (`psql`, `pg_dump`) en PATH o en `.env`:
+
+```env
+PG_DUMP_PATH=C:\Program Files\PostgreSQL\17\bin
+```
+
+---
+
+#### Opción A — Base vacía con datos de prueba (instalación nueva)
+
+Para un entorno de desarrollo o demo **sin** copiar pedidos ni usuarios reales.
+
+**1. Crear la base de datos** (una sola vez), en pgAdmin o `psql`:
+
+```sql
+CREATE DATABASE supertiendas_db;
+```
+
+Windows (si `psql` no está en PATH):
+
+```powershell
+$env:PGPASSWORD='tu_contraseña'
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -h localhost -c "CREATE DATABASE supertiendas_db;"
+```
+
+**2. Crear tablas y datos mínimos** (desde `backend/` con venv activado):
+
+```powershell
+python reset_db.py
+python setup_initial_data.py
+python create_master.py
+```
+
+**3. Arrancar el API** (sincroniza catálogo de res e imágenes en BD):
+
+```powershell
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Usuarios creados:**
+
+| Rol | Usuario | Contraseña |
+|-----|---------|------------|
+| Mayorista | `mayorista_test` | `test123` |
+| Admin | `admin1` | `12345678` |
+| Master | `master` | `Master@2026Pedidos` (o `MASTER_USERNAME` / `MASTER_PASSWORD` en `.env`) |
+
+Opcional — forzar descarga de imágenes de productos:
+
+```powershell
+python descargar_imagenes_res.py
+```
+
+---
+
+#### Opción B — Copiar datos reales desde otro servidor (respaldo)
+
+Para **migrar** sedes, usuarios, pedidos, catálogo e imágenes tal como estaban.
+
+**En el servidor de origen**
+
+1. **Panel Admin → Respaldo** → descargar ZIP, **o**
+2. Terminal en `backend/`:
+
+```powershell
+python backup_db.py
+```
+
+El respaldo queda en `backups/backup_YYYYMMDD_HHMMSS/` (o un ZIP si lo descargaste desde Admin).
+
+**En el equipo o servidor de destino**
+
+1. Clona el repo e instala dependencias del backend (ver [Inicio rápido](#inicio-rápido-desarrollo-local)).
+2. Configura `backend/.env` con la conexión al PostgreSQL **nuevo**.
+3. Crea la base vacía si no existe:
+
+```sql
+CREATE DATABASE supertiendas_db;
+```
+
+4. Copia la carpeta del respaldo (o descomprime el ZIP) al destino. Debe contener `manifest.json`, `schema.sql`, `data.sql` y opcionalmente `static.zip`.
+5. Restaura (desde `backend/`):
+
+```powershell
+python restore_db.py --list
+python restore_db.py "D:\ruta\al\respaldo" --drop-schema -y
+```
+
+Si descomprimiste un ZIP de Admin, apunta a la carpeta que **contiene** `manifest.json` (a veces hay una subcarpeta dentro del ZIP).
+
+6. Arranca el API y el frontend. Los usuarios y contraseñas serán los del servidor de origen.
+
+Guía detallada: [docs/BACKUP.md](docs/BACKUP.md).
+
+---
+
+#### Opción C — Render (producción) u otro hosting
+
+**Base nueva en Render**
+
+1. Crea el servicio PostgreSQL en Render y enlázalo al API (`DATABASE_URL` se inyecta solo).
+2. Despliega el API; al arrancar se crean las tablas (`create_all`).
+3. En el **Shell** del servicio API:
+
+```bash
+python setup_initial_data.py
+python create_master.py
+```
+
+O define `SEED_ON_STARTUP=true` en variables de entorno y redeploy (crea `mayorista_test`, `admin1` y actualiza contraseñas al arrancar).
+
+**Traer datos de Render a tu PC**
+
+1. En Render → PostgreSQL → copia **External Database URL**.
+2. Pégala en `backend/.env` como `DATABASE_URL=...` (temporalmente).
+3. Ejecuta `python backup_db.py` en tu máquina local.
+4. Cambia `.env` al PostgreSQL local y restaura con `restore_db.py` (Opción B).
+
+**Subir un respaldo local a Render**
+
+1. Crea la BD en Render y despliega el API (tablas vacías o con `reset_db.py` vía Shell si hace falta).
+2. Copia `DATABASE_URL` de Render a `backend/.env` en tu PC.
+3. `python restore_db.py "ruta\al\respaldo" --drop-schema -y`
+4. Sube `static/` al servicio o incluye `static.zip` en el respaldo (se restaura en `backend/static/`).
+
+Más pasos de deploy: [docs/RENDER.md](docs/RENDER.md).
+
+---
+
+#### Resumen rápido
+
+| Objetivo | Comandos principales |
+|----------|----------------------|
+| BD vacía + demo en otro PC | `CREATE DATABASE` → `reset_db.py` → `setup_initial_data.py` → `create_master.py` → arrancar API |
+| Migrar todo desde otro servidor | `backup_db.py` (origen) → copiar carpeta/ZIP → `restore_db.py --drop-schema -y` (destino) |
+| Borrar y empezar de cero (mismo PC) | `reset_db.py` → `setup_initial_data.py` → `create_master.py` |
+| Solo esquema SQL manual | Ver `init_db.sql` o [README_SETUP.md](README_SETUP.md) |
+
+> **Importante:** `reset_db.py` y `restore_db.py --drop-schema` **borran todos los datos** de la base destino. Confirma la conexión en `.env` antes de ejecutarlos.
 
 ### Alternativa con SQL manual
 

@@ -2,6 +2,8 @@
 
 La documentación principal y actualizada está en **[README.md](./README.md)**.
 
+Para **rearmar o migrar la base de datos en otro equipo o servidor**, usa la sección **[Rearmar la base en otro equipo o servidor](./README.md#rearmar-la-base-en-otro-equipo-o-servidor)** del README principal.
+
 Este archivo conserva solo el detalle de **recreación manual de la base de datos con SQL**, por si prefieres pgAdmin o `psql` en lugar de los scripts de Python.
 
 ---
